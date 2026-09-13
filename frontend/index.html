@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentChat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/icon.png">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- 1. Leftmost Icon Navigation Rail (Material You Expressive Rail) -->
+    <nav class="nav-rail">
+      <div class="rail-top">
+        <div class="rail-brand" title="AgentChat">
+          <img src="/icon.png" alt="AgentChat" class="rail-logo" />
+        </div>
+        <button class="rail-btn active" id="rail-tab-chats" title="Conversations (Ctrl+1)">
+          <div class="rail-icon-wrapper">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+          </div>
+          <span class="rail-label">Chats</span>
+        </button>
+        <button class="rail-btn" id="rail-tab-models" title="Model Hub & Latency (Ctrl+2)">
+          <div class="rail-icon-wrapper">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg>
+          </div>
+          <span class="rail-label">Models</span>
+        </button>
+        <button class="rail-btn" id="rail-tab-mcp" title="MCP & Tools (Ctrl+3)">
+          <div class="rail-icon-wrapper">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+          </div>
+          <span class="rail-label">MCP</span>
+        </button>
+      </div>
+
+      <div class="rail-bottom">
+        <button class="rail-btn" id="rail-tab-settings" title="Settings & Providers">
+          <div class="rail-icon-wrapper">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          </div>
+          <span class="rail-label">Settings</span>
+        </button>
+        <div class="rail-status-pill" title="Upstream Connection State">
+          <div class="rail-status" id="rail-status-dot"></div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- 2. Contextual Sidebar Panel (Conversation History / Models / MCP) -->
+    <aside class="sub-sidebar" id="sub-sidebar">
+      <!-- Section A: Chats Sidebar View -->
+      <div class="sidebar-pane" id="pane-chats">
+        <div class="pane-header">
+          <h2>Conversations</h2>
+          <button id="new-chat-btn" class="btn btn-tonal btn-sm" title="New Session (Ctrl+N)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            New
+          </button>
+        </div>
+        <div class="search-box">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="chat-search-input" placeholder="Search sessions..." />
+        </div>
+        <div class="conversation-list" id="chat-list">
+          <!-- Chat session items injected here -->
+        </div>
+      </div>
+
+      <!-- Section B: Models Sidebar View -->
+      <div class="sidebar-pane hidden" id="pane-models">
+        <div class="pane-header">
+          <h2>Model Hub</h2>
+          <button id="sidebar-probe-btn" class="btn btn-tonal btn-sm" title="Check Upstream Availability">
+            🔄 Check
+          </button>
+        </div>
+        <div class="quick-filter-pills">
+          <button class="pill-btn active" onclick="filterRankings('all')">All</button>
+          <button class="pill-btn" onclick="filterRankings('coding')">Coding</button>
+          <button class="pill-btn" onclick="filterRankings('speed')">Speed</button>
+        </div>
+        <div class="models-mini-list" id="models-mini-list">
+          <!-- Models list injected here -->
+        </div>
+      </div>
+
+      <!-- Section C: MCP Tools Sidebar View -->
+      <div class="sidebar-pane hidden" id="pane-mcp">
+        <div class="pane-header">
+          <h2>MCP & Tools</h2>
+          <button id="open-add-mcp-btn" class="btn btn-tonal btn-sm" title="Register Stdio Server">
+            + Add
+          </button>
+        </div>
+        <div class="mcp-servers-list" id="mcp-servers-list">
+          <!-- Configured MCP servers and native plugins injected here -->
+        </div>
+      </div>
+    </aside>
+
+    <!-- 3. Main Workspace / Chat Viewport -->
+    <main class="main-viewport">
+      <!-- Clean Minimal Topbar -->
+      <header class="chat-topbar">
+        <div class="topbar-left-group">
+          <button id="toggle-sidebar-btn" class="icon-toggle-btn" title="Toggle Drawer">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+          </button>
+
+          <!-- Active Model Dropdown -->
+          <div class="select-pill-wrapper">
+            <select id="model-select" class="select-pill model-pill" title="Active Model">
+              <option value="claude-opus-5" selected>🟢 Claude Opus 5 (Online)</option>
+              <option value="claude-opus-4-8">🟢 Claude Opus 4.8 (Online)</option>
+              <option value="deepseek-v4-flash">🟢 DeepSeek V4 Flash (Online)</option>
+              <option value="glm-5.3">🟢 GLM 5.3 (Online)</option>
+              <option value="gpt-6-astra">⚪ GPT-6 Astra</option>
+              <option value="gpt-5.6-sol">⚪ GPT-5.6 Sol</option>
+            </select>
+          </div>
+
+          <!-- Effort Level Pill -->
+          <div class="select-pill-wrapper">
+            <select id="effort-select" class="select-pill effort-pill" title="Reasoning & Thinking Effort">
+              <option value="low">Effort: Low</option>
+              <option value="medium" selected>Effort: Medium</option>
+              <option value="high">Effort: High</option>
+              <option value="extra">Effort: Extra</option>
+              <option value="ultra">Effort: Ultra/Max</option>
+            </select>
+          </div>
+
+          <!-- Provider Pill -->
+          <div class="select-pill-wrapper">
+            <select id="provider-select" class="select-pill provider-pill" title="Active AI Provider">
+              <option value="agentrouter">AgentRouter</option>
+              <option value="tabitoken">Tabitoken</option>
+              <option value="openrouter">OpenRouter</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="topbar-right-group">
+          <!-- Active Tools Indicator Pill -->
+          <div class="tools-status-pill" id="tools-status-pill" title="Active Tools & MCP Servers">
+            <span class="tools-dot"></span>
+            <span id="tools-status-text">Web Search & PDF Active</span>
+          </div>
+
+          <!-- Token Savings Badge -->
+          <div class="token-badge" title="Reasoning Tokens Pruned Before Forwarding">
+            <span>-75% Prompt Tokens</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Messages Viewport -->
+      <div class="messages-viewport" id="messages-container">
+        <!-- Empty state welcome (Workbench Dashboard) -->
+        <div class="welcome-screen" id="welcome-screen">
+          <div class="workbench-status-card">
+            <div class="workbench-top-meta">
+              <div class="status-chip-group">
+                <span class="status-live-chip">
+                  <span class="live-pulse"></span>
+                  AgentRouter Active
+                </span>
+                <span class="status-route-chip">Direct IP: 8.214.161.192</span>
+              </div>
+              <button id="banner-check-btn" class="btn btn-tonal-tertiary btn-xs">↻ Check Quotas</button>
+            </div>
+
+            <h1 class="workbench-title">Multi-Engine Workbench</h1>
+            <p class="workbench-desc">Direct gateway connectivity with automatic reasoning compression, local document ingestion, and stdio tool execution.</p>
+
+            <div class="refill-schedule-board">
+              <div class="schedule-lead">
+                <span class="schedule-icon">⏱</span>
+                <span>Quota Refills:</span>
+              </div>
+              <div class="schedule-slots">
+                <span class="slot-badge">00:00 BJT (21:30 IST)</span>
+                <span class="slot-badge">08:00 BJT (05:30 IST)</span>
+                <span class="slot-badge">16:00 BJT (13:30 IST)</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="asymmetric-workbench-grid">
+            <div class="workbench-tile primary-tile" onclick="useSuggestion('Search the web for the latest benchmarks and architecture of DeepSeek-V4')">
+              <div class="tile-tag">Organic Web Search</div>
+              <div class="tile-title">Query live DuckDuckGo web results with inline source citations</div>
+              <div class="tile-action-prompt">Click to search latest benchmarks →</div>
+            </div>
+
+            <div class="workbench-tile" onclick="document.getElementById('file-input').click()">
+              <div class="tile-tag">Local Extraction</div>
+              <div class="tile-title">Ingest local PDFs & code files via pypdf with zero cloud exposure</div>
+              <div class="tile-action-prompt">Attach documents →</div>
+            </div>
+
+            <div class="workbench-tile" onclick="switchToRailTab('models')">
+              <div class="tile-tag">Live Metrics</div>
+              <div class="tile-title">Compare coding benchmarks, reasoning speed & token costs across models</div>
+              <div class="tile-action-prompt">Open Model Hub →</div>
+            </div>
+
+            <div class="workbench-tile" onclick="switchToRailTab('mcp')">
+              <div class="tile-tag">Protocol Tools</div>
+              <div class="tile-title">Register and test local stdio MCP servers for filesystem and memory</div>
+              <div class="tile-action-prompt">Configure MCP →</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chat messages stream here -->
+        <div class="messages-list" id="messages-list"></div>
+      </div>
+
+
+      <!-- Input Area -->
+      <div class="chat-input-wrapper">
+        <!-- Attachment Tray -->
+        <div class="attachment-tray hidden" id="attachment-tray"></div>
+
+        <div class="chat-input-box">
+          <!-- Left Action Buttons -->
+          <div class="input-left-buttons">
+            <button id="attach-btn" class="action-circle-btn" title="Attach PDF, Document, or Image">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+            </button>
+            <input type="file" id="file-input" class="hidden" accept=".pdf,.txt,.md,.py,.js,.json,.csv,.png,.jpg,.jpeg,.webp" multiple />
+
+            <button id="websearch-toggle-btn" class="action-pill-btn" title="Toggle Real-Time Web Search">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+              <span>Search: OFF</span>
+            </button>
+          </div>
+
+          <textarea 
+            id="user-input" 
+            placeholder="Send a message, ask to search the web, or attach a PDF... (Shift+Enter for newline, Enter to send)" 
+            rows="1"
+            autofocus
+          ></textarea>
+          
+          <div class="input-right-buttons">
+            <button id="send-btn" class="send-circle-btn" title="Send message">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </button>
+            <button id="stop-btn" class="stop-circle-btn hidden" title="Stop generating">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg>
+            </button>
+          </div>
+        </div>
+        <div class="input-hint-row">
+          <span>Direct unblocked proxy • Multi-Provider • MCP & Tools • Auto-Compressed Context</span>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add / Edit MCP Server Modal -->
+  <div class="modal-overlay hidden" id="add-mcp-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Add MCP Server</h3>
+        <button id="close-mcp-modal-btn" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="mcp-name-input">Server Name</label>
+          <input type="text" id="mcp-name-input" placeholder="e.g. SQLite DB, Filesystem, Custom" />
+        </div>
+        <div class="form-group">
+          <label for="mcp-command-input">Command</label>
+          <input type="text" id="mcp-command-input" placeholder="e.g. npx, python, node" />
+        </div>
+        <div class="form-group">
+          <label for="mcp-args-input">Arguments (space separated or JSON array)</label>
+          <input type="text" id="mcp-args-input" placeholder='-y @modelcontextprotocol/server-filesystem C:\Users\HP' />
+        </div>
+        <div class="form-group">
+          <button id="test-mcp-btn" class="btn btn-secondary">🔍 Test Server Connection</button>
+          <small class="hint" id="mcp-test-status"></small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="save-mcp-server-btn" class="btn btn-primary">Save Server</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings & Providers Modal -->
+  <div class="modal-overlay hidden" id="settings-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Settings & AI Providers</h3>
+        <button id="close-settings-btn" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="setting-provider-choice">Active Provider</label>
+          <select id="setting-provider-choice" class="form-select">
+            <option value="agentrouter">AgentRouter (agentrouter.org)</option>
+            <option value="tabitoken">Tabitoken (tabitoken.com)</option>
+            <option value="openrouter">OpenRouter (openrouter.ai)</option>
+            <option value="custom">Custom Provider</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="setting-api-key">API Key for Selected Provider</label>
+          <div class="input-with-toggle">
+            <input type="password" id="setting-api-key" placeholder="sk-..." />
+            <button type="button" id="toggle-key-visibility" class="toggle-btn">Show</button>
+          </div>
+          <small class="hint">Stored safely in local config.json on your computer.</small>
+        </div>
+
+        <div class="form-group">
+          <label for="setting-base-url">Provider Base URL</label>
+          <input type="text" id="setting-base-url" placeholder="https://agentrouter.org" />
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-container">
+            <input type="checkbox" id="setting-auto-compress" checked />
+            <span class="checkmark"></span>
+            <span class="checkbox-text">⚡ <strong>Auto-Compress Chat History</strong> (Saves 70-80% tokens on long chats while keeping full context)</span>
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label for="setting-temp">Temperature: <span id="temp-display">0.7</span></label>
+          <input type="range" id="setting-temp" min="0" max="1" step="0.05" value="0.7" />
+        </div>
+
+        <div class="form-group">
+          <label for="setting-system-prompt">Custom System Prompt (Optional)</label>
+          <textarea id="setting-system-prompt" rows="2" placeholder="Leave empty for minimal token consumption."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="save-settings-btn" class="btn btn-primary">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

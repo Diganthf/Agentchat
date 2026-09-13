@@ -1,0 +1,39 @@
+{
+  "active_provider": "agentrouter",
+  "providers": {
+    "agentrouter": {
+      "name": "AgentRouter",
+      "base_url": "https://agentrouter.org",
+      "api_key": "",
+      "is_agentrouter": true
+    },
+    "tabitoken": {
+      "name": "Tabitoken",
+      "base_url": "https://tabitoken.com",
+      "api_key": "",
+      "is_agentrouter": false
+    },
+    "openrouter": {
+      "name": "OpenRouter",
+      "base_url": "https://openrouter.ai/api",
+      "api_key": "",
+      "is_agentrouter": false
+    },
+    "custom": {
+      "name": "Custom Provider",
+      "base_url": "https://api.openai.com",
+      "api_key": "",
+      "is_agentrouter": false
+    }
+  },
+  "mcp_servers": {},
+  "plugins": {
+    "web_search": {"name": "Real-Time Web Search", "description": "DuckDuckGo organic live web search", "enabled": true},
+    "pdf_reader": {"name": "PDF & Document Parser", "description": "High-fidelity pypdf page extraction", "enabled": true},
+    "math_eval": {"name": "Math & Code Calculator", "description": "Accurate math logic and python evaluation", "enabled": true}
+  },
+  "model": "deepseek-v4-flash",
+  "temperature": 0.7,
+  "system_prompt": "",
+  "auto_compress": true
+}
