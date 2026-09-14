@@ -150,6 +150,10 @@
   const tempDisplay = document.getElementById("temp-display");
   const settingSystemPrompt = document.getElementById("setting-system-prompt");
   const toggleKeyVisibility = document.getElementById("toggle-key-visibility");
+  const settingSavedKeysSelect = document.getElementById("setting-saved-keys-select");
+  const settingKeyAlias = document.getElementById("setting-key-alias");
+  const saveKeyToVaultBtn = document.getElementById("save-key-to-vault-btn");
+  const deleteCurrentKeyBtn = document.getElementById("delete-current-key-btn");
 
   // Auth & Zero-Knowledge API Wrapper
   function getAuthHeaders(extra = {}) {
@@ -305,6 +309,18 @@
     });
 
     saveSettingsBtn.addEventListener("click", saveConfig);
+
+    if (settingSavedKeysSelect) {
+      settingSavedKeysSelect.addEventListener("change", () => {
+        syncSelectedKeyWithInputs(settingProviderChoice.value);
+      });
+    }
+    if (saveKeyToVaultBtn) {
+      saveKeyToVaultBtn.addEventListener("click", saveCurrentKeyToVault);
+    }
+    if (deleteCurrentKeyBtn) {
+      deleteCurrentKeyBtn.addEventListener("click", deleteCurrentKeyFromVault);
+    }
 
     // Probe button in sidebar
     const sideProbeBtn = document.getElementById("sidebar-probe-btn");
@@ -957,8 +973,9 @@
               const data = JSON.parse(trimmed.slice(6));
               if (data.error) {
                 bubble.classList.add("error-bubble");
-                textDiv.textContent = typeof data.error === "string" ? data.error : JSON.stringify(data.error);
-                assistantMsg.content = textDiv.textContent;
+                const errMsg = typeof data.error === "string" ? data.error : JSON.stringify(data.error);
+                textDiv.innerHTML = `${errMsg}<br><br><button class="btn btn-tonal-tertiary btn-xs" onclick="syncSettingsModalWithConfig(); settingsModal.classList.remove('hidden');" style="cursor:pointer; margin-top:6px;">🔑 Switch API Key in Vault</button>`;
+                assistantMsg.content = errMsg;
                 break;
               }
 
@@ -999,8 +1016,8 @@
     } catch (err) {
       if (err.name !== "AbortError") {
         bubble.classList.add("error-bubble");
-        textDiv.textContent = `Error: ${err.message}`;
-        assistantMsg.content = textDiv.textContent;
+        textDiv.innerHTML = `Error: ${err.message}<br><br><button class="btn btn-tonal-tertiary btn-xs" onclick="syncSettingsModalWithConfig(); settingsModal.classList.remove('hidden');" style="cursor:pointer; margin-top:6px;">🔑 Switch API Key in Vault</button>`;
+        assistantMsg.content = `Error: ${err.message}`;
       }
     } finally {
       setGeneratingState(false);
@@ -1076,10 +1093,140 @@
     triggerActiveProbe();
   }
 
+  // Key Vault Management (Multi-API-Key Support)
+  function getKeyVault() {
+    try {
+      const raw = localStorage.getItem("agentchat_key_vault");
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return {};
+  }
+
+  function saveKeyVault(vault) {
+    localStorage.setItem("agentchat_key_vault", JSON.stringify(vault));
+  }
+
+  function maskKey(key) {
+    if (!key) return "";
+    if (key.length <= 8) return "••••" + key.slice(-3);
+    return key.slice(0, 6) + "•••" + key.slice(-4);
+  }
+
+  function renderKeyVaultOptions(provKey) {
+    if (!settingSavedKeysSelect) return;
+    const vault = getKeyVault();
+    let keys = vault[provKey] || [];
+    const activeKey = currentConfig.providers?.[provKey]?.api_key || "";
+
+    // If vault is empty for this provider but config has an active key, initialize it automatically
+    if (!keys.length && activeKey) {
+      keys = [{ id: "key_default", alias: "Primary Key", key: activeKey }];
+      vault[provKey] = keys;
+      saveKeyVault(vault);
+    }
+
+    settingSavedKeysSelect.innerHTML = "";
+    keys.forEach((k, idx) => {
+      const opt = document.createElement("option");
+      opt.value = k.id;
+      const isSelected = (k.key === activeKey) || (!activeKey && idx === 0);
+      opt.textContent = `🔑 ${k.alias || "Key " + (idx + 1)} (${maskKey(k.key)})${isSelected ? " [Active]" : ""}`;
+      if (isSelected) opt.selected = true;
+      settingSavedKeysSelect.appendChild(opt);
+    });
+
+    const addOpt = document.createElement("option");
+    addOpt.value = "__add_new__";
+    addOpt.textContent = "+ Add New API Key...";
+    settingSavedKeysSelect.appendChild(addOpt);
+
+    syncSelectedKeyWithInputs(provKey);
+  }
+
+  function syncSelectedKeyWithInputs(provKey) {
+    if (!settingSavedKeysSelect) return;
+    const selectedId = settingSavedKeysSelect.value;
+    const vault = getKeyVault();
+    const keys = vault[provKey] || [];
+
+    if (selectedId === "__add_new__" || !keys.length) {
+      settingApiKey.value = "";
+      settingKeyAlias.value = "";
+      settingApiKey.focus();
+    } else {
+      const found = keys.find(k => k.id === selectedId) || keys[0];
+      if (found) {
+        settingApiKey.value = found.key;
+        settingKeyAlias.value = found.alias || "";
+        if (!currentConfig.providers) currentConfig.providers = {};
+        if (!currentConfig.providers[provKey]) currentConfig.providers[provKey] = {};
+        currentConfig.providers[provKey].api_key = found.key;
+      }
+    }
+  }
+
+  function saveCurrentKeyToVault() {
+    const provKey = settingProviderChoice.value;
+    const keyVal = settingApiKey.value.trim();
+    if (!keyVal) {
+      alert("Please enter an API key to save.");
+      return;
+    }
+    const vault = getKeyVault();
+    if (!vault[provKey]) vault[provKey] = [];
+    const keys = vault[provKey];
+
+    const aliasVal = settingKeyAlias.value.trim() || `Key ${keys.length + 1}`;
+    const existing = keys.find(k => k.key === keyVal);
+    let targetId = "";
+
+    if (existing) {
+      existing.alias = aliasVal;
+      targetId = existing.id;
+    } else {
+      targetId = "key_" + Date.now();
+      keys.push({ id: targetId, alias: aliasVal, key: keyVal });
+    }
+
+    vault[provKey] = keys;
+    saveKeyVault(vault);
+
+    if (!currentConfig.providers) currentConfig.providers = {};
+    if (!currentConfig.providers[provKey]) currentConfig.providers[provKey] = {};
+    currentConfig.providers[provKey].api_key = keyVal;
+
+    renderKeyVaultOptions(provKey);
+    settingSavedKeysSelect.value = targetId;
+    alert(`Saved "${aliasVal}" to Key Vault!`);
+  }
+
+  function deleteCurrentKeyFromVault() {
+    const provKey = settingProviderChoice.value;
+    const selectedId = settingSavedKeysSelect.value;
+    if (selectedId === "__add_new__") return;
+
+    const vault = getKeyVault();
+    let keys = vault[provKey] || [];
+    const keyToDelete = keys.find(k => k.id === selectedId);
+    if (!keyToDelete) return;
+
+    if (!confirm(`Are you sure you want to remove "${keyToDelete.alias}" from your vault?`)) return;
+
+    keys = keys.filter(k => k.id !== selectedId);
+    vault[provKey] = keys;
+    saveKeyVault(vault);
+
+    if (currentConfig.providers?.[provKey]?.api_key === keyToDelete.key) {
+      currentConfig.providers[provKey].api_key = keys[0]?.key || "";
+    }
+
+    renderKeyVaultOptions(provKey);
+  }
+
   function populateProviderFields(provKey) {
     const prov = currentConfig.providers?.[provKey] || {};
-    settingApiKey.value = prov.api_key || "";
     settingBaseUrl.value = prov.base_url || "";
+    renderKeyVaultOptions(provKey);
   }
 
   function syncSettingsModalWithConfig() {
@@ -1112,13 +1259,29 @@
     if (!currentConfig.providers) currentConfig.providers = {};
     if (!currentConfig.providers[activeP]) currentConfig.providers[activeP] = {};
 
-    currentConfig.providers[activeP].api_key = settingApiKey.value.trim();
+    const enteredKey = settingApiKey.value.trim();
+    currentConfig.providers[activeP].api_key = enteredKey;
     currentConfig.providers[activeP].base_url = settingBaseUrl.value.trim();
     currentConfig.active_provider = activeP;
     currentConfig.auto_compress = settingAutoCompress.checked;
     currentConfig.temperature = parseFloat(settingTemp.value) || 0.7;
     currentConfig.system_prompt = settingSystemPrompt.value.trim();
     currentConfig.model = modelSelect.value;
+
+    // Auto-save key to vault if not already present
+    if (enteredKey) {
+      const vault = getKeyVault();
+      if (!vault[activeP]) vault[activeP] = [];
+      const existing = vault[activeP].find(k => k.key === enteredKey);
+      if (!existing) {
+        vault[activeP].push({
+          id: "key_" + Date.now(),
+          alias: settingKeyAlias.value.trim() || `Key ${vault[activeP].length + 1}`,
+          key: enteredKey
+        });
+        saveKeyVault(vault);
+      }
+    }
 
     try {
       await apiFetch("/api/config", {

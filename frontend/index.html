@@ -318,12 +318,22 @@
         </div>
 
         <div class="form-group">
-          <label for="setting-api-key">API Key for Selected Provider</label>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label for="setting-saved-keys-select">API Key Vault (Saved Keys)</label>
+            <button type="button" id="delete-current-key-btn" class="btn btn-secondary btn-xs" style="color: var(--md-sys-color-error); border-color: transparent;">Remove Key</button>
+          </div>
+          <select id="setting-saved-keys-select" class="form-select" style="width: 100%; margin-bottom: 8px;">
+            <!-- Options populated dynamically: Saved keys with aliases or + Add New Key -->
+          </select>
           <div class="input-with-toggle">
-            <input type="password" id="setting-api-key" placeholder="sk-..." />
+            <input type="password" id="setting-api-key" placeholder="API Key (sk-...)" />
             <button type="button" id="toggle-key-visibility" class="toggle-btn">Show</button>
           </div>
-          <small class="hint">Stored safely in local config.json on your computer.</small>
+          <div style="display: flex; gap: 8px; margin-top: 8px;">
+            <input type="text" id="setting-key-alias" placeholder="Key Label (e.g. Primary, Backup 1, Work Key)" style="flex: 1;" />
+            <button type="button" id="save-key-to-vault-btn" class="btn btn-tonal btn-xs">+ Save Key</button>
+          </div>
+          <small class="hint">Stored safely in local storage & config.json. Switch keys in 1 click if one runs out of quota or fails.</small>
         </div>
 
         <div class="form-group">
