@@ -1,6 +1,6 @@
 /* ==========================================================================
-   AgentChat — Material You Expressive (M3 Expressive) Design System
-   Organic Tonal Palette • Tactile Geometry • Asymmetric Elevations
+   AgentChat â€” Material You Expressive (M3 Expressive) Design System
+   Organic Tonal Palette â€¢ Tactile Geometry â€¢ Asymmetric Elevations
    ========================================================================== */
 
 :root {
@@ -807,87 +807,224 @@ input:checked + .slider:before {
   color: var(--md-sys-color-primary);
 }
 
-/* ==================== 5. Chat Messages Stream (Expressive Asymmetry) ==================== */
+/* ==================== 5. Chat Messages Stream (Expressive Asymmetry & Animated Pills) ==================== */
 .messages-list {
-  max-width: 820px;
+  max-width: 860px;
   width: 100%;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 24px;
+  padding: 24px 16px 140px 16px;
 }
 
-.message-bubble {
+/* Row containers to cleanly segregate alignment */
+.message-row {
   display: flex;
-  gap: 12px;
-  max-width: 88%;
-  line-height: 1.6;
-  font-size: 14px;
-}
-
-/* User Bubble (Right Aligned, Asymmetric Corners, Primary Container) */
-.user-bubble {
-  align-self: flex-end;
-  background-color: var(--md-sys-color-primary-container);
-  color: var(--md-sys-color-on-primary-container);
-  padding: 12px 18px;
-  border-radius: 20px 20px 4px 20px;
-  border: 1px solid rgba(255, 138, 101, 0.25);
-}
-
-.user-bubble .message-content {
-  color: var(--md-sys-color-on-primary-container);
-}
-
-/* Assistant Bubble (Left Aligned, Asymmetric Corners, Surface Container) */
-.assistant-bubble {
-  align-self: flex-start;
-  background-color: var(--md-sys-color-surface-container);
-  color: var(--md-sys-color-on-surface);
-  padding: 16px 20px;
-  border-radius: 20px 20px 20px 4px;
-  border: 1px solid var(--md-sys-color-outline-variant);
   width: 100%;
 }
 
-.assistant-bubble.error-bubble {
+.message-row.user-row,
+.message-row.user {
+  justify-content: flex-end;
+}
+
+.message-row.assistant-row,
+.message-row.assistant {
+  justify-content: flex-start;
+}
+
+/* Base message bubble: vertical column stacking */
+.message-bubble {
+  display: flex;
+  flex-direction: column; /* Stacks reasoning strictly ABOVE output */
+  position: relative;
+  line-height: 1.65;
+  font-size: 14.5px;
+  word-break: break-word;
+}
+
+/* User Pill (Right-Aligned, Warm Terracotta, Animated Entrance) */
+.user-bubble,
+.message-row.user .message-bubble,
+.message-row.user-row .message-bubble {
+  align-self: flex-end;
+  max-width: 80%;
+  background: linear-gradient(145deg, #4A1B0B 0%, #2D1006 100%);
+  color: var(--md-sys-color-on-primary-container);
+  padding: 14px 20px;
+  border-radius: 22px 22px 4px 22px;
+  border: 1px solid rgba(255, 138, 101, 0.38);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35), 0 0 1px rgba(255, 138, 101, 0.3);
+  animation: pillSlideUpUser 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.user-bubble .message-text,
+.message-row.user .message-text,
+.message-row.user-row .message-text {
+  color: #FFE6DE;
+  font-weight: 450;
+  font-size: 14.5px;
+}
+
+/* Assistant Bubble (Left-Aligned, Elevated Surface Container, Animated Entrance) */
+.assistant-bubble,
+.message-row.assistant .message-bubble,
+.message-row.assistant-row .message-bubble {
+  align-self: flex-start;
+  width: 100%;
+  max-width: 100%;
+  background-color: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
+  padding: 20px 24px;
+  border-radius: 22px 22px 22px 4px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  animation: pillSlideUpAssistant 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.assistant-bubble.error-bubble,
+.message-row.assistant .message-bubble.error-bubble,
+.message-row.assistant-row .message-bubble.error-bubble {
   background-color: var(--md-sys-color-error-container);
   color: var(--md-sys-color-on-error-container);
   border-color: var(--md-sys-color-error);
 }
 
-/* Thought Process / Reasoning Accordion */
+/* Pill Entrance Animations */
+@keyframes pillSlideUpUser {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pillSlideUpAssistant {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Thought Process / Reasoning Accordion (Strictly Above Output) */
 .reasoning-box {
+  width: 100%;
   background-color: var(--md-sys-color-surface-container-high);
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-corner-md);
-  margin-bottom: 12px;
-  padding: 8px 12px;
+  border: 1px solid rgba(245, 185, 66, 0.35);
+  border-radius: 16px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.reasoning-box[open] {
+  background-color: var(--md-sys-color-surface-container-highest);
+  border-color: rgba(245, 185, 66, 0.5);
 }
 
 .reasoning-box summary {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--md-sys-color-tertiary);
   cursor: pointer;
   outline: none;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   user-select: none;
 }
 
+.reasoning-box summary::-webkit-details-marker {
+  display: none;
+}
+
+.reasoning-box summary::before {
+  content: 'â–¶';
+  font-size: 9px;
+  transition: transform 0.2s ease;
+  color: var(--md-sys-color-tertiary);
+}
+
+.reasoning-box[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.reasoning-title {
+  font-family: var(--font-brand);
+  letter-spacing: 0.02em;
+}
+
+.reasoning-badge {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  padding: 2px 8px;
+  border-radius: 10px;
+  background-color: rgba(245, 185, 66, 0.15);
+  color: var(--md-sys-color-tertiary);
+  border: 1px solid rgba(245, 185, 66, 0.3);
+}
+
+.reasoning-badge.streaming-pulse {
+  background-color: rgba(123, 224, 155, 0.2);
+  color: #7BE09B;
+  border-color: rgba(123, 224, 155, 0.4);
+  animation: pulseGlow 1.4s infinite alternate;
+}
+
+@keyframes pulseGlow {
+  0% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+
 .reasoning-content {
-  margin-top: 8px;
+  margin-top: 10px;
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--md-sys-color-on-surface-variant);
   white-space: pre-wrap;
-  line-height: 1.5;
+  line-height: 1.55;
   border-top: 1px dashed var(--md-sys-color-outline-variant);
-  padding-top: 8px;
+  padding-top: 10px;
   max-height: 320px;
   overflow-y: auto;
+}
+
+/* Formatted Message Content */
+.message-text {
+  width: 100%;
+  line-height: 1.7;
+}
+
+.message-text h1, .message-text h2, .message-text h3 {
+  margin: 14px 0 8px 0;
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface);
+}
+
+.message-text h1 { font-size: 19px; }
+.message-text h2 { font-size: 16.5px; }
+.message-text h3 { font-size: 15px; }
+
+.message-text p {
+  margin: 8px 0;
+}
+
+.message-text ul, .message-text ol {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.message-text li {
+  margin: 4px 0;
 }
 
 /* Code Blocks */
@@ -1369,3 +1506,4 @@ textarea#user-input::placeholder {
 ::-webkit-scrollbar-thumb:hover {
   background-color: var(--md-sys-color-outline);
 }
+

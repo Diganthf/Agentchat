@@ -838,9 +838,9 @@
   function appendMessageToDOM(role, content, reasoning, isStreaming = false) {
     welcomeScreen.classList.add("hidden");
     const row = document.createElement("div");
-    row.className = `message-row ${role}`;
+    row.className = `message-row ${role} ${role}-row`;
     const bubble = document.createElement("div");
-    bubble.className = "message-bubble";
+    bubble.className = `message-bubble ${role}-bubble`;
 
     if (reasoning) {
       const details = document.createElement("details");
@@ -848,7 +848,7 @@
       details.open = isStreaming;
 
       const summary = document.createElement("summary");
-      summary.textContent = isStreaming ? "Thinking Process..." : "Thought Process";
+      summary.innerHTML = `<span class="reasoning-title">${isStreaming ? "Thinking Process..." : "Thought Process"}</span> <span class="reasoning-badge ${isStreaming ? "streaming-pulse" : ""}">${isStreaming ? "Live" : "Finished"}</span>`;
 
       const rContent = document.createElement("div");
       rContent.className = "reasoning-content";
@@ -987,7 +987,7 @@
                   reasoningContainer.className = "reasoning-box";
                   reasoningContainer.open = true;
                   const summary = document.createElement("summary");
-                  summary.textContent = "Thinking Process...";
+                  summary.innerHTML = `<span class="reasoning-title">Thinking Process...</span> <span class="reasoning-badge streaming-pulse">Live</span>`;
                   reasoningDiv = document.createElement("div");
                   reasoningDiv.className = "reasoning-content";
                   reasoningContainer.appendChild(summary);
@@ -1010,7 +1010,9 @@
 
       if (reasoningContainer) {
         const summary = reasoningContainer.querySelector("summary");
-        if (summary) summary.textContent = "Thought Process";
+        if (summary) {
+          summary.innerHTML = `<span class="reasoning-title">Thought Process</span> <span class="reasoning-badge">Finished</span>`;
+        }
       }
 
     } catch (err) {
