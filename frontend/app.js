@@ -235,8 +235,7 @@
     return res;
   }
 
-  // Initialize
-  init();
+  // Application initialization is called at the bottom of this file after all modules and constants are loaded
 
   function init() {
     loadSessions();
@@ -707,7 +706,10 @@
   }
 
   // Active Health Prober
+  let isProbing = false;
   async function triggerActiveProbe() {
+    if (isProbing) return;
+    isProbing = true;
     const bannerBtn = document.getElementById("banner-check-btn");
     const sideBtn = document.getElementById("sidebar-probe-btn");
     [bannerBtn, sideBtn].filter(Boolean).forEach(b => { b.textContent = "↻ Checking..."; b.disabled = true; });
@@ -724,6 +726,7 @@
     } catch (e) {
       console.warn("Probe failed:", e);
     } finally {
+      isProbing = false;
       [bannerBtn, sideBtn].filter(Boolean).forEach(b => { b.textContent = "↻ Check Now"; b.disabled = false; });
     }
   }
@@ -2125,8 +2128,11 @@
 
 
   // ==================== LIVE PROVIDER CREDITS MANAGER ====================
+  let isFetchingCredits = false;
   async function fetchCredits(manual = false) {
     if (!creditsPill || !creditsAmount) return;
+    if (isFetchingCredits) return;
+    isFetchingCredits = true;
 
     if (manual && creditsRefreshBtn) {
       creditsRefreshBtn.classList.add("spinning");
@@ -2147,10 +2153,13 @@
       console.warn("Credits fetch failed:", err);
       creditsAmount.textContent = "Online";
     } finally {
+      isFetchingCredits = false;
       if (creditsRefreshBtn) {
         setTimeout(() => creditsRefreshBtn.classList.remove("spinning"), 600);
       }
     }
   }
 
+  // Initialize application after all declarations, constants, and functions are loaded
+  init();
 })();
