@@ -13,9 +13,9 @@ A lightweight, local-first AI workbench designed with the **Material You Express
 - **Surface Container Stepping:** Elevation is communicated through tonal surface color shifts rather than excessive blur or neon gradients.
 
 ### 🧠 Multi-Engine & Multi-Provider Support
-- **Frontier Models:** Seamlessly switch between **DeepSeek V4 Flash**, **GLM 5.3**, **Claude Opus 5**, **Claude Opus 4.8**, and **GPT-6 Astra**.
+- **Frontier Models:** Seamlessly switch between Multiple models of your choice.
 - **Provider Agnostic:** Out-of-the-box support for **AgentRouter**, **Tabitoken**, **OpenRouter**, or any custom OpenAI/Anthropic-compatible endpoint.
-- **Live Upstream Status & Quota Refill Telemetry:** Real-time probing with daily quota refill schedule board (`00:00`, `08:00`, `16:00` Beijing Time).
+- **Live Upstream Status & Quota Refill Telemetry:** Real-time probing with daily quota refill schedule board .
 
 ### ⚡ Context Auto-Compression (Saves ~75% Tokens)
 - Long Chain-of-Thought (CoT) reasoning models generate thousands of `<think>` tokens.
