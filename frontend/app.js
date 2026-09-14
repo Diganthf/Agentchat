@@ -13,81 +13,94 @@
   let currentRailTab = "chats";
 
   const MODEL_DISPLAY_NAMES = {
-    "claude-opus-5": "Claude Opus 5",
-    "claude-opus-4-8": "Claude Opus 4.8",
-    "deepseek-v4-flash": "DeepSeek V4 Flash",
-    "glm-5.3": "GLM 5.3",
-    "gpt-6-astra": "GPT-6 Astra",
-    "gpt-5.6-sol": "GPT-5.6 Sol"
+    "deepseek/deepseek-r1": "🧠 DeepSeek R1 (671B Reasoning)",
+    "qwen/qwen-2.5-coder-72b-instruct": "💻 Qwen 2.5 Coder 72B (Elite Code)",
+    "deepseek/deepseek-chat": "⚡ DeepSeek V3 (671B Nuance)",
+    "google/gemini-2.0-flash-001": "🌐 Gemini 2.0 Flash (Fast / 1M)",
+    "gemini-2.0-flash": "Gemini 2.0 Flash",
+    "gemini-2.0-flash-thinking-exp-01-21": "Gemini 2.0 Flash Thinking",
+    "gemini-2.0-pro-exp-02-05": "Gemini 2.0 Pro",
+    "claude-3-5-sonnet-20241022": "Claude 3.5 Sonnet",
+    "gpt-4o": "GPT-4o",
+    "gpt-4o-mini": "GPT-4o Mini"
+  };
+
+  const PROVIDER_DEFAULTS = {
+    base: {
+      name: "Base Tier (Sonnet-Grade)",
+      base_url: "https://openrouter.ai/api"
+    },
+    google: {
+      name: "Google AI Studio",
+      base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
+    },
+    openrouter: {
+      name: "OpenRouter",
+      base_url: "https://openrouter.ai/api"
+    },
+    groq: {
+      name: "Groq Cloud",
+      base_url: "https://api.groq.com/openai"
+    },
+    deepseek: {
+      name: "DeepSeek Official",
+      base_url: "https://api.deepseek.com"
+    },
+    openai: {
+      name: "OpenAI",
+      base_url: "https://api.openai.com"
+    },
+    custom: {
+      name: "Custom Provider",
+      base_url: "https://api.openai.com"
+    }
   };
 
   // Model Benchmark Database
   const MODEL_DATABASE = [
     {
-      id: "deepseek-v4-flash",
-      name: "DeepSeek V4 Flash",
+      id: "deepseek/deepseek-r1",
+      name: "DeepSeek R1 (671B)",
       provider: "DeepSeek",
-      overall: 96,
-      coding: 99,
-      speed: 98,
-      efficiency: 99,
-      desc: "World-class reasoning with native Chain-of-Thought. Unmatched for coding and math.",
-      tags: ["#1 Coding", "Fast CoT"]
-    },
-    {
-      id: "claude-opus-5",
-      name: "Claude Opus 5",
-      provider: "Anthropic",
       overall: 99,
-      coding: 97,
-      speed: 70,
-      efficiency: 72,
-      desc: "Anthropic's flagship model. Extreme nuance, instruction adherence and system architecture.",
-      tags: ["#1 Intelligence", "Nuance"]
-    },
-    {
-      id: "gpt-6-astra",
-      name: "GPT-6 Astra",
-      provider: "OpenAI",
-      overall: 98,
-      coding: 97,
-      speed: 78,
-      efficiency: 75,
-      desc: "Next-gen OpenAI model with broad multi-domain knowledge and rapid synthesis.",
-      tags: ["Generalist", "Frontier"]
-    },
-    {
-      id: "claude-opus-4-8",
-      name: "Claude Opus 4.8",
-      provider: "Anthropic",
-      overall: 97,
       coding: 98,
-      speed: 74,
-      efficiency: 76,
-      desc: "High-precision architecture design, structured writing and refactoring.",
-      tags: ["Elite Coder", "Refactor"]
-    },
-    {
-      id: "glm-5.3",
-      name: "GLM 5.3",
-      provider: "Zhipu AI",
-      overall: 95,
-      coding: 94,
-      speed: 92,
-      efficiency: 94,
-      desc: "Fast, versatile bilingual and multilingual reasoning powerhouse.",
-      tags: ["High Throughput", "Versatile"]
-    },
-    {
-      id: "gpt-5.6-sol",
-      name: "GPT-5.6 Sol",
-      provider: "OpenAI",
-      overall: 94,
-      coding: 93,
       speed: 85,
-      efficiency: 84,
-      desc: "Balanced generalist model for daily automation and rapid problem solving.",
-      tags: ["Productivity", "Fast"]
+      efficiency: 99,
+      desc: "Frontier open reasoning model. Deep step-by-step Chain of Thought that rivals OpenAI o1 and beats Sonnet on math.",
+      tags: ["#1 Reasoning", "O1 Rival"]
+    },
+    {
+      id: "qwen/qwen-2.5-coder-72b-instruct",
+      name: "Qwen 2.5 Coder 72B",
+      provider: "Alibaba",
+      overall: 98,
+      coding: 100,
+      speed: 92,
+      efficiency: 98,
+      desc: "Undisputed #1 open-weights coding model. Outperforms Claude 3.5 Sonnet and GPT-4o on HumanEval and system design.",
+      tags: ["#1 Coding", "Sonnet Tier"]
+    },
+    {
+      id: "deepseek/deepseek-chat",
+      name: "DeepSeek V3 (671B)",
+      provider: "DeepSeek",
+      overall: 97,
+      coding: 96,
+      speed: 96,
+      efficiency: 99,
+      desc: "Instant conversational eloquence, nuanced synthesis, and general reasoning matching Sonnet tone and speed.",
+      tags: ["Frontier Generalist", "Fast"]
+    },
+    {
+      id: "google/gemini-2.0-flash-001",
+      name: "Gemini 2.0 Flash",
+      provider: "Google",
+      overall: 96,
+      coding: 95,
+      speed: 99,
+      efficiency: 98,
+      desc: "Ultra-fast multimodal reasoning with a massive 1,000,000 token context window and free tier access.",
+      tags: ["1M Context", "Ultra Fast"]
     }
   ];
 
@@ -131,10 +144,7 @@
   const projectTreeContainer = document.getElementById("project-tree-container");
   const savedProjectsList = document.getElementById("saved-projects-list");
 
-  // Live Provider Credits & Topbar Indicator Pills
-  const creditsPill = document.getElementById("credits-pill");
-  const creditsAmount = document.getElementById("credits-amount");
-  const creditsRefreshBtn = document.getElementById("credits-refresh-btn");
+  // Topbar Indicator Pills
   const skillsStatusPill = document.getElementById("skills-status-pill");
   const skillsStatusText = document.getElementById("skills-status-text");
   const projectStatusPill = document.getElementById("project-status-pill");
@@ -209,9 +219,11 @@
     const headers = { ...extra };
     const pw = localStorage.getItem("agentchat_access_password") || "";
     if (pw) headers["X-Access-Password"] = pw;
-    const activeP = currentConfig.active_provider || "agentrouter";
-    const clientKey = localStorage.getItem("agentchat_client_key_" + activeP);
+    const activeP = currentConfig.active_provider || "base";
+    const clientKey = localStorage.getItem("agentchat_client_key_" + activeP) || currentConfig.providers?.[activeP]?.api_key;
     if (clientKey) headers["X-Custom-Api-Key"] = clientKey;
+    const clientUrl = localStorage.getItem("agentchat_client_url_" + activeP) || currentConfig.providers?.[activeP]?.base_url || PROVIDER_DEFAULTS[activeP]?.base_url;
+    if (clientUrl) headers["X-Custom-Base-Url"] = clientUrl;
     return headers;
   }
 
@@ -244,12 +256,10 @@
     fetchConfig();
     fetchModels();
     fetchModelStatus();
-    fetchCredits();
     fetchProjects();
     fetchMcp();
-    // Poll status every 20 minutes, credits every 5 minutes
+    // Poll status every 20 minutes
     setInterval(fetchModelStatus, 20 * 60 * 1000);
-    setInterval(fetchCredits, 5 * 60 * 1000);
 
     if (!sessions.length) {
       createNewChat();
@@ -268,13 +278,6 @@
     railTabSettings.addEventListener("click", () => {
       syncSettingsModalWithConfig();
       settingsModal.classList.remove("hidden");
-    });
-
-    // Provider Live Credits Refresh
-    if (creditsPill) creditsPill.addEventListener("click", () => fetchCredits(true));
-    if (creditsRefreshBtn) creditsRefreshBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      fetchCredits(true);
     });
 
     // History Actions (Export / Clear)
@@ -751,10 +754,10 @@
     Array.from(modelSelect.options).forEach(opt => {
       const mid = opt.value;
       const st = modelStatuses[mid]?.status || "online";
-      const cleanName = MODEL_DISPLAY_NAMES[mid] || opt.textContent.replace(/^[🟢🔴⚪]\s*/, "").replace(/\s*\(.*\)$/, "").trim();
+      const cleanName = MODEL_DISPLAY_NAMES[mid] || opt.textContent.replace(/^[🟢🔴⚪🧠💻⚡🌐]\s*/, "").replace(/\s*\(.*\)$/, "").trim();
 
-      if (st === "online") opt.textContent = `🟢 ${cleanName} (Online)`;
-      else if (st === "exhausted") opt.textContent = `🔴 ${cleanName} (Quota Exhausted)`;
+      if (st === "online") opt.textContent = `🟢 ${cleanName}`;
+      else if (st === "exhausted") opt.textContent = `🔴 ${cleanName} (Quota Limit)`;
       else opt.textContent = `⚪ ${cleanName}`;
     });
     if (cur) modelSelect.value = cur;
@@ -763,18 +766,14 @@
   function updateBannerStatus() {
     const banner = document.getElementById("live-status-banner");
     if (!banner) return;
-    const deepseekOk = modelStatuses["deepseek-v4-flash"]?.status === "online";
-    const glmOk = modelStatuses["glm-5.3"]?.status === "online";
-    const claudeOk = modelStatuses["claude-opus-4-8"]?.status === "online" || modelStatuses["claude-opus-5"]?.status === "online";
-    const gptOk = modelStatuses["gpt-6-astra"]?.status === "online";
+    const activeP = currentConfig.active_provider || "base";
+    const pName = PROVIDER_DEFAULTS[activeP]?.name || "Active Provider";
 
     banner.innerHTML = `
-      <span class="banner-title">📡 Live Availability:</span>
-      <span class="pill ${deepseekOk ? 'pill-green' : 'pill-red'}">${deepseekOk ? '🟢 DeepSeek Online' : '🔴 DeepSeek Offline'}</span>
-      <span class="pill ${glmOk ? 'pill-green' : 'pill-red'}">${glmOk ? '🟢 GLM 5.3 Online' : '🔴 GLM 5.3 Offline'}</span>
-      <span class="pill ${claudeOk ? 'pill-green' : 'pill-red'}">${claudeOk ? '🟢 Claude Online!' : '🔴 Claude Quota Exhausted'}</span>
-      <span class="pill ${gptOk ? 'pill-green' : 'pill-red'}">${gptOk ? '🟢 GPT-6 Online!' : '🔴 GPT-6 Quota Exhausted'}</span>
-      <button id="banner-check-btn" class="banner-refresh-btn" onclick="triggerActiveProbe()">↻ Check Now</button>
+      <span class="banner-title">📡 Active Provider:</span>
+      <span class="pill pill-green">🟢 ${pName}</span>
+      <span class="pill pill-blue">BYOK Enabled</span>
+      <button id="banner-check-btn" class="banner-refresh-btn" onclick="fetchModels()">↻ Refresh Models</button>
     `;
   }
 
@@ -1266,7 +1265,18 @@
               const data = JSON.parse(trimmed.slice(6));
               if (data.error) {
                 bubble.classList.add("error-bubble");
-                const errMsg = typeof data.error === "string" ? data.error : JSON.stringify(data.error);
+                let errMsg = typeof data.error === "string" ? data.error : (data.error.message || JSON.stringify(data.error));
+                const errType = typeof data.error === "object" ? (data.error.type || "") : "";
+
+                // Translate known upstream error patterns into friendly messages
+                if (errMsg.includes("content-blocked") || errType.includes("content-blocked") || errMsg.includes("content_filter")) {
+                  errMsg = `⚠️ Content was blocked by the upstream provider's safety filter for '${selectedModel}'. Try rephrasing your message or switching to a different model.`;
+                } else if (errMsg.includes("exhausted") || errMsg.includes("budget pool") || errMsg.includes("Budget pool")) {
+                  errMsg = `AgentRouter Upstream Notice: The budget pool for '${selectedModel}' is exhausted. AgentRouter officially releases daily Claude & GPT quotas in 3 batches at 00:00, 08:00, and 16:00 Beijing Time (UTC 16:00, 00:00, 08:00). DeepSeek-V4 and GLM-5.3 are active 24/7.`;
+                  modelStatuses[selectedModel] = { status: "exhausted", code: 402, message: "Quota exhausted" };
+                  updateModelDropdownOptions();
+                }
+
                 textDiv.innerHTML = `${errMsg}<br><br><button class="btn btn-tonal-tertiary btn-xs" onclick="syncSettingsModalWithConfig(); settingsModal.classList.remove('hidden');" style="cursor:pointer; margin-top:6px;">🔑 Switch API Key in Vault</button>`;
                 assistantMsg.content = errMsg;
                 try { reader.cancel().catch(() => {}); } catch (_) {}
@@ -1303,6 +1313,14 @@
                 try { reader.cancel().catch(() => {}); } catch (_) {}
                 break streamLoop;
               }
+              if (finishReason === "content_filter") {
+                bubble.classList.add("error-bubble");
+                const filterMsg = "⚠️ Response was blocked by the upstream content filter. Try rephrasing your message or switching to a different model.";
+                textDiv.innerHTML = filterMsg;
+                assistantMsg.content = filterMsg;
+                try { reader.cancel().catch(() => {}); } catch (_) {}
+                break streamLoop;
+              }
             } catch (err) {}
           }
         }
@@ -1326,7 +1344,6 @@
       setGeneratingState(false);
       saveSessions();
       userInput.focus();
-      fetchCredits(true); // Auto-refresh provider credits immediately after task completes
     }
   }
 
@@ -1393,10 +1410,11 @@
   async function switchProvider(provKey) {
     currentConfig.active_provider = provKey;
     providerSelect.value = provKey;
+    if (settingProviderChoice) settingProviderChoice.value = provKey;
+    populateProviderFields(provKey);
     await saveConfig(false);
-    fetchModels();
-    triggerActiveProbe();
-    fetchCredits(true);
+    await fetchModels();
+    updateBannerStatus();
   }
 
   // Key Vault Management (Multi-API-Key Support)
@@ -1501,9 +1519,12 @@
     if (!currentConfig.providers[provKey]) currentConfig.providers[provKey] = {};
     currentConfig.providers[provKey].api_key = keyVal;
 
+    localStorage.setItem("agentchat_client_key_" + provKey, keyVal);
+
     renderKeyVaultOptions(provKey);
     settingSavedKeysSelect.value = targetId;
-    alert(`Saved "${aliasVal}" to Key Vault!`);
+    fetchModels();
+    alert(`Saved "${aliasVal}" to Key Vault! Models for this key are now active.`);
   }
 
   function deleteCurrentKeyFromVault() {
@@ -1524,19 +1545,22 @@
 
     if (currentConfig.providers?.[provKey]?.api_key === keyToDelete.key) {
       currentConfig.providers[provKey].api_key = keys[0]?.key || "";
+      localStorage.setItem("agentchat_client_key_" + provKey, keys[0]?.key || "");
     }
 
     renderKeyVaultOptions(provKey);
+    fetchModels();
   }
 
   function populateProviderFields(provKey) {
     const prov = currentConfig.providers?.[provKey] || {};
-    settingBaseUrl.value = prov.base_url || "";
+    const defaultUrl = PROVIDER_DEFAULTS[provKey]?.base_url || "";
+    settingBaseUrl.value = prov.base_url || defaultUrl;
     renderKeyVaultOptions(provKey);
   }
 
   function syncSettingsModalWithConfig() {
-    const active = currentConfig.active_provider || "agentrouter";
+    const active = currentConfig.active_provider || "base";
     settingProviderChoice.value = active;
     populateProviderFields(active);
     settingAutoCompress.checked = currentConfig.auto_compress !== false;
@@ -1566,13 +1590,17 @@
     if (!currentConfig.providers[activeP]) currentConfig.providers[activeP] = {};
 
     const enteredKey = settingApiKey.value.trim();
+    const enteredUrl = settingBaseUrl.value.trim() || PROVIDER_DEFAULTS[activeP]?.base_url || "";
     currentConfig.providers[activeP].api_key = enteredKey;
-    currentConfig.providers[activeP].base_url = settingBaseUrl.value.trim();
+    currentConfig.providers[activeP].base_url = enteredUrl;
     currentConfig.active_provider = activeP;
     currentConfig.auto_compress = settingAutoCompress.checked;
     currentConfig.temperature = parseFloat(settingTemp.value) || 0.7;
     currentConfig.system_prompt = settingSystemPrompt.value.trim();
     currentConfig.model = modelSelect.value;
+
+    localStorage.setItem("agentchat_client_key_" + activeP, enteredKey);
+    localStorage.setItem("agentchat_client_url_" + activeP, enteredUrl);
 
     // Auto-save key to vault if not already present
     if (enteredKey) {
@@ -1597,6 +1625,7 @@
       });
       if (closeModal) settingsModal.classList.add("hidden");
       providerSelect.value = activeP;
+      await fetchModels();
     } catch (e) {
       if (closeModal) alert("Failed to save settings: " + e.message);
     }
@@ -1614,15 +1643,15 @@
           opt.value = m.id;
           const st = modelStatuses[m.id]?.status || m.status || "online";
           const displayName = MODEL_DISPLAY_NAMES[m.id] || m.name || m.id;
-          if (st === "online") opt.textContent = `🟢 ${displayName} (Online)`;
-          else if (st === "exhausted") opt.textContent = `🔴 ${displayName} (Quota Exhausted)`;
+          if (st === "online") opt.textContent = `🟢 ${displayName}`;
+          else if (st === "exhausted") opt.textContent = `🔴 ${displayName} (Quota Limit)`;
           else opt.textContent = `⚪ ${displayName}`;
           modelSelect.appendChild(opt);
         });
         if (cur && Array.from(modelSelect.options).some(o => o.value === cur)) {
           modelSelect.value = cur;
         } else {
-          modelSelect.value = "claude-opus-5";
+          modelSelect.value = data.models[0].id;
         }
       }
     } catch (e) {

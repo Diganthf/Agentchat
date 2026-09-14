@@ -1,0 +1,53 @@
+{
+  "active_provider": "base",
+  "providers": {
+    "base": {
+      "name": "Base Tier (Sonnet-Grade)",
+      "base_url": "https://openrouter.ai/api",
+      "api_key": ""
+    },
+    "google": {
+      "name": "Google AI Studio",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+      "api_key": ""
+    },
+    "openrouter": {
+      "name": "OpenRouter",
+      "base_url": "https://openrouter.ai/api",
+      "api_key": ""
+    },
+    "groq": {
+      "name": "Groq Cloud",
+      "base_url": "https://api.groq.com/openai",
+      "api_key": ""
+    },
+    "deepseek": {
+      "name": "DeepSeek Official",
+      "base_url": "https://api.deepseek.com",
+      "api_key": ""
+    },
+    "openai": {
+      "name": "OpenAI",
+      "base_url": "https://api.openai.com",
+      "api_key": ""
+    },
+    "custom": {
+      "name": "Custom Provider",
+      "base_url": "https://api.openai.com",
+      "api_key": ""
+    }
+  },
+  "mcp_servers": {},
+  "plugins": {
+    "web_search": {"name": "Real-Time Web Search", "description": "DuckDuckGo organic live web search", "enabled": true},
+    "pdf_reader": {"name": "PDF & Document Parser", "description": "High-fidelity pypdf page extraction", "enabled": true},
+    "math_eval": {"name": "Math & Code Calculator", "description": "Accurate math logic and python evaluation", "enabled": true}
+  },
+  "model": "deepseek/deepseek-r1",
+  "temperature": 0.7,
+  "system_prompt": "",
+  "auto_compress": true,
+  "skills": {},
+  "projects": {},
+  "active_project": ""
+}

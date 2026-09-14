@@ -177,12 +177,10 @@
           <!-- Active Model Dropdown -->
           <div class="select-pill-wrapper">
             <select id="model-select" class="select-pill model-pill" title="Active Model">
-              <option value="claude-opus-5" selected>🟢 Claude Opus 5 (Online)</option>
-              <option value="claude-opus-4-8">🟢 Claude Opus 4.8 (Online)</option>
-              <option value="deepseek-v4-flash">🟢 DeepSeek V4 Flash (Online)</option>
-              <option value="glm-5.3">🟢 GLM 5.3 (Online)</option>
-              <option value="gpt-6-astra">⚪ GPT-6 Astra</option>
-              <option value="gpt-5.6-sol">⚪ GPT-5.6 Sol</option>
+              <option value="deepseek/deepseek-r1" selected>🧠 DeepSeek R1 (671B Reasoning)</option>
+              <option value="qwen/qwen-2.5-coder-72b-instruct">💻 Qwen 2.5 Coder 72B (Elite Code)</option>
+              <option value="deepseek/deepseek-chat">⚡ DeepSeek V3 (671B Nuance)</option>
+              <option value="google/gemini-2.0-flash-001">🌐 Gemini 2.0 Flash (Fast / 1M)</option>
             </select>
           </div>
 
@@ -200,24 +198,18 @@
           <!-- Provider Pill -->
           <div class="select-pill-wrapper">
             <select id="provider-select" class="select-pill provider-pill" title="Active AI Provider">
-              <option value="agentrouter">AgentRouter</option>
-              <option value="tabitoken">Tabitoken</option>
+              <option value="base" selected>Base Tier (Curated)</option>
+              <option value="google">Google AI Studio</option>
               <option value="openrouter">OpenRouter</option>
-              <option value="custom">Custom</option>
+              <option value="groq">Groq Cloud</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="openai">OpenAI</option>
+              <option value="custom">Custom Provider</option>
             </select>
           </div>
         </div>
 
         <div class="topbar-right-group">
-          <!-- Live Provider Credits / Balance Pill -->
-          <div class="credits-pill" id="credits-pill" title="Live Provider Balance / Credits (Click to refresh)">
-            <span class="credits-icon">💳</span>
-            <span id="credits-amount" class="credits-amount">Checking...</span>
-            <button id="credits-refresh-btn" class="credits-refresh-btn" title="Refresh Balance">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-            </button>
-          </div>
-
           <!-- Active Tools Indicator Pill -->
           <div class="tools-status-pill" id="tools-status-pill" title="Active Tools & MCP Servers">
             <span class="tools-dot"></span>
@@ -252,27 +244,14 @@
               <div class="status-chip-group">
                 <span class="status-live-chip">
                   <span class="live-pulse"></span>
-                  AgentRouter Active
+                  Dynamic Multi-Provider Active
                 </span>
-                <span class="status-route-chip">Direct IP: 8.214.161.192</span>
-              </div>
-              <button id="banner-check-btn" class="btn btn-tonal-tertiary btn-xs">↻ Check Quotas</button>
-            </div>
-
-            <h1 class="workbench-title">Multi-Engine Workbench</h1>
-            <p class="workbench-desc">Direct gateway connectivity with automatic reasoning compression, local document ingestion, and stdio tool execution.</p>
-
-            <div class="refill-schedule-board">
-              <div class="schedule-lead">
-                <span class="schedule-icon">⏱</span>
-                <span>Quota Refills:</span>
-              </div>
-              <div class="schedule-slots">
-                <span class="slot-badge">00:00 BJT (21:30 IST)</span>
-                <span class="slot-badge">08:00 BJT (05:30 IST)</span>
-                <span class="slot-badge">16:00 BJT (13:30 IST)</span>
+                <span class="status-route-chip">BYOK Ready • Zero-Knowledge Vault</span>
               </div>
             </div>
+
+            <h1 class="workbench-title">AI Engineering Studio</h1>
+            <p class="workbench-desc">Frontier Sonnet-grade reasoning, multi-key provider switcher, codebase exploration, and tool-augmented intelligence.</p>
           </div>
 
           <div class="asymmetric-workbench-grid">
@@ -391,10 +370,13 @@
         <div class="form-group">
           <label for="setting-provider-choice">Active Provider</label>
           <select id="setting-provider-choice" class="form-select">
-            <option value="agentrouter">AgentRouter (agentrouter.org)</option>
-            <option value="tabitoken">Tabitoken (tabitoken.com)</option>
+            <option value="base">Base Tier (Curated Sonnet-Grade)</option>
+            <option value="google">Google AI Studio (Gemini 2.0 Flash / Pro)</option>
             <option value="openrouter">OpenRouter (openrouter.ai)</option>
-            <option value="custom">Custom Provider</option>
+            <option value="groq">Groq Cloud (Ultra-Fast 300 t/s)</option>
+            <option value="deepseek">DeepSeek Official (api.deepseek.com)</option>
+            <option value="openai">OpenAI (api.openai.com)</option>
+            <option value="custom">Custom (Any OpenAI-Compatible URL)</option>
           </select>
         </div>
 
@@ -407,19 +389,19 @@
             <!-- Options populated dynamically: Saved keys with aliases or + Add New Key -->
           </select>
           <div class="input-with-toggle">
-            <input type="password" id="setting-api-key" placeholder="API Key (sk-...)" />
+            <input type="password" id="setting-api-key" placeholder="API Key (sk-... or AIza...)" />
             <button type="button" id="toggle-key-visibility" class="toggle-btn">Show</button>
           </div>
           <div style="display: flex; gap: 8px; margin-top: 8px;">
             <input type="text" id="setting-key-alias" placeholder="Key Label (e.g. Primary, Backup 1, Work Key)" style="flex: 1;" />
             <button type="button" id="save-key-to-vault-btn" class="btn btn-tonal btn-xs">+ Save Key</button>
           </div>
-          <small class="hint">Stored safely in local storage & config.json. Switch keys in 1 click if one runs out of quota or fails.</small>
+          <small class="hint">Stored safely in your browser's local storage. Models for your key are discovered dynamically.</small>
         </div>
 
         <div class="form-group">
           <label for="setting-base-url">Provider Base URL</label>
-          <input type="text" id="setting-base-url" placeholder="https://agentrouter.org" />
+          <input type="text" id="setting-base-url" placeholder="https://generativelanguage.googleapis.com/v1beta/openai" />
         </div>
 
         <div class="form-group">

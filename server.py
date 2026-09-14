@@ -24,60 +24,86 @@ CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.j
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend")
 PORT = int(os.environ.get("PORT", 5050))
 HOST = os.environ.get("HOST", "0.0.0.0" if os.environ.get("PORT") else "127.0.0.1")
-AGENTROUTER_FALLBACK_IP = "8.214.161.192"
+DISABLE_LOCAL_TOOLS = os.environ.get("DISABLE_LOCAL_TOOLS", "").strip() in ("1", "true", "yes")
+
+# Curated Sonnet-Grade Base Tier Models
+BASE_TIER_MODELS = [
+    {
+        "id": "deepseek/deepseek-r1",
+        "name": "🧠 DeepSeek R1 (671B Reasoning)",
+        "description": "Frontier test-time reasoning & logic. Outperforms Sonnet on math, algorithms, and deep analysis.",
+        "category": "Reasoning",
+        "status": "online"
+    },
+    {
+        "id": "qwen/qwen-2.5-coder-72b-instruct",
+        "name": "💻 Qwen 2.5 Coder 72B (Elite Code)",
+        "description": "Undisputed open coding champion. Outperforms Claude 3.5 Sonnet & GPT-4o on programming benchmarks.",
+        "category": "Coding",
+        "status": "online"
+    },
+    {
+        "id": "deepseek/deepseek-chat",
+        "name": "⚡ DeepSeek V3 (671B Nuance)",
+        "description": "Instant conversational eloquence and nuanced general intelligence matching Sonnet speed.",
+        "category": "General",
+        "status": "online"
+    },
+    {
+        "id": "google/gemini-2.0-flash-001",
+        "name": "🌐 Gemini 2.0 Flash (Fast / 1M Context)",
+        "description": "Blazing fast multimodal reasoning with massive 1,000,000 token context window.",
+        "category": "Multimodal",
+        "status": "online"
+    }
+]
 
 DEFAULT_CONFIG = {
-    "active_provider": "agentrouter",
+    "active_provider": "base",
     "providers": {
-        "agentrouter": {
-            "name": "AgentRouter",
-            "base_url": "https://agentrouter.org",
-            "api_key": "sk-416fg45p4OK340pdDFK7SFmn01TIfmDmZkYWEp6pZf2wp8Sj",
-            "is_agentrouter": True
+        "base": {
+            "name": "Base Tier (Sonnet-Grade)",
+            "base_url": os.environ.get("BASE_TIER_URL", "https://openrouter.ai/api"),
+            "api_key": os.environ.get("BASE_TIER_API_KEY", "")
         },
-        "tabitoken": {
-            "name": "Tabitoken",
-            "base_url": "https://tabitoken.com",
-            "api_key": "sk-JS1ntD5T42gFkPH317TG6XJHAtA8Vp95KgLrv2Az3u59FmtA",
-            "is_agentrouter": False
+        "google": {
+            "name": "Google AI Studio",
+            "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+            "api_key": os.environ.get("GEMINI_API_KEY", "")
         },
         "openrouter": {
             "name": "OpenRouter",
             "base_url": "https://openrouter.ai/api",
-            "api_key": "",
-            "is_agentrouter": False
+            "api_key": os.environ.get("OPENROUTER_API_KEY", "")
+        },
+        "groq": {
+            "name": "Groq Cloud",
+            "base_url": "https://api.groq.com/openai",
+            "api_key": os.environ.get("GROQ_API_KEY", "")
+        },
+        "deepseek": {
+            "name": "DeepSeek Official",
+            "base_url": "https://api.deepseek.com",
+            "api_key": os.environ.get("DEEPSEEK_API_KEY", "")
+        },
+        "openai": {
+            "name": "OpenAI",
+            "base_url": "https://api.openai.com",
+            "api_key": os.environ.get("OPENAI_API_KEY", "")
         },
         "custom": {
             "name": "Custom Provider",
             "base_url": "https://api.openai.com",
-            "api_key": "",
-            "is_agentrouter": False
+            "api_key": ""
         }
     },
-    "mcp_servers": {
-        "filesystem": {
-            "name": "Filesystem Tools",
-            "description": "Local workspace file explorer & reader",
-            "command": "npx",
-            "args": ["-y", "@modelcontextprotocol/server-filesystem", "C:\\Users\\HP"],
-            "enabled": False,
-            "status": "ready"
-        },
-        "memory": {
-            "name": "Memory Graph",
-            "description": "Persistent contextual knowledge graph",
-            "command": "npx",
-            "args": ["-y", "@modelcontextprotocol/server-memory"],
-            "enabled": False,
-            "status": "ready"
-        }
-    },
+    "mcp_servers": {},
     "plugins": {
         "web_search": {"name": "Real-Time Web Search", "description": "DuckDuckGo organic live web search", "enabled": True},
         "pdf_reader": {"name": "PDF & Document Parser", "description": "High-fidelity pypdf page extraction", "enabled": True},
         "math_eval": {"name": "Math & Code Calculator", "description": "Accurate math logic and python evaluation", "enabled": True}
     },
-    "model": "deepseek-v4-flash",
+    "model": "deepseek/deepseek-r1",
     "temperature": 0.7,
     "system_prompt": "",
     "auto_compress": True,
@@ -86,15 +112,7 @@ DEFAULT_CONFIG = {
     "active_project": ""
 }
 
-# Live model status cache
-model_status_cache = {
-    "deepseek-v4-flash": {"status": "online", "code": 200, "last_check": 0},
-    "glm-5.3": {"status": "online", "code": 200, "last_check": 0},
-    "gpt-6-astra": {"status": "exhausted", "code": 402, "message": "Budget pool quota exhausted", "last_check": 0},
-    "gpt-5.6-sol": {"status": "exhausted", "code": 402, "message": "Budget pool quota exhausted", "last_check": 0},
-    "claude-opus-4-8": {"status": "exhausted", "code": 402, "message": "Budget pool quota exhausted", "last_check": 0},
-    "claude-opus-5": {"status": "exhausted", "code": 402, "message": "Budget pool quota exhausted", "last_check": 0}
-}
+model_status_cache = {}
 is_probing = False
 
 def load_config():
@@ -104,7 +122,7 @@ def load_config():
                 cfg = json.load(f)
                 if "providers" not in cfg:
                     cfg["providers"] = DEFAULT_CONFIG["providers"]
-                    cfg["active_provider"] = "agentrouter"
+                    cfg["active_provider"] = "base"
                 if "mcp_servers" not in cfg:
                     cfg["mcp_servers"] = DEFAULT_CONFIG["mcp_servers"]
                 if "plugins" not in cfg:
@@ -138,7 +156,6 @@ def sanitize_config_for_client(cfg):
             raw_key = p_info.get("api_key", "")
             p_info["has_key"] = bool(raw_key)
             p_info["api_key"] = mask_api_key(raw_key)
-    # Check if access password is required
     expected_pw = ACCESS_PASSWORD or cfg.get("access_password", "")
     safe_cfg["has_access_password"] = bool(expected_pw)
     return safe_cfg
@@ -149,17 +166,23 @@ def save_config(cfg):
 
 def get_active_provider_info(override_key=None, override_url=None):
     cfg = load_config()
-    active_key = cfg.get("active_provider", "agentrouter")
+    active_key = cfg.get("active_provider", "base")
     providers = cfg.get("providers", {})
-    p = providers.get(active_key, providers.get("agentrouter", DEFAULT_CONFIG["providers"]["agentrouter"])).copy()
+    p = providers.get(active_key, DEFAULT_CONFIG["providers"].get("base", {})).copy()
     
-    # Environment variable fallbacks (crucial for secure cloud deployments)
-    if active_key == "agentrouter" and not p.get("api_key") and os.environ.get("AGENTROUTER_API_KEY"):
-        p["api_key"] = os.environ.get("AGENTROUTER_API_KEY")
-    elif active_key == "tabitoken" and not p.get("api_key") and os.environ.get("TABITOKEN_API_KEY"):
-        p["api_key"] = os.environ.get("TABITOKEN_API_KEY")
+    # Environment variable fallbacks for cloud hosting
+    if active_key == "base" and not p.get("api_key") and os.environ.get("BASE_TIER_API_KEY"):
+        p["api_key"] = os.environ.get("BASE_TIER_API_KEY")
+    elif active_key == "google" and not p.get("api_key") and os.environ.get("GEMINI_API_KEY"):
+        p["api_key"] = os.environ.get("GEMINI_API_KEY")
     elif active_key == "openrouter" and not p.get("api_key") and os.environ.get("OPENROUTER_API_KEY"):
         p["api_key"] = os.environ.get("OPENROUTER_API_KEY")
+    elif active_key == "groq" and not p.get("api_key") and os.environ.get("GROQ_API_KEY"):
+        p["api_key"] = os.environ.get("GROQ_API_KEY")
+    elif active_key == "deepseek" and not p.get("api_key") and os.environ.get("DEEPSEEK_API_KEY"):
+        p["api_key"] = os.environ.get("DEEPSEEK_API_KEY")
+    elif active_key == "openai" and not p.get("api_key") and os.environ.get("OPENAI_API_KEY"):
+        p["api_key"] = os.environ.get("OPENAI_API_KEY")
 
     # Ephemeral per-request client override (Zero-Knowledge BYOK)
     if override_key and override_key.strip():
@@ -171,146 +194,20 @@ def get_active_provider_info(override_key=None, override_url=None):
 
 def make_upstream_request(endpoint, data=None, method="GET", stream=False, override_key=None, override_url=None):
     prov, prov_key = get_active_provider_info(override_key=override_key, override_url=override_url)
-    base_url = prov.get("base_url", "https://agentrouter.org").rstrip("/")
-    api_key = prov.get("api_key", "").strip()
-    is_ar = prov.get("is_agentrouter", prov_key == "agentrouter" or "agentrouter.org" in base_url)
+    base_url = (override_url or prov.get("base_url", "https://openrouter.ai/api")).rstrip("/")
+    api_key = (override_key or prov.get("api_key", "")).strip()
 
     target_url = f"{base_url}{endpoint}"
-    parsed = urlparse(target_url)
 
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "User-Agent": "AgentChat/3.0"
     }
-
-    if is_ar:
-        headers["User-Agent"] = "Anthropic/Python 0.49.0"
-        headers["x-stainless-lang"] = "python"
 
     body_bytes = json.dumps(data).encode("utf-8") if data is not None else None
-
-    # Standard domain resolution with fallback
-    try:
-        req = urllib.request.Request(target_url, data=body_bytes, headers=headers, method=method)
-        return urllib.request.urlopen(req, timeout=45)
-    except urllib.error.URLError as e:
-        if is_ar and isinstance(e.reason, socket.gaierror) and "agentrouter.org" in parsed.netloc:
-            fallback_url = target_url.replace("agentrouter.org", AGENTROUTER_FALLBACK_IP)
-            headers["Host"] = "agentrouter.org"
-            ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
-            req = urllib.request.Request(fallback_url, data=body_bytes, headers=headers, method=method)
-            return urllib.request.urlopen(req, context=ctx, timeout=45)
-        raise e
-
-def probe_single_model(model_id):
-    prov, prov_key = get_active_provider_info()
-    api_key = prov.get("api_key", "").strip()
-    base_url = prov.get("base_url", "https://agentrouter.org").rstrip("/")
-    is_ar = prov.get("is_agentrouter", prov_key == "agentrouter" or "agentrouter.org" in base_url)
-
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    if is_ar:
-        headers["User-Agent"] = "Anthropic/Python 0.49.0"
-        headers["x-stainless-lang"] = "python"
-        headers["Host"] = "agentrouter.org"
-        url = f"https://{AGENTROUTER_FALLBACK_IP}/v1/chat/completions"
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-    else:
-        url = f"{base_url}/v1/chat/completions"
-        ctx = None
-
-    payload = {
-        "model": model_id,
-        "messages": [{"role": "user", "content": "1"}],
-        "max_tokens": 1
-    }
-    req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
-    try:
-        kwargs = {"timeout": 5}
-        if ctx:
-            kwargs["context"] = ctx
-        with urllib.request.urlopen(req, **kwargs) as res:
-            model_status_cache[model_id] = {
-                "status": "online",
-                "code": res.status,
-                "message": "Ready to chat",
-                "last_check": time.time()
-            }
-    except urllib.error.HTTPError as e:
-        err_body = e.read().decode("utf-8", errors="ignore")
-        if "Budget pool quota has been exhausted" in err_body:
-            model_status_cache[model_id] = {
-                "status": "exhausted",
-                "code": 402,
-                "message": "Quota exhausted (Refills daily at 00:00, 08:00, 16:00 Beijing Time)",
-                "last_check": time.time()
-            }
-        else:
-            model_status_cache[model_id] = {
-                "status": "error",
-                "code": e.code,
-                "message": err_body[:100],
-                "last_check": time.time()
-            }
-    except Exception as e:
-        model_status_cache[model_id] = {
-            "status": "error",
-            "code": 500,
-            "message": str(e),
-            "last_check": time.time()
-        }
-
-PROBE_INTERVAL = 20 * 60  # 20 minutes (1200 seconds)
-
-def probe_all_models(force=False):
-    global is_probing
-    if is_probing:
-        return
-    is_probing = True
-    now = time.time()
-    models_to_probe = []
-    for m in model_status_cache.keys():
-        last_check = model_status_cache[m].get("last_check", 0)
-        # Only probe if forced or if 20 minutes have passed since last check
-        if force or (now - last_check >= PROBE_INTERVAL) or last_check == 0:
-            models_to_probe.append(m)
-
-    if not models_to_probe:
-        is_probing = False
-        return
-
-    threads = []
-    for m in models_to_probe:
-        t = threading.Thread(target=probe_single_model, args=(m,))
-        threads.append(t)
-        t.start()
-    for t in threads:
-        t.join(6)
-    is_probing = False
-
-def background_probe_loop():
-    # Initial check on startup
-    try:
-        probe_all_models()
-    except Exception:
-        pass
-
-    while True:
-        time.sleep(PROBE_INTERVAL)  # Wait 20 minutes between background checks
-        try:
-            probe_all_models()
-        except Exception:
-            pass
-
-probe_thread = threading.Thread(target=background_probe_loop, daemon=True)
-probe_thread.start()
+    req = urllib.request.Request(target_url, data=body_bytes, headers=headers, method=method)
+    return urllib.request.urlopen(req, timeout=60)
 
 def perform_web_search(query: str, max_results=4) -> str:
     url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
@@ -438,18 +335,33 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         elif path == "/api/credits":
             self.handle_get_credits()
         elif path == "/api/projects":
-            self.handle_get_projects()
+            if DISABLE_LOCAL_TOOLS:
+                self.send_json({"success": True, "projects": {}, "disabled": True})
+            else:
+                self.handle_get_projects()
         elif path == "/api/projects/file":
-            self.handle_get_project_file()
+            if DISABLE_LOCAL_TOOLS:
+                self.send_json({"error": "Local filesystem access is disabled in cloud deployment"}, status=403)
+            else:
+                self.handle_get_project_file()
         elif path == "/api/skills":
             self.handle_get_skills()
         elif path == "/api/mcp":
-            cfg = load_config()
-            self.send_json({
-                "success": True,
-                "servers": cfg.get("mcp_servers", {}),
-                "plugins": cfg.get("plugins", {})
-            })
+            if DISABLE_LOCAL_TOOLS:
+                cfg = load_config()
+                self.send_json({
+                    "success": True,
+                    "servers": {},
+                    "plugins": cfg.get("plugins", {}),
+                    "disabled": True
+                })
+            else:
+                cfg = load_config()
+                self.send_json({
+                    "success": True,
+                    "servers": cfg.get("mcp_servers", {}),
+                    "plugins": cfg.get("plugins", {})
+                })
         else:
             self.serve_static(path)
 
@@ -469,18 +381,30 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         elif path == "/api/parse_file":
             self.handle_parse_file()
         elif path == "/api/projects/scan":
-            self.handle_scan_project()
+            if DISABLE_LOCAL_TOOLS:
+                self.send_json({"error": "Project scanning is disabled in cloud deployment"}, status=403)
+            else:
+                self.handle_scan_project()
         elif path == "/api/projects":
-            self.handle_save_project()
+            if DISABLE_LOCAL_TOOLS:
+                self.send_json({"error": "Project management is disabled in cloud deployment"}, status=403)
+            else:
+                self.handle_save_project()
         elif path == "/api/skills":
             self.handle_save_skills()
         elif path == "/api/probe_models":
             probe_all_models(force=True)
             self.send_json({"success": True, "statuses": model_status_cache})
         elif path == "/api/mcp":
-            self.handle_save_mcp()
+            if DISABLE_LOCAL_TOOLS:
+                self.send_json({"error": "MCP server management is disabled in cloud deployment"}, status=403)
+            else:
+                self.handle_save_mcp()
         elif path == "/api/mcp/test":
-            self.handle_test_mcp()
+            if DISABLE_LOCAL_TOOLS:
+                self.send_json({"error": "MCP testing is disabled in cloud deployment"}, status=403)
+            else:
+                self.handle_test_mcp()
         elif path == "/api/chat":
             self.handle_chat()
         else:
@@ -940,38 +864,58 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             self.send_json({"success": False, "error": str(e)}, status=400)
 
     def handle_get_models(self):
-        DISPLAY_NAMES = {
-            "claude-opus-5": "Claude Opus 5",
-            "claude-opus-4-8": "Claude Opus 4.8",
-            "deepseek-v4-flash": "DeepSeek V4 Flash",
-            "glm-5.3": "GLM 5.3",
-            "gpt-6-astra": "GPT-6 Astra",
-            "gpt-5.6-sol": "GPT-5.6 Sol"
-        }
-        fallback_models = [
-            {"id": "claude-opus-5", "name": "Claude Opus 5", "status": model_status_cache.get("claude-opus-5", {}).get("status", "online")},
-            {"id": "claude-opus-4-8", "name": "Claude Opus 4.8", "status": model_status_cache.get("claude-opus-4-8", {}).get("status", "online")},
-            {"id": "deepseek-v4-flash", "name": "DeepSeek V4 Flash", "status": model_status_cache.get("deepseek-v4-flash", {}).get("status", "online")},
-            {"id": "glm-5.3", "name": "GLM 5.3", "status": model_status_cache.get("glm-5.3", {}).get("status", "online")},
-            {"id": "gpt-6-astra", "name": "GPT-6 Astra", "status": model_status_cache.get("gpt-6-astra", {}).get("status", "online")},
-            {"id": "gpt-5.6-sol", "name": "GPT-5.6 Sol", "status": model_status_cache.get("gpt-5.6-sol", {}).get("status", "online")}
-        ]
-        try:
-            res = make_upstream_request("/v1/models", method="GET")
-            raw = json.loads(res.read().decode("utf-8"))
-            models = []
-            for item in raw.get("data", []):
-                mid = item.get("id")
-                st = model_status_cache.get(mid, {}).get("status", "online")
-                models.append({
-                    "id": mid,
-                    "name": DISPLAY_NAMES.get(mid, mid),
-                    "status": st,
-                    "supported_endpoint_types": item.get("supported_endpoint_types", ["openai"])
+        override_key = self.headers.get("X-Custom-Api-Key", "").strip()
+        override_url = self.headers.get("X-Custom-Base-Url", "").strip()
+
+        # If user provides their own key & base_url (or selected a provider with a key)
+        if override_key and override_url:
+            try:
+                res = make_upstream_request(
+                    "/v1/models",
+                    method="GET",
+                    override_key=override_key,
+                    override_url=override_url
+                )
+                raw = json.loads(res.read().decode("utf-8"))
+                models_data = raw.get("data", [])
+
+                discovered_models = []
+                for item in models_data:
+                    mid = item.get("id")
+                    if not mid:
+                        continue
+                    dname = item.get("name") or mid
+                    discovered_models.append({
+                        "id": mid,
+                        "name": dname,
+                        "status": "online"
+                    })
+
+                # Sort alphabetically by display name
+                discovered_models.sort(key=lambda x: x["name"].lower())
+
+                if discovered_models:
+                    self.send_json({
+                        "success": True,
+                        "models": discovered_models,
+                        "source": "dynamic",
+                        "count": len(discovered_models)
+                    })
+                    return
+            except Exception as e:
+                self.send_json({
+                    "success": False,
+                    "error": f"Failed to fetch models from provider: {str(e)}",
+                    "models": BASE_TIER_MODELS
                 })
-            self.send_json({"success": True, "models": models if models else fallback_models, "statuses": model_status_cache})
-        except Exception as e:
-            self.send_json({"success": True, "models": fallback_models, "statuses": model_status_cache, "warning": str(e)})
+                return
+
+        # Default Base Tier (no custom key or on Base Tier)
+        self.send_json({
+            "success": True,
+            "models": BASE_TIER_MODELS,
+            "source": "base_tier"
+        })
 
     def handle_chat(self):
         length = int(self.headers.get("Content-Length", 0))
@@ -983,7 +927,7 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             return
 
         cfg = load_config()
-        model = req_data.get("model", "deepseek-v4-flash")
+        model = req_data.get("model", "deepseek/deepseek-r1")
         raw_messages = req_data.get("messages", [])
         temperature = req_data.get("temperature", 0.7)
         stream = req_data.get("stream", True)
@@ -1000,6 +944,18 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         self.send_header("Connection", "close")
         self.end_headers()
 
+        override_key = self.headers.get("X-Custom-Api-Key", "").strip()
+        override_url = self.headers.get("X-Custom-Base-Url", "").strip()
+        prov, prov_key = get_active_provider_info(override_key=override_key, override_url=override_url)
+        api_key = (override_key or prov.get("api_key", "")).strip()
+
+        if not api_key:
+            msg = "🔑 No API key configured. Please open Settings or Key Vault to enter your personal API key (Google AI Studio, OpenRouter, Groq, DeepSeek, OpenAI, or Custom)."
+            err_event = f"event: error\ndata: {json.dumps({'error': msg, 'need_key': True})}\n\n"
+            self.wfile.write(err_event.encode("utf-8"))
+            self.wfile.flush()
+            return
+
         # Handle Web Search if requested
         search_context = ""
         if do_web_search and raw_messages:
@@ -1008,7 +964,7 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 if m.get("role") == "user":
                     last_user_msg = m.get("content", "")
                     break
-            
+
             if last_user_msg:
                 notify_event = {
                     "choices": [{
@@ -1072,9 +1028,6 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             "max_tokens": effort_config["max_tokens"]
         }
 
-        override_key = self.headers.get("X-Custom-Api-Key")
-        override_url = self.headers.get("X-Custom-Base-Url")
-
         try:
             upstream_res = make_upstream_request(
                 "/v1/chat/completions",
@@ -1084,13 +1037,6 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 override_key=override_key,
                 override_url=override_url
             )
-            # Mark model as online in cache immediately on successful connection
-            model_status_cache[model] = {
-                "status": "online",
-                "code": 200,
-                "message": "Ready to chat",
-                "last_check": time.time()
-            }
             for line in upstream_res:
                 self.wfile.write(line)
                 self.wfile.flush()
@@ -1104,25 +1050,28 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             self.close_connection = True
         except urllib.error.HTTPError as e:
             err_body = e.read().decode("utf-8", errors="replace")
-            if "Budget pool quota has been exhausted" in err_body:
-                model_status_cache[model] = {
-                    "status": "exhausted",
-                    "code": 402,
-                    "message": "Quota exhausted",
-                    "last_check": time.time()
-                }
             friendly_msg = err_body
             try:
                 err_json = json.loads(err_body)
                 msg_val = err_json.get("error", {}).get("message", "")
-                if "Budget pool quota has been exhausted" in msg_val:
-                    friendly_msg = f"AgentRouter Upstream Notice: The budget pool for '{model}' is exhausted. AgentRouter officially releases daily Claude & GPT quotas in 3 batches at 00:00, 08:00, and 16:00 Beijing Time (UTC 16:00, 00:00, 08:00). DeepSeek-V4 and GLM-5.3 are active 24/7."
-                elif "unauthorized client detected" in msg_val:
-                    friendly_msg = "WAF Header Rejected. Please check your provider API key."
+                err_type = err_json.get("error", {}).get("type", "")
+                if "content-blocked" in msg_val or "content-blocked" in err_type or "content_filter" in msg_val:
+                    friendly_msg = f"Content was blocked by the upstream provider's safety filter for model '{model}'. Try rephrasing your message or switching to a different model."
+                elif e.code == 401 or "invalid_api_key" in msg_val:
+                    friendly_msg = "Invalid API Key. Please verify your API key in Settings / Key Vault."
+                elif e.code == 429 or "rate_limit" in msg_val:
+                    friendly_msg = f"Upstream Rate Limit Exceeded for '{model}'. Please wait a moment or switch keys."
+                elif e.code == 402 or "insufficient_quota" in msg_val or "quota" in msg_val.lower():
+                    friendly_msg = f"Upstream Quota Exhausted for model '{model}'. Please check your provider account balance or switch keys in the Key Vault."
                 else:
                     friendly_msg = msg_val or err_body
             except Exception:
-                pass
+                if "content-blocked" in err_body or "content_filter" in err_body:
+                    friendly_msg = f"Content was blocked by the upstream provider's safety filter for model '{model}'."
+                elif e.code == 401:
+                    friendly_msg = "Invalid API Key. Please verify your key in Settings."
+                elif e.code == 429:
+                    friendly_msg = "Rate limit reached. Please wait a moment."
 
             err_event = f"event: error\ndata: {json.dumps({'error': friendly_msg, 'code': e.code})}\n\n"
             self.wfile.write(err_event.encode("utf-8"))
