@@ -954,9 +954,24 @@
       const decoder = new TextDecoder("utf-8");
       let buffer = "";
 
-      while (true) {
+      streamLoop: while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          if (buffer && buffer.trim()) {
+            const trimmed = buffer.trim();
+            if (trimmed.startsWith("data: ") && !trimmed.startsWith("data: [DONE]")) {
+              try {
+                const data = JSON.parse(trimmed.slice(6));
+                const delta = data.choices?.[0]?.delta || {};
+                if (delta.content) {
+                  assistantMsg.content += delta.content;
+                  textDiv.innerHTML = renderMarkdown(assistantMsg.content);
+                }
+              } catch (_) {}
+            }
+          }
+          break streamLoop;
+        }
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
@@ -965,7 +980,10 @@
         for (const line of lines) {
           const trimmed = line.trim();
           if (!trimmed) continue;
-          if (trimmed.startsWith("data: [DONE]")) break;
+          if (trimmed.startsWith("data: [DONE]")) {
+            try { reader.cancel().catch(() => {}); } catch (_) {}
+            break streamLoop;
+          }
           if (trimmed.startsWith("event: error")) continue;
 
           if (trimmed.startsWith("data: ")) {
@@ -976,7 +994,8 @@
                 const errMsg = typeof data.error === "string" ? data.error : JSON.stringify(data.error);
                 textDiv.innerHTML = `${errMsg}<br><br><button class="btn btn-tonal-tertiary btn-xs" onclick="syncSettingsModalWithConfig(); settingsModal.classList.remove('hidden');" style="cursor:pointer; margin-top:6px;">🔑 Switch API Key in Vault</button>`;
                 assistantMsg.content = errMsg;
-                break;
+                try { reader.cancel().catch(() => {}); } catch (_) {}
+                break streamLoop;
               }
 
               const delta = data.choices?.[0]?.delta || {};
@@ -1003,6 +1022,12 @@
                 textDiv.innerHTML = renderMarkdown(assistantMsg.content);
                 scrollToBottom();
               }
+
+              const finishReason = data.choices?.[0]?.finish_reason;
+              if (finishReason === "stop" || finishReason === "end_turn") {
+                try { reader.cancel().catch(() => {}); } catch (_) {}
+                break streamLoop;
+              }
             } catch (err) {}
           }
         }
@@ -1022,8 +1047,10 @@
         assistantMsg.content = `Error: ${err.message}`;
       }
     } finally {
+      activeAbortController = null;
       setGeneratingState(false);
       saveSessions();
+      userInput.focus();
     }
   }
 

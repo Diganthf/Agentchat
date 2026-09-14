@@ -645,7 +645,7 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
-        self.send_header("Connection", "keep-alive")
+        self.send_header("Connection", "close")
         self.end_headers()
 
         # Handle Web Search if requested
@@ -731,6 +731,14 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             for line in upstream_res:
                 self.wfile.write(line)
                 self.wfile.flush()
+
+            # Ensure client receives explicit stream termination marker
+            try:
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush()
+            except Exception:
+                pass
+            self.close_connection = True
         except urllib.error.HTTPError as e:
             err_body = e.read().decode("utf-8", errors="replace")
             if "Budget pool quota has been exhausted" in err_body:
