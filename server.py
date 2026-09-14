@@ -80,7 +80,10 @@ DEFAULT_CONFIG = {
     "model": "deepseek-v4-flash",
     "temperature": 0.7,
     "system_prompt": "",
-    "auto_compress": True
+    "auto_compress": True,
+    "skills": {},
+    "projects": {},
+    "active_project": ""
 }
 
 # Live model status cache
@@ -108,6 +111,12 @@ def load_config():
                     cfg["plugins"] = DEFAULT_CONFIG["plugins"]
                 if "auto_compress" not in cfg:
                     cfg["auto_compress"] = True
+                if "skills" not in cfg:
+                    cfg["skills"] = {}
+                if "projects" not in cfg:
+                    cfg["projects"] = {}
+                if "active_project" not in cfg:
+                    cfg["active_project"] = ""
                 return cfg
         except Exception:
             pass
@@ -426,6 +435,14 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             self.handle_get_models()
         elif path == "/api/model_status":
             self.send_json({"success": True, "statuses": model_status_cache})
+        elif path == "/api/credits":
+            self.handle_get_credits()
+        elif path == "/api/projects":
+            self.handle_get_projects()
+        elif path == "/api/projects/file":
+            self.handle_get_project_file()
+        elif path == "/api/skills":
+            self.handle_get_skills()
         elif path == "/api/mcp":
             cfg = load_config()
             self.send_json({
@@ -447,8 +464,16 @@ class AgentChatHandler(BaseHTTPRequestHandler):
 
         if path == "/api/config":
             self.handle_save_config()
+        elif path == "/api/credits":
+            self.handle_get_credits()
         elif path == "/api/parse_file":
             self.handle_parse_file()
+        elif path == "/api/projects/scan":
+            self.handle_scan_project()
+        elif path == "/api/projects":
+            self.handle_save_project()
+        elif path == "/api/skills":
+            self.handle_save_skills()
         elif path == "/api/probe_models":
             probe_all_models(force=True)
             self.send_json({"success": True, "statuses": model_status_cache})
@@ -587,6 +612,333 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         except Exception as e:
             self.send_json({"success": False, "error": str(e)}, status=400)
 
+    def handle_get_credits(self):
+        override_key = self.headers.get("X-Custom-Api-Key")
+        override_url = self.headers.get("X-Custom-Base-Url")
+        prov, prov_key = get_active_provider_info(override_key, override_url)
+        api_key = prov.get("api_key", "").strip()
+        base_url = prov.get("base_url", "").strip()
+
+        if not api_key:
+            self.send_json({
+                "success": True,
+                "provider": prov.get("name", prov_key),
+                "balance": None,
+                "formatted": "No Key Set",
+                "mode": "empty"
+            })
+            return
+
+        if prov_key == "openrouter" or "openrouter.ai" in base_url:
+            try:
+                req = urllib.request.Request("https://openrouter.ai/api/v1/auth/key", headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "User-Agent": "AgentChat/2.0"
+                })
+                with urllib.request.urlopen(req, timeout=5) as r:
+                    res_data = json.loads(r.read().decode("utf-8")).get("data", {})
+                    limit = res_data.get("limit")
+                    usage = res_data.get("usage", 0.0)
+                    is_free = res_data.get("is_free_tier", False)
+                    if limit is not None:
+                        remaining = max(0.0, float(limit) - float(usage))
+                        self.send_json({
+                            "success": True,
+                            "provider": "OpenRouter",
+                            "balance": remaining,
+                            "formatted": f"${remaining:.2f}",
+                            "usage": usage,
+                            "limit": limit,
+                            "mode": "credit"
+                        })
+                    elif is_free:
+                        self.send_json({
+                            "success": True,
+                            "provider": "OpenRouter",
+                            "formatted": "Free Tier",
+                            "mode": "free"
+                        })
+                    else:
+                        self.send_json({
+                            "success": True,
+                            "provider": "OpenRouter",
+                            "formatted": f"${float(usage):.2f} used",
+                            "usage": usage,
+                            "mode": "usage"
+                        })
+                    return
+            except Exception as e:
+                self.send_json({
+                    "success": True,
+                    "provider": "OpenRouter",
+                    "formatted": "Key Active",
+                    "mode": "active",
+                    "note": str(e)
+                })
+                return
+
+        elif prov_key == "agentrouter" or "agentrouter.org" in base_url:
+            try:
+                res = make_upstream_request("/dashboard/billing/usage", method="GET")
+                data = json.loads(res.read().decode("utf-8"))
+                usage = data.get("total_usage", 0.0)
+                usage_usd = float(usage) / 100.0 if float(usage) > 50 else float(usage)
+                self.send_json({
+                    "success": True,
+                    "provider": "AgentRouter",
+                    "formatted": f"${usage_usd:.2f} Used",
+                    "usage": usage_usd,
+                    "mode": "unlimited_pool",
+                    "pool_note": "Daily Quotas refill at 00:00, 08:00, 16:00 BJT"
+                })
+                return
+            except Exception:
+                self.send_json({
+                    "success": True,
+                    "provider": "AgentRouter",
+                    "formatted": "Daily Pool Active",
+                    "mode": "pool"
+                })
+                return
+
+        elif prov_key == "tabitoken" or "tabitoken.com" in base_url:
+            try:
+                res = make_upstream_request("/dashboard/billing/usage", method="GET")
+                data = json.loads(res.read().decode("utf-8"))
+                usage = data.get("total_usage", 0.0)
+                self.send_json({
+                    "success": True,
+                    "provider": "Tabitoken",
+                    "formatted": f"${float(usage):.2f} Used",
+                    "mode": "usage"
+                })
+                return
+            except Exception:
+                self.send_json({
+                    "success": True,
+                    "provider": "Tabitoken",
+                    "formatted": "Token Active",
+                    "mode": "active"
+                })
+                return
+
+        else:
+            self.send_json({
+                "success": True,
+                "provider": prov.get("name", "Custom"),
+                "formatted": "Active",
+                "mode": "active"
+            })
+
+    def handle_scan_project(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8")
+        try:
+            req_data = json.loads(body)
+            target_path = req_data.get("path", "").strip()
+            if not target_path:
+                self.send_json({"success": False, "error": "Folder path is required"}, status=400)
+                return
+
+            target_path = os.path.abspath(os.path.expanduser(target_path))
+            if not os.path.exists(target_path) or not os.path.isdir(target_path):
+                self.send_json({"success": False, "error": f"Folder does not exist: {target_path}"}, status=400)
+                return
+
+            IGNORED_DIRS = {
+                ".git", ".svn", ".hg", "node_modules", "venv", ".venv", "env",
+                "__pycache__", ".idea", ".vscode", "dist", "build", ".next",
+                ".nuxt", "coverage", ".pytest_cache", ".mypy_cache", "target", "vendor"
+            }
+            IGNORED_EXTS = {
+                ".exe", ".dll", ".so", ".dylib", ".bin", ".iso", ".zip", ".tar",
+                ".gz", ".7z", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico",
+                ".mp4", ".mp3", ".wav", ".pdf", ".woff", ".woff2", ".ttf", ".eot"
+            }
+            TECH_EXTS = {
+                ".py": "Python", ".js": "JavaScript", ".ts": "TypeScript",
+                ".jsx": "React JSX", ".tsx": "React TSX", ".html": "HTML",
+                ".css": "CSS", ".scss": "SCSS", ".json": "JSON", ".md": "Markdown",
+                ".rs": "Rust", ".go": "Go", ".java": "Java", ".c": "C", ".cpp": "C++",
+                ".rb": "Ruby", ".php": "PHP", ".sql": "SQL", ".sh": "Shell", ".ps1": "PowerShell"
+            }
+
+            file_tree = []
+            total_files = 0
+            total_lines = 0
+            tech_counts = {}
+
+            for root, dirs, files in os.walk(target_path):
+                dirs[:] = [d for d in dirs if d not in IGNORED_DIRS and not d.startswith(".")]
+                rel_root = os.path.relpath(root, target_path)
+                depth = 0 if rel_root == "." else len(rel_root.split(os.sep))
+                if depth > 5:
+                    continue
+
+                for file in sorted(files):
+                    if file.startswith("."):
+                        continue
+                    ext = os.path.splitext(file)[1].lower()
+                    if ext in IGNORED_EXTS:
+                        continue
+
+                    full_path = os.path.join(root, file)
+                    rel_file = os.path.relpath(full_path, target_path).replace("\\", "/")
+
+                    try:
+                        size = os.path.getsize(full_path)
+                        lines_in_file = 0
+                        if size < 500 * 1024:
+                            try:
+                                with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
+                                    lines_in_file = sum(1 for _ in f)
+                            except Exception:
+                                pass
+                        total_files += 1
+                        total_lines += lines_in_file
+                        tech = TECH_EXTS.get(ext, ext.lstrip(".").upper() if ext else "Text")
+                        tech_counts[tech] = tech_counts.get(tech, 0) + 1
+
+                        if len(file_tree) < 300:
+                            file_tree.append({
+                                "path": rel_file,
+                                "name": file,
+                                "size": size,
+                                "lines": lines_in_file,
+                                "ext": ext,
+                                "tech": tech
+                            })
+                    except Exception:
+                        continue
+
+            top_techs = sorted(tech_counts.items(), key=lambda x: x[1], reverse=True)[:6]
+            tech_stack = [t[0] for t in top_techs]
+            project_name = os.path.basename(target_path) or "RootProject"
+
+            project_info = {
+                "name": project_name,
+                "path": target_path,
+                "total_files": total_files,
+                "total_lines": total_lines,
+                "tech_stack": tech_stack,
+                "tree": file_tree
+            }
+
+            cfg = load_config()
+            if "projects" not in cfg:
+                cfg["projects"] = {}
+            cfg["projects"][project_name] = {
+                "name": project_name,
+                "path": target_path,
+                "total_files": total_files,
+                "total_lines": total_lines,
+                "tech_stack": tech_stack,
+                "last_scanned": time.time()
+            }
+            cfg["active_project"] = project_name
+            save_config(cfg)
+
+            self.send_json({
+                "success": True,
+                "project": project_info,
+                "saved_projects": cfg["projects"],
+                "active_project": project_name
+            })
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)}, status=400)
+
+    def handle_get_projects(self):
+        cfg = load_config()
+        self.send_json({
+            "success": True,
+            "projects": cfg.get("projects", {}),
+            "active_project": cfg.get("active_project", "")
+        })
+
+    def handle_save_project(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8")
+        try:
+            data = json.loads(body)
+            action = data.get("action", "select")
+            proj_name = data.get("project_name", "")
+            cfg = load_config()
+            if "projects" not in cfg:
+                cfg["projects"] = {}
+
+            if action == "select":
+                cfg["active_project"] = proj_name
+            elif action == "delete":
+                if proj_name in cfg["projects"]:
+                    del cfg["projects"][proj_name]
+                if cfg.get("active_project") == proj_name:
+                    cfg["active_project"] = list(cfg["projects"].keys())[0] if cfg["projects"] else ""
+
+            save_config(cfg)
+            self.send_json({
+                "success": True,
+                "projects": cfg["projects"],
+                "active_project": cfg.get("active_project", "")
+            })
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)}, status=400)
+
+    def handle_get_project_file(self):
+        parsed = urlparse(self.path)
+        qs = urllib.parse.parse_qs(parsed.query)
+        rel_path = qs.get("file", [""])[0]
+        proj_name = qs.get("project", [""])[0]
+
+        cfg = load_config()
+        projects = cfg.get("projects", {})
+        active_proj = projects.get(proj_name or cfg.get("active_project", ""))
+
+        if not active_proj:
+            self.send_json({"success": False, "error": "Project not found"}, status=404)
+            return
+
+        proj_root = os.path.abspath(active_proj.get("path", ""))
+        target_file = os.path.abspath(os.path.join(proj_root, rel_path))
+
+        if not target_file.startswith(proj_root):
+            self.send_json({"success": False, "error": "Access denied"}, status=403)
+            return
+
+        if not os.path.exists(target_file) or os.path.isdir(target_file):
+            self.send_json({"success": False, "error": "File not found"}, status=404)
+            return
+
+        try:
+            with open(target_file, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read(300000)
+            self.send_json({
+                "success": True,
+                "filename": os.path.basename(target_file),
+                "path": rel_path,
+                "content": content
+            })
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)}, status=500)
+
+    def handle_get_skills(self):
+        cfg = load_config()
+        self.send_json({
+            "success": True,
+            "skills": cfg.get("skills", {})
+        })
+
+    def handle_save_skills(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8")
+        try:
+            data = json.loads(body)
+            cfg = load_config()
+            cfg["skills"] = data.get("skills", {})
+            save_config(cfg)
+            self.send_json({"success": True, "skills": cfg["skills"]})
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)}, status=400)
+
     def handle_get_models(self):
         DISPLAY_NAMES = {
             "claude-opus-5": "Claude Opus 5",
@@ -686,8 +1038,19 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         else:
             final_messages = clean_messages
 
+        skills_context = req_data.get("skills_context", "").strip()
+        project_context = req_data.get("project_context", "").strip()
+
+        combined_sys = []
         if system_prompt and system_prompt.strip():
-            final_messages.insert(0, {"role": "system", "content": system_prompt.strip()})
+            combined_sys.append(system_prompt.strip())
+        if skills_context:
+            combined_sys.append(f"### [Active Agent Skills & Directives]:\n{skills_context}")
+        if project_context:
+            combined_sys.append(f"### [Active Codebase / Project Context]:\n{project_context}")
+
+        if combined_sys:
+            final_messages.insert(0, {"role": "system", "content": "\n\n".join(combined_sys)})
 
         # Effort levels
         effort_map = {

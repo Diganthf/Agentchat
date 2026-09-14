@@ -32,7 +32,19 @@
           </div>
           <span class="rail-label">Models</span>
         </button>
-        <button class="rail-btn" id="rail-tab-mcp" title="MCP & Tools (Ctrl+3)">
+        <button class="rail-btn" id="rail-tab-skills" title="Agent Skills & Protocols (Ctrl+4)">
+          <div class="rail-icon-wrapper">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+          </div>
+          <span class="rail-label">Skills</span>
+        </button>
+        <button class="rail-btn" id="rail-tab-projects" title="Projects & Codebases (Ctrl+5)">
+          <div class="rail-icon-wrapper">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+          </div>
+          <span class="rail-label">Projects</span>
+        </button>
+        <button class="rail-btn" id="rail-tab-mcp" title="MCP & Tools (Ctrl+6)">
           <div class="rail-icon-wrapper">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
           </div>
@@ -53,23 +65,26 @@
       </div>
     </nav>
 
-    <!-- 2. Contextual Sidebar Panel (Conversation History / Models / MCP) -->
+    <!-- 2. Contextual Sidebar Panel (Conversation History / Models / Skills / Projects / MCP) -->
     <aside class="sub-sidebar" id="sub-sidebar">
-      <!-- Section A: Chats Sidebar View -->
+      <!-- Section A: Chats Sidebar View (Enhanced Chat History) -->
       <div class="sidebar-pane" id="pane-chats">
         <div class="pane-header">
-          <h2>Conversations</h2>
-          <button id="new-chat-btn" class="btn btn-tonal btn-sm" title="New Session (Ctrl+N)">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            New
-          </button>
+          <h2>History & Chats</h2>
+          <div class="header-action-group">
+            <button id="export-all-chats-btn" class="btn btn-tonal-tertiary btn-xs" title="Export All History as JSON">📥 Export</button>
+            <button id="new-chat-btn" class="btn btn-tonal btn-sm" title="New Session (Ctrl+N)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              New
+            </button>
+          </div>
         </div>
         <div class="search-box">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-          <input type="text" id="chat-search-input" placeholder="Search sessions..." />
+          <input type="text" id="chat-search-input" placeholder="Search sessions or messages..." />
         </div>
         <div class="conversation-list" id="chat-list">
-          <!-- Chat session items injected here -->
+          <!-- Chat session items injected here with date groups -->
         </div>
       </div>
 
@@ -91,7 +106,51 @@
         </div>
       </div>
 
-      <!-- Section C: MCP Tools Sidebar View -->
+      <!-- Section C: Skills Sidebar View -->
+      <div class="sidebar-pane hidden" id="pane-skills">
+        <div class="pane-header">
+          <h2>Agent Skills</h2>
+          <button id="open-add-skill-btn" class="btn btn-tonal btn-sm" title="Create Custom Skill">
+            + New Skill
+          </button>
+        </div>
+        <div class="pane-info-banner">
+          <span>Active skills dynamically augment the AI agent's system directives and execution rules.</span>
+        </div>
+        <div class="skills-list" id="skills-list">
+          <!-- Skill cards injected dynamically -->
+        </div>
+      </div>
+
+      <!-- Section D: Projects Sidebar View -->
+      <div class="sidebar-pane hidden" id="pane-projects">
+        <div class="pane-header">
+          <h2>Projects & Code</h2>
+          <button id="open-import-project-btn" class="btn btn-tonal btn-sm" title="Import Codebase">
+            + Import
+          </button>
+        </div>
+        <div class="pane-info-banner">
+          <span>Import your whole codebase to give the agent full architectural awareness and file context.</span>
+        </div>
+        <div class="project-active-card hidden" id="project-active-card">
+          <!-- Active project info and context toggle injected here -->
+        </div>
+        <div class="project-files-section hidden" id="project-files-section">
+          <div class="project-section-header">
+            <span id="project-file-count-label">Project Files</span>
+            <input type="text" id="project-file-filter" class="form-input-sm" placeholder="Filter files..." />
+          </div>
+          <div class="project-tree-container" id="project-tree-container">
+            <!-- Interactive file tree items injected here -->
+          </div>
+        </div>
+        <div class="saved-projects-list" id="saved-projects-list">
+          <!-- Saved projects cards -->
+        </div>
+      </div>
+
+      <!-- Section E: MCP Tools Sidebar View -->
       <div class="sidebar-pane hidden" id="pane-mcp">
         <div class="pane-header">
           <h2>MCP & Tools</h2>
@@ -149,10 +208,31 @@
         </div>
 
         <div class="topbar-right-group">
+          <!-- Live Provider Credits / Balance Pill -->
+          <div class="credits-pill" id="credits-pill" title="Live Provider Balance / Credits (Click to refresh)">
+            <span class="credits-icon">💳</span>
+            <span id="credits-amount" class="credits-amount">Checking...</span>
+            <button id="credits-refresh-btn" class="credits-refresh-btn" title="Refresh Balance">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+            </button>
+          </div>
+
           <!-- Active Tools Indicator Pill -->
           <div class="tools-status-pill" id="tools-status-pill" title="Active Tools & MCP Servers">
             <span class="tools-dot"></span>
             <span id="tools-status-text">Web Search & PDF Active</span>
+          </div>
+
+          <!-- Active Skills Pill -->
+          <div class="skills-status-pill hidden" id="skills-status-pill" title="Active Agent Skills" onclick="switchToRailTab('skills')">
+            <span>✨</span>
+            <span id="skills-status-text">0 Skills</span>
+          </div>
+
+          <!-- Active Project Pill -->
+          <div class="project-status-pill hidden" id="project-status-pill" title="Active Codebase Project" onclick="switchToRailTab('projects')">
+            <span>📁</span>
+            <span id="project-status-text">Project</span>
           </div>
 
           <!-- Token Savings Badge -->
@@ -361,6 +441,90 @@
       </div>
       <div class="modal-footer">
         <button id="save-settings-btn" class="btn btn-primary">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create / Edit Custom Skill Modal -->
+  <div class="modal-overlay hidden" id="create-skill-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Create Agent Skill</h3>
+        <button id="close-skill-modal-btn" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="skill-name-input">Skill Name</label>
+          <input type="text" id="skill-name-input" placeholder="e.g. SQL Wizard, TypeScript Refactorer" />
+        </div>
+        <div class="form-row" style="display: flex; gap: 12px;">
+          <div class="form-group" style="flex: 1;">
+            <label for="skill-icon-input">Emoji / Icon</label>
+            <input type="text" id="skill-icon-input" placeholder="⚡" maxlength="4" value="⚡" />
+          </div>
+          <div class="form-group" style="flex: 2;">
+            <label for="skill-category-input">Category / Tag</label>
+            <input type="text" id="skill-category-input" placeholder="e.g. Coding, Security, Analytics" value="Custom" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="skill-desc-input">Short Description</label>
+          <input type="text" id="skill-desc-input" placeholder="Brief summary of when the agent should apply this skill" />
+        </div>
+        <div class="form-group">
+          <label for="skill-prompt-input">System Directives & Instructions</label>
+          <textarea id="skill-prompt-input" rows="5" placeholder="Enter instructions, constraints, and behavior guidelines to inject into the agent's prompt whenever this skill is active..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="save-skill-btn" class="btn btn-primary">Save Skill</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import Codebase Project Modal -->
+  <div class="modal-overlay hidden" id="import-project-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Import Codebase / Project</h3>
+        <button id="close-import-project-btn" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="project-path-input">Local Project Folder Path</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="project-path-input" placeholder="e.g. C:\Users\HP\Projects\MyApp or ." style="flex: 1;" />
+            <button id="scan-project-path-btn" class="btn btn-primary">Scan & Index</button>
+          </div>
+          <small class="hint">Scans project directory, files, code lines, and tech stack while automatically ignoring heavy binaries, git history, and node_modules.</small>
+        </div>
+
+        <div style="text-align: center; margin: 12px 0; color: var(--text-muted); font-size: 12px;">— OR CHOOSE FROM EXPLORER —</div>
+
+        <div class="form-group">
+          <label for="project-folder-input">Pick Directory from Explorer</label>
+          <input type="file" id="project-folder-input" webkitdirectory directory multiple class="form-file-input" />
+          <small class="hint">Select any folder on your machine directly via Windows Explorer to analyze and explore.</small>
+        </div>
+
+        <div id="project-scan-status" class="project-scan-status"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- File Preview Modal -->
+  <div class="modal-overlay hidden" id="file-preview-modal">
+    <div class="modal-card" style="max-width: 720px; width: 90%;">
+      <div class="modal-header">
+        <h3 id="file-preview-title">File Preview</h3>
+        <button id="close-file-preview-btn" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+        <pre id="file-preview-code" style="background: var(--surface-container-high); padding: 14px; border-radius: 8px; font-family: var(--font-mono); font-size: 13px; white-space: pre-wrap; word-break: break-all; margin: 0;"></pre>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between;">
+        <button id="file-preview-copy-btn" class="btn btn-secondary">📋 Copy Code</button>
+        <button id="file-preview-insert-btn" class="btn btn-primary">➕ Insert into Chat</button>
       </div>
     </div>
   </div>
