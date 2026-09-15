@@ -229,11 +229,17 @@ def resolve_provider_info(prov_key, cfg=None, override_key=None, override_url=No
         p["base_url"] = override_url.strip()
 
     # 4. Smart Endpoint & Provider Auto-Detection:
-    if raw_key.startswith("AIza") and not override_url:
+    is_gemini = bool(raw_key.startswith("AIza") or (find_env_fuzzy("gemini") and raw_key == find_env_fuzzy("gemini")))
+    is_groq = bool(raw_key.startswith("gsk_") or (find_env_fuzzy("groq") and raw_key == find_env_fuzzy("groq")))
+    is_openrouter = bool(raw_key.startswith("sk-or-"))
+
+    if is_gemini and not override_url:
         p["base_url"] = "https://generativelanguage.googleapis.com/v1beta/openai"
-    elif raw_key.startswith("gsk_") and not override_url:
+        p["name"] = "Google AI Studio (Gemini)"
+    elif is_groq and not override_url:
         p["base_url"] = "https://api.groq.com/openai"
-    elif raw_key.startswith("sk-or-") and not override_url:
+        p["name"] = "Groq Cloud"
+    elif is_openrouter and not override_url:
         p["base_url"] = "https://openrouter.ai/api"
 
     return p, prov_key
@@ -390,11 +396,11 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             prov, _ = get_active_provider_info()
             current_k = prov.get("api_key", "")
             key_detected_type = "none"
-            if current_k.startswith("sk-or-"):
+            if current_k.startswith("sk-or-") or (find_env_fuzzy("openrouter") and current_k == find_env_fuzzy("openrouter")):
                 key_detected_type = "openrouter"
-            elif current_k.startswith("AIza"):
+            elif current_k.startswith("AIza") or (find_env_fuzzy("gemini") and current_k == find_env_fuzzy("gemini")):
                 key_detected_type = "gemini"
-            elif current_k.startswith("gsk_"):
+            elif current_k.startswith("gsk_") or (find_env_fuzzy("groq") and current_k == find_env_fuzzy("groq")):
                 key_detected_type = "groq"
             elif current_k.startswith("sk-"):
                 key_detected_type = "openai/deepseek"
