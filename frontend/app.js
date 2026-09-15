@@ -215,9 +215,46 @@
   const saveKeyToVaultBtn = document.getElementById("save-key-to-vault-btn");
   const deleteCurrentKeyBtn = document.getElementById("delete-current-key-btn");
 
+  // Auth Portal & Cloud Sync Elements
+  let currentUser = null;
+  const userAuthWrapper = document.getElementById("user-auth-wrapper");
+  const authPortalBtn = document.getElementById("auth-portal-btn");
+  const userNameDisplay = document.getElementById("user-name-display");
+  const userAvatarDisplay = document.getElementById("user-avatar-display");
+  const syncDotIndicator = document.getElementById("sync-dot-indicator");
+  const userDropdownMenu = document.getElementById("user-dropdown-menu");
+  const dropdownAvatar = document.getElementById("dropdown-avatar");
+  const dropdownName = document.getElementById("dropdown-name");
+  const dropdownEmail = document.getElementById("dropdown-email");
+  const dropdownSyncBtn = document.getElementById("dropdown-sync-btn");
+  const dropdownVaultBtn = document.getElementById("dropdown-vault-btn");
+  const dropdownLogoutBtn = document.getElementById("dropdown-logout-btn");
+
+  const authModal = document.getElementById("auth-modal");
+  const closeAuthModalBtn = document.getElementById("close-auth-modal-btn");
+  const authGuestBtn = document.getElementById("auth-guest-btn");
+  const googleLoginBtn = document.getElementById("google-login-btn");
+  const githubLoginBtn = document.getElementById("github-login-btn");
+  const authForm = document.getElementById("auth-form");
+  const authNameGroup = document.getElementById("auth-name-group");
+  const authNameInput = document.getElementById("auth-name-input");
+  const authEmailInput = document.getElementById("auth-email-input");
+  const authPasswordInput = document.getElementById("auth-password-input");
+  const authAlertBox = document.getElementById("auth-alert-box");
+  const authSubmitBtn = document.getElementById("auth-submit-btn");
+  const authToggleModeBtn = document.getElementById("auth-toggle-mode-btn");
+  const authToggleText = document.getElementById("auth-toggle-text");
+  const authModalTitle = document.getElementById("auth-modal-title");
+  let authMode = "login";
+
   // Auth & Zero-Knowledge API Wrapper
   function getAuthHeaders(extra = {}) {
     const headers = { ...extra };
+    const token = localStorage.getItem("agentchat_session_token");
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+      headers["X-User-Session"] = token;
+    }
     const pw = localStorage.getItem("agentchat_access_password") || "";
     if (pw) headers["X-Access-Password"] = pw;
     const activeP = currentConfig.active_provider || "base";
@@ -459,6 +496,74 @@
     // Probe button in sidebar
     const sideProbeBtn = document.getElementById("sidebar-probe-btn");
     if (sideProbeBtn) sideProbeBtn.addEventListener("click", triggerActiveProbe);
+
+    // Auth Portal & Cloud Sync Listeners
+    if (authPortalBtn) {
+      authPortalBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (currentUser) {
+          userDropdownMenu.classList.toggle("hidden");
+        } else {
+          openAuthModal();
+        }
+      });
+    }
+
+    document.addEventListener("click", (e) => {
+      if (userDropdownMenu && !userDropdownMenu.classList.contains("hidden")) {
+        if (userAuthWrapper && !userAuthWrapper.contains(e.target)) {
+          userDropdownMenu.classList.add("hidden");
+        }
+      }
+    });
+
+    if (closeAuthModalBtn) closeAuthModalBtn.addEventListener("click", closeAuthModal);
+    if (authGuestBtn) authGuestBtn.addEventListener("click", closeAuthModal);
+    if (authModal) {
+      authModal.addEventListener("click", (e) => {
+        if (e.target === authModal) closeAuthModal();
+      });
+    }
+
+    if (authToggleModeBtn) {
+      authToggleModeBtn.addEventListener("click", () => {
+        if (authMode === "login") {
+          setAuthMode("register");
+        } else {
+          setAuthMode("login");
+        }
+      });
+    }
+
+    if (googleLoginBtn) googleLoginBtn.addEventListener("click", () => handleSocialSignIn("google"));
+    if (githubLoginBtn) githubLoginBtn.addEventListener("click", () => handleSocialSignIn("github"));
+    if (authForm) authForm.addEventListener("submit", handleEmailAuthSubmit);
+
+    if (dropdownSyncBtn) {
+      dropdownSyncBtn.addEventListener("click", () => {
+        userDropdownMenu.classList.add("hidden");
+        syncUserProfileToCloud(true);
+      });
+    }
+
+    if (dropdownVaultBtn) {
+      dropdownVaultBtn.addEventListener("click", () => {
+        userDropdownMenu.classList.add("hidden");
+        syncSettingsModalWithConfig();
+        settingsModal.classList.remove("hidden");
+      });
+    }
+
+    if (dropdownLogoutBtn) dropdownLogoutBtn.addEventListener("click", handleSignOut);
+
+    if (modelSelect) {
+      modelSelect.addEventListener("change", () => {
+        localStorage.setItem("agentchat_active_model", modelSelect.value);
+        if (currentUser) {
+          syncUserProfileToCloud();
+        }
+      });
+    }
   }
 
   // Rail Tab Switching
@@ -1428,15 +1533,278 @@
     }
   };
 
+  // =========================================================================
+  // User Authentication & Cross-Device Cloud Profile Synchronization
+  // =========================================================================
+  function updateAuthUI(user, isSynced = true) {
+    currentUser = user;
+    if (user) {
+      const initial = (user.name || user.email || "U").charAt(0).toUpperCase();
+      userNameDisplay.textContent = user.name || user.email.split("@")[0];
+      userAvatarDisplay.textContent = initial;
+      userAvatarDisplay.style.background = "#238636";
+      userAvatarDisplay.style.color = "#fff";
+      syncDotIndicator.className = "sync-dot-indicator" + (isSynced ? "" : " syncing");
+      syncDotIndicator.title = isSynced ? "☁️ Cloud Synced" : "Syncing...";
+
+      dropdownAvatar.textContent = initial;
+      dropdownName.textContent = user.name || user.email.split("@")[0];
+      dropdownEmail.textContent = user.email;
+    } else {
+      userNameDisplay.textContent = "Sign In";
+      userAvatarDisplay.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
+      userAvatarDisplay.style.background = "";
+      userAvatarDisplay.style.color = "";
+      syncDotIndicator.className = "sync-dot-indicator offline";
+      syncDotIndicator.title = "Not synced (Local Guest Mode)";
+
+      dropdownAvatar.textContent = "?";
+      dropdownName.textContent = "Guest User";
+      dropdownEmail.textContent = "Not synced to cloud";
+    }
+  }
+
+  async function checkAuthStatus() {
+    const token = localStorage.getItem("agentchat_session_token");
+    if (!token) {
+      updateAuthUI(null);
+      return;
+    }
+    try {
+      const res = await apiFetch("/api/auth/me");
+      const data = await res.json();
+      if (data.authenticated && data.user) {
+        updateAuthUI(data.user);
+        if (data.profile) {
+          applyCloudProfile(data.profile);
+        }
+      } else {
+        localStorage.removeItem("agentchat_session_token");
+        updateAuthUI(null);
+      }
+    } catch (e) {
+      console.warn("Auth check error:", e);
+      updateAuthUI(null);
+    }
+  }
+
+  function applyCloudProfile(profile) {
+    if (!profile) return;
+    if (profile.active_provider) {
+      currentConfig.active_provider = profile.active_provider;
+      localStorage.setItem("agentchat_active_provider", profile.active_provider);
+      if (providerSelect) providerSelect.value = profile.active_provider;
+    }
+    if (profile.active_model) {
+      currentConfig.model = profile.active_model;
+      localStorage.setItem("agentchat_active_model", profile.active_model);
+      if (modelSelect) modelSelect.value = profile.active_model;
+    }
+    if (profile.custom_base_url) {
+      if (!currentConfig.providers) currentConfig.providers = {};
+      if (!currentConfig.providers.custom) currentConfig.providers.custom = {};
+      currentConfig.providers.custom.base_url = profile.custom_base_url;
+      localStorage.setItem("agentchat_client_url_custom", profile.custom_base_url);
+    }
+    if (profile.keys && typeof profile.keys === "object") {
+      Object.entries(profile.keys).forEach(([pKey, keyVal]) => {
+        if (keyVal && typeof keyVal === "string") {
+          if (!currentConfig.providers) currentConfig.providers = {};
+          if (!currentConfig.providers[pKey]) currentConfig.providers[pKey] = {};
+          currentConfig.providers[pKey].api_key = keyVal;
+          currentConfig.providers[pKey].has_key = true;
+          localStorage.setItem("agentchat_client_key_" + pKey, keyVal);
+        }
+      });
+    }
+  }
+
+  async function syncUserProfileToCloud(showToast = false) {
+    if (!currentUser) return;
+    try {
+      syncDotIndicator.className = "sync-dot-indicator syncing";
+      const activeP = currentConfig.active_provider || "custom";
+      const activeM = modelSelect ? modelSelect.value : (currentConfig.model || "");
+      const customUrl = localStorage.getItem("agentchat_client_url_custom") || currentConfig.providers?.custom?.base_url || "";
+      
+      const keys = {};
+      Object.keys(PROVIDER_DEFAULTS).forEach(pKey => {
+        const k = localStorage.getItem("agentchat_client_key_" + pKey) || currentConfig.providers?.[pKey]?.api_key || "";
+        if (k && !isMaskedKey(k)) {
+          keys[pKey] = k;
+        }
+      });
+
+      const res = await apiFetch("/api/user/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          active_provider: activeP,
+          active_model: activeM,
+          custom_base_url: customUrl,
+          keys: keys,
+          settings: {
+            temperature: parseFloat(settingTemp?.value) || 0.7,
+            auto_compress: currentConfig.auto_compress !== false
+          }
+        })
+      });
+
+      if (res.ok) {
+        syncDotIndicator.className = "sync-dot-indicator";
+        if (showToast) alert("✅ Cloud Sync Complete: Your keys, base URLs, and preferences are safely synced across all your devices!");
+      } else {
+        syncDotIndicator.className = "sync-dot-indicator offline";
+      }
+    } catch (e) {
+      console.warn("Cloud sync failed:", e);
+      syncDotIndicator.className = "sync-dot-indicator offline";
+    }
+  }
+
+  function openAuthModal() {
+    authAlertBox.classList.add("hidden");
+    authAlertBox.textContent = "";
+    authModal.classList.remove("hidden");
+  }
+
+  function closeAuthModal() {
+    authModal.classList.add("hidden");
+  }
+
+  function setAuthMode(mode) {
+    authMode = mode;
+    authAlertBox.classList.add("hidden");
+    if (mode === "register") {
+      authModalTitle.textContent = "Create an AgentChat Account";
+      authNameGroup.classList.remove("hidden");
+      authSubmitBtn.textContent = "Create Account & Sync";
+      authToggleText.textContent = "Already have an account?";
+      authToggleModeBtn.textContent = "Sign In";
+    } else {
+      authModalTitle.textContent = "Sign In to AgentChat";
+      authNameGroup.classList.add("hidden");
+      authSubmitBtn.textContent = "Sign In";
+      authToggleText.textContent = "Don't have an account?";
+      authToggleModeBtn.textContent = "Create Account";
+    }
+  }
+
+  async function handleSocialSignIn(provider) {
+    try {
+      authAlertBox.classList.remove("hidden", "error");
+      authAlertBox.classList.add("success");
+      authAlertBox.textContent = `Connecting ${provider.toUpperCase()}...`;
+
+      const res = await apiFetch("/api/auth/social-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: provider,
+          email: "",
+          name: `${provider.charAt(0).toUpperCase() + provider.slice(1)} User`
+        })
+      });
+
+      const data = await res.json();
+      if (data.success && data.token) {
+        localStorage.setItem("agentchat_session_token", data.token);
+        updateAuthUI(data.user);
+        if (data.profile) {
+          applyCloudProfile(data.profile);
+        }
+        closeAuthModal();
+        await fetchModels();
+        updateBannerStatus();
+      } else {
+        authAlertBox.classList.remove("success");
+        authAlertBox.classList.add("error");
+        authAlertBox.textContent = data.error || "Social login failed";
+      }
+    } catch (e) {
+      authAlertBox.classList.remove("success");
+      authAlertBox.classList.add("error");
+      authAlertBox.textContent = "Sign-in error: " + e.message;
+    }
+  }
+
+  async function handleEmailAuthSubmit(e) {
+    if (e) e.preventDefault();
+    const email = authEmailInput.value.trim();
+    const password = authPasswordInput.value.trim();
+    const name = authNameInput.value.trim();
+
+    if (!email || !password) {
+      authAlertBox.classList.remove("hidden", "success");
+      authAlertBox.classList.add("error");
+      authAlertBox.textContent = "Please enter both email and password";
+      return;
+    }
+
+    try {
+      authSubmitBtn.disabled = true;
+      authSubmitBtn.textContent = "Authenticating...";
+
+      const endpoint = authMode === "register" ? "/api/auth/register" : "/api/auth/login";
+      const payload = { email, password };
+      if (authMode === "register" && name) payload.name = name;
+
+      const res = await apiFetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      authSubmitBtn.disabled = false;
+      authSubmitBtn.textContent = authMode === "register" ? "Create Account & Sync" : "Sign In";
+
+      if (data.success && data.token) {
+        localStorage.setItem("agentchat_session_token", data.token);
+        updateAuthUI(data.user);
+        if (data.profile) {
+          applyCloudProfile(data.profile);
+        }
+        closeAuthModal();
+        await fetchModels();
+        updateBannerStatus();
+      } else {
+        authAlertBox.classList.remove("hidden", "success");
+        authAlertBox.classList.add("error");
+        authAlertBox.textContent = data.error || "Authentication failed";
+      }
+    } catch (e) {
+      authSubmitBtn.disabled = false;
+      authSubmitBtn.textContent = authMode === "register" ? "Create Account & Sync" : "Sign In";
+      authAlertBox.classList.remove("hidden", "success");
+      authAlertBox.classList.add("error");
+      authAlertBox.textContent = "Network error: " + e.message;
+    }
+  }
+
+  async function handleSignOut() {
+    userDropdownMenu.classList.add("hidden");
+    try {
+      await apiFetch("/api/auth/logout", { method: "POST" });
+    } catch (_) {}
+    localStorage.removeItem("agentchat_session_token");
+    updateAuthUI(null);
+    updateBannerStatus();
+  }
+
   // Provider Switching
   async function switchProvider(provKey) {
     currentConfig.active_provider = provKey;
+    localStorage.setItem("agentchat_active_provider", provKey);
     providerSelect.value = provKey;
     if (settingProviderChoice) settingProviderChoice.value = provKey;
     populateProviderFields(provKey);
     await saveConfig(false);
     await fetchModels();
     updateBannerStatus();
+    if (currentUser) {
+      syncUserProfileToCloud();
+    }
   }
 
   // --- Client-Side Web Crypto API: AES-GCM Encrypted Vault ---
@@ -1695,6 +2063,37 @@
     try {
       const res = await apiFetch("/api/config");
       currentConfig = await res.json();
+
+      // Check cloud authentication & profile first
+      await checkAuthStatus();
+
+      // If user is not logged in, restore persistent settings from localStorage
+      if (!currentUser) {
+        const savedProvider = localStorage.getItem("agentchat_active_provider");
+        if (savedProvider && (savedProvider in PROVIDER_DEFAULTS || savedProvider === "custom")) {
+          currentConfig.active_provider = savedProvider;
+        }
+        const savedModel = localStorage.getItem("agentchat_active_model");
+        if (savedModel) {
+          currentConfig.model = savedModel;
+        }
+      }
+
+      // Restore client keys & URLs into currentConfig
+      Object.keys(PROVIDER_DEFAULTS).forEach(pKey => {
+        if (!currentConfig.providers) currentConfig.providers = {};
+        if (!currentConfig.providers[pKey]) currentConfig.providers[pKey] = {};
+        const storedKey = localStorage.getItem("agentchat_client_key_" + pKey);
+        if (storedKey && (!currentConfig.providers[pKey].api_key || isMaskedKey(currentConfig.providers[pKey].api_key))) {
+          currentConfig.providers[pKey].api_key = storedKey;
+          currentConfig.providers[pKey].has_key = true;
+        }
+        const storedUrl = localStorage.getItem("agentchat_client_url_" + pKey);
+        if (storedUrl) {
+          currentConfig.providers[pKey].base_url = storedUrl;
+        }
+      });
+
       if (currentConfig.active_provider) {
         providerSelect.value = currentConfig.active_provider;
       }
@@ -1721,6 +2120,8 @@
     currentConfig.system_prompt = settingSystemPrompt.value.trim();
     currentConfig.model = modelSelect.value;
 
+    localStorage.setItem("agentchat_active_provider", activeP);
+    localStorage.setItem("agentchat_active_model", modelSelect.value);
     localStorage.setItem("agentchat_client_key_" + activeP, enteredKey);
     localStorage.setItem("agentchat_client_url_" + activeP, enteredUrl);
 
@@ -1748,6 +2149,9 @@
       if (closeModal) settingsModal.classList.add("hidden");
       providerSelect.value = activeP;
       await fetchModels();
+      if (currentUser) {
+        syncUserProfileToCloud();
+      }
     } catch (e) {
       if (closeModal) alert("Failed to save settings: " + e.message);
     }

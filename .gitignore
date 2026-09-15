@@ -13,3 +13,7 @@ venv/
 
 # Chrome User Profile
 ChromeProfile/
+
+# SQLite Databases
+*.db
+agentchat_users.db

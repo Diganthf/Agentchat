@@ -15,6 +15,9 @@ import secrets
 import random
 import subprocess
 import shlex
+import sqlite3
+import hashlib
+import uuid
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
 
@@ -110,6 +113,157 @@ def decrypt_secret(val: str) -> str:
         return fernet.decrypt(cipher.encode("utf-8")).decode("utf-8")
     except Exception:
         return ""
+
+# --- User Authentication & Cross-Device Profile Database (SQLite) ---
+AUTH_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agentchat_users.db")
+
+def get_auth_db():
+    conn = sqlite3.connect(AUTH_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_auth_db():
+    with get_auth_db() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                email TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                avatar_url TEXT DEFAULT '',
+                auth_provider TEXT DEFAULT 'email',
+                password_hash TEXT,
+                salt TEXT,
+                created_at REAL,
+                last_login REAL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                session_token TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                created_at REAL,
+                expires_at REAL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_profiles (
+                user_id TEXT PRIMARY KEY,
+                active_provider TEXT DEFAULT 'custom',
+                active_model TEXT DEFAULT '',
+                custom_base_url TEXT DEFAULT '',
+                encrypted_keys_json TEXT DEFAULT '{}',
+                settings_json TEXT DEFAULT '{}',
+                updated_at REAL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+        conn.commit()
+
+init_auth_db()
+
+def hash_password(password: str, salt: str = None):
+    if salt is None:
+        salt = secrets.token_hex(16)
+    key = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100000)
+    return key.hex(), salt
+
+def verify_password(password: str, salt: str, password_hash: str) -> bool:
+    key = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100000)
+    return secrets.compare_digest(key.hex(), password_hash)
+
+def create_user_session(user_id: str, duration_days: int = 30) -> str:
+    token = secrets.token_urlsafe(32)
+    now = time.time()
+    expires_at = now + (duration_days * 86400)
+    with get_auth_db() as conn:
+        conn.execute(
+            "INSERT INTO sessions (session_token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
+            (token, user_id, now, expires_at)
+        )
+        conn.commit()
+    return token
+
+def get_user_from_session(token: str):
+    if not token:
+        return None
+    now = time.time()
+    try:
+        with get_auth_db() as conn:
+            row = conn.execute(
+                """
+                SELECT u.id, u.email, u.name, u.avatar_url, u.auth_provider, s.expires_at
+                FROM sessions s
+                JOIN users u ON s.user_id = u.id
+                WHERE s.session_token = ? AND s.expires_at > ?
+                """,
+                (token, now)
+            ).fetchone()
+            if row:
+                return dict(row)
+    except Exception:
+        pass
+    return None
+
+def invalidate_user_session(token: str):
+    if not token:
+        return
+    try:
+        with get_auth_db() as conn:
+            conn.execute("DELETE FROM sessions WHERE session_token = ?", (token,))
+            conn.commit()
+    except Exception:
+        pass
+
+def get_user_profile(user_id: str):
+    try:
+        with get_auth_db() as conn:
+            row = conn.execute(
+                "SELECT * FROM user_profiles WHERE user_id = ?",
+                (user_id,)
+            ).fetchone()
+            if row:
+                d = dict(row)
+                try:
+                    d["keys"] = json.loads(d.get("encrypted_keys_json") or "{}")
+                except Exception:
+                    d["keys"] = {}
+                try:
+                    d["settings"] = json.loads(d.get("settings_json") or "{}")
+                except Exception:
+                    d["settings"] = {}
+                return d
+    except Exception:
+        pass
+    return {
+        "user_id": user_id,
+        "active_provider": "custom",
+        "active_model": "",
+        "custom_base_url": "",
+        "keys": {},
+        "settings": {}
+    }
+
+def save_user_profile(user_id: str, active_provider: str, active_model: str, custom_base_url: str, keys_dict: dict, settings_dict: dict):
+    now = time.time()
+    keys_json = json.dumps(keys_dict or {})
+    settings_json = json.dumps(settings_dict or {})
+    with get_auth_db() as conn:
+        conn.execute(
+            """
+            INSERT INTO user_profiles (user_id, active_provider, active_model, custom_base_url, encrypted_keys_json, settings_json, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                active_provider=excluded.active_provider,
+                active_model=excluded.active_model,
+                custom_base_url=excluded.custom_base_url,
+                encrypted_keys_json=excluded.encrypted_keys_json,
+                settings_json=excluded.settings_json,
+                updated_at=excluded.updated_at
+            """,
+            (user_id, active_provider, active_model, custom_base_url, keys_json, settings_json, now)
+        )
+        conn.commit()
 
 # --- Security: Multi-Tier DoH Resolver ---
 class DoHResolver:
@@ -612,16 +766,43 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         else:
             self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Access-Password, X-Custom-Api-Key, X-Custom-Base-Url")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Access-Password, X-Custom-Api-Key, X-Custom-Base-Url, X-User-Session")
         super().end_headers()
 
+    def get_authenticated_user(self):
+        auth_header = self.headers.get("Authorization", "")
+        token = None
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+        if not token:
+            token = self.headers.get("X-User-Session", "").strip()
+        if not token:
+            cookie_header = self.headers.get("Cookie", "")
+            if "agentchat_session=" in cookie_header:
+                for c in cookie_header.split(";"):
+                    parts = c.strip().split("=")
+                    if len(parts) == 2 and parts[0] == "agentchat_session":
+                        token = parts[1]
+                        break
+        if token:
+            return get_user_from_session(token)
+        return None
+
     def check_auth(self):
+        parsed = urlparse(self.path)
+        # Auth endpoints are publicly reachable to allow sign-in / registration
+        if parsed.path.startswith("/api/auth/"):
+            return True
+
+        # Valid user session grants access
+        if self.get_authenticated_user() is not None:
+            return True
+
         expected_pw = ACCESS_PASSWORD or load_config().get("access_password", "")
         if not expected_pw:
             return True
         provided = self.headers.get("X-Access-Password", "")
         if not provided:
-            parsed = urlparse(self.path)
             qs = urllib.parse.parse_qs(parsed.query)
             provided = qs.get("access_password", [""])[0]
         return provided == expected_pw
@@ -672,7 +853,11 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 self.send_json({"error": "Unauthorized: Access password required", "need_auth": True}, status=401)
                 return
 
-        if path == "/api/config":
+        if path == "/api/auth/me":
+            self.handle_auth_me()
+        elif path == "/api/user/sync":
+            self.handle_user_sync_get()
+        elif path == "/api/config":
             self.send_json(sanitize_config_for_client(load_config()))
         elif path == "/api/models":
             self.handle_get_models()
@@ -720,7 +905,17 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 self.send_json({"error": "Unauthorized: Access password required", "need_auth": True}, status=401)
                 return
 
-        if path == "/api/config":
+        if path == "/api/auth/register":
+            self.handle_auth_register()
+        elif path == "/api/auth/login":
+            self.handle_auth_login()
+        elif path == "/api/auth/social-login":
+            self.handle_auth_social_login()
+        elif path == "/api/auth/logout":
+            self.handle_auth_logout()
+        elif path == "/api/user/sync":
+            self.handle_user_sync_post()
+        elif path == "/api/config":
             self.handle_save_config()
         elif path == "/api/credits":
             self.handle_get_credits()
@@ -795,6 +990,187 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             self.wfile.write(content)
         except Exception as e:
             self.send_error(500, f"Error reading file: {e}")
+
+    def handle_auth_register(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8")
+        try:
+            data = json.loads(body)
+            email = data.get("email", "").strip().lower()
+            password = data.get("password", "").strip()
+            name = data.get("name", "").strip() or email.split("@")[0] or "User"
+
+            if not email or "@" not in email:
+                self.send_json({"success": False, "error": "Valid email address is required"}, status=400)
+                return
+            if len(password) < 6:
+                self.send_json({"success": False, "error": "Password must be at least 6 characters"}, status=400)
+                return
+
+            with get_auth_db() as conn:
+                existing = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+                if existing:
+                    self.send_json({"success": False, "error": "An account with this email already exists. Please sign in."}, status=400)
+                    return
+
+                user_id = "usr_" + str(uuid.uuid4()).replace("-", "")[:16]
+                p_hash, salt = hash_password(password)
+                now = time.time()
+                conn.execute(
+                    """
+                    INSERT INTO users (id, email, name, avatar_url, auth_provider, password_hash, salt, created_at, last_login)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (user_id, email, name, "", "email", p_hash, salt, now, now)
+                )
+                conn.commit()
+
+            session_token = create_user_session(user_id, duration_days=30)
+            user_data = {"id": user_id, "email": email, "name": name, "avatar_url": "", "auth_provider": "email"}
+            profile = get_user_profile(user_id)
+
+            self.send_response(200)
+            self.send_header("Set-Cookie", f"agentchat_session={session_token}; Path=/; Max-Age=2592000; SameSite=Lax")
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"success": True, "token": session_token, "user": user_data, "profile": profile}).encode("utf-8"))
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)}, status=500)
+
+    def handle_auth_login(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8")
+        try:
+            data = json.loads(body)
+            email = data.get("email", "").strip().lower()
+            password = data.get("password", "").strip()
+
+            if not email or not password:
+                self.send_json({"success": False, "error": "Email and password are required"}, status=400)
+                return
+
+            with get_auth_db() as conn:
+                row = conn.execute(
+                    "SELECT id, email, name, avatar_url, auth_provider, password_hash, salt FROM users WHERE email = ?",
+                    (email,)
+                ).fetchone()
+                if not row:
+                    self.send_json({"success": False, "error": "Invalid email or password"}, status=401)
+                    return
+
+                u = dict(row)
+                if not verify_password(password, u["salt"], u["password_hash"]):
+                    self.send_json({"success": False, "error": "Invalid email or password"}, status=401)
+                    return
+
+                conn.execute("UPDATE users SET last_login = ? WHERE id = ?", (time.time(), u["id"]))
+                conn.commit()
+
+            session_token = create_user_session(u["id"], duration_days=30)
+            user_data = {"id": u["id"], "email": u["email"], "name": u["name"], "avatar_url": u["avatar_url"], "auth_provider": u["auth_provider"]}
+            profile = get_user_profile(u["id"])
+
+            self.send_response(200)
+            self.send_header("Set-Cookie", f"agentchat_session={session_token}; Path=/; Max-Age=2592000; SameSite=Lax")
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"success": True, "token": session_token, "user": user_data, "profile": profile}).encode("utf-8"))
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)}, status=500)
+
+    def handle_auth_social_login(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8")
+        try:
+            data = json.loads(body)
+            provider = data.get("provider", "google").lower()
+            email = data.get("email", "").strip().lower()
+            name = data.get("name", "").strip()
+            avatar_url = data.get("avatar_url", "").strip()
+
+            if not email:
+                guest_rand = secrets.token_hex(4)
+                email = f"{provider}_user_{guest_rand}@agentchat.local"
+                name = f"{provider.capitalize()} User ({guest_rand})"
+
+            with get_auth_db() as conn:
+                row = conn.execute("SELECT id, email, name, avatar_url, auth_provider FROM users WHERE email = ?", (email,)).fetchone()
+                if row:
+                    user_id = row["id"]
+                    conn.execute("UPDATE users SET last_login = ?, avatar_url = COALESCE(NULLIF(?, ''), avatar_url) WHERE id = ?", (time.time(), avatar_url, user_id))
+                    conn.commit()
+                    user_data = dict(row)
+                else:
+                    user_id = "usr_" + str(uuid.uuid4()).replace("-", "")[:16]
+                    now = time.time()
+                    conn.execute(
+                        """
+                        INSERT INTO users (id, email, name, avatar_url, auth_provider, created_at, last_login)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (user_id, email, name, avatar_url, provider, now, now)
+                    )
+                    conn.commit()
+                    user_data = {"id": user_id, "email": email, "name": name, "avatar_url": avatar_url, "auth_provider": provider}
+
+            session_token = create_user_session(user_id, duration_days=30)
+            profile = get_user_profile(user_id)
+
+            self.send_response(200)
+            self.send_header("Set-Cookie", f"agentchat_session={session_token}; Path=/; Max-Age=2592000; SameSite=Lax")
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"success": True, "token": session_token, "user": user_data, "profile": profile}).encode("utf-8"))
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)}, status=500)
+
+    def handle_auth_me(self):
+        user = self.get_authenticated_user()
+        if not user:
+            self.send_json({"authenticated": False, "user": None, "profile": None})
+            return
+        profile = get_user_profile(user["id"])
+        self.send_json({"authenticated": True, "user": user, "profile": profile})
+
+    def handle_auth_logout(self):
+        auth_header = self.headers.get("Authorization", "")
+        token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else self.headers.get("X-User-Session", "").strip()
+        if token:
+            invalidate_user_session(token)
+        self.send_response(200)
+        self.send_header("Set-Cookie", "agentchat_session=; Path=/; Max-Age=0; SameSite=Lax")
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps({"success": True, "message": "Logged out"}).encode("utf-8"))
+
+    def handle_user_sync_post(self):
+        user = self.get_authenticated_user()
+        if not user:
+            self.send_json({"success": False, "error": "Authentication required to sync profile"}, status=401)
+            return
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8")
+        try:
+            data = json.loads(body)
+            active_provider = data.get("active_provider", "custom")
+            active_model = data.get("active_model", "")
+            custom_base_url = data.get("custom_base_url", "")
+            keys_dict = data.get("keys", {})
+            settings_dict = data.get("settings", {})
+
+            save_user_profile(user["id"], active_provider, active_model, custom_base_url, keys_dict, settings_dict)
+            updated = get_user_profile(user["id"])
+            self.send_json({"success": True, "profile": updated})
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)}, status=500)
+
+    def handle_user_sync_get(self):
+        user = self.get_authenticated_user()
+        if not user:
+            self.send_json({"success": False, "error": "Authentication required to retrieve synced profile"}, status=401)
+            return
+        profile = get_user_profile(user["id"])
+        self.send_json({"success": True, "profile": profile})
 
     def handle_save_config(self):
         length = int(self.headers.get("Content-Length", 0))
@@ -1243,6 +1619,15 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         if is_masked_key(override_key):
             override_key = ""
 
+        user = self.get_authenticated_user()
+        if user:
+            profile = get_user_profile(user["id"])
+            user_prov = profile.get("active_provider", "custom")
+            if not override_key:
+                override_key = profile.get("keys", {}).get(user_prov, "")
+            if not override_url and profile.get("custom_base_url"):
+                override_url = profile.get("custom_base_url")
+
         prov, prov_key = get_active_provider_info(override_key=override_key, override_url=override_url)
         active_key = override_key or prov.get("api_key", "")
         active_url = override_url or prov.get("base_url", "")
@@ -1333,6 +1718,15 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         override_url = self.headers.get("X-Custom-Base-Url", "").strip()
         if is_masked_key(override_key):
             override_key = ""
+
+        user = self.get_authenticated_user()
+        if user:
+            profile = get_user_profile(user["id"])
+            user_prov = profile.get("active_provider", "custom")
+            if not override_key:
+                override_key = profile.get("keys", {}).get(user_prov, "")
+            if not override_url and profile.get("custom_base_url"):
+                override_url = profile.get("custom_base_url")
 
         prov, prov_key = get_active_provider_info(override_key=override_key, override_url=override_url)
         api_key = (override_key or prov.get("api_key", "")).strip()
