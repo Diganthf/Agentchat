@@ -149,13 +149,92 @@ def mask_api_key(k):
         return "••••••••"
     return k[:6] + "..." + k[-4:]
 
+def is_masked_key(k):
+    if not k:
+        return False
+    return "..." in k or "•••" in k or "••••" in k
+
+def get_clean_env(*names):
+    for name in names:
+        val = os.environ.get(name, "")
+        if val:
+            cleaned = val.strip().strip("'\" \t\r\n")
+            if cleaned:
+                return cleaned
+    return ""
+
+def get_env_api_key_for(provider_key):
+    if provider_key == "base":
+        # Base Tier: OpenRouter-compatible by default, but checks all standard keys
+        return (
+            get_clean_env("BASE_TIER_API_KEY", "OPENROUTER_API_KEY", "OPENROUTER_KEY", "OPEN_ROUTER_API_KEY") or
+            get_clean_env("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_AI_STUDIO_API_KEY") or
+            get_clean_env("GROQ_API_KEY") or
+            get_clean_env("DEEPSEEK_API_KEY") or
+            get_clean_env("OPENAI_API_KEY")
+        )
+    elif provider_key == "google":
+        return get_clean_env("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_AI_STUDIO_API_KEY")
+    elif provider_key == "openrouter":
+        return get_clean_env("OPENROUTER_API_KEY", "BASE_TIER_API_KEY", "OPENROUTER_KEY", "OPEN_ROUTER_API_KEY")
+    elif provider_key == "groq":
+        return get_clean_env("GROQ_API_KEY")
+    elif provider_key == "deepseek":
+        return get_clean_env("DEEPSEEK_API_KEY")
+    elif provider_key == "openai":
+        return get_clean_env("OPENAI_API_KEY")
+    return ""
+
+def resolve_provider_info(prov_key, cfg=None, override_key=None, override_url=None):
+    if cfg is None:
+        cfg = load_config()
+    providers = cfg.get("providers", {})
+    p = providers.get(prov_key, DEFAULT_CONFIG["providers"].get(prov_key, {})).copy()
+
+    # 1. Start with configured key from config (if not masked)
+    raw_key = p.get("api_key", "").strip()
+    if is_masked_key(raw_key):
+        raw_key = ""
+
+    # 2. If no valid key in config, check environment variables
+    if not raw_key:
+        raw_key = get_env_api_key_for(prov_key)
+        if raw_key:
+            p["api_key"] = raw_key
+
+    # 3. If override_key is provided by client (BYOK), validate it's unmasked
+    if override_key and override_key.strip() and not is_masked_key(override_key):
+        raw_key = override_key.strip()
+        p["api_key"] = raw_key
+
+    if override_url and override_url.strip():
+        p["base_url"] = override_url.strip()
+
+    # 4. Smart Endpoint & Provider Auto-Detection:
+    if raw_key.startswith("AIza") and not override_url:
+        p["base_url"] = "https://generativelanguage.googleapis.com/v1beta/openai"
+    elif raw_key.startswith("gsk_") and not override_url:
+        p["base_url"] = "https://api.groq.com/openai"
+    elif raw_key.startswith("sk-or-") and not override_url:
+        p["base_url"] = "https://openrouter.ai/api"
+
+    return p, prov_key
+
+def get_active_provider_info(override_key=None, override_url=None):
+    cfg = load_config()
+    active_key = cfg.get("active_provider", "base")
+    return resolve_provider_info(active_key, cfg=cfg, override_key=override_key, override_url=override_url)
+
 def sanitize_config_for_client(cfg):
     safe_cfg = json.loads(json.dumps(cfg))
     if "providers" in safe_cfg:
         for p_key, p_info in safe_cfg["providers"].items():
-            raw_key = p_info.get("api_key", "")
+            resolved_info, _ = resolve_provider_info(p_key, cfg=cfg)
+            raw_key = resolved_info.get("api_key", "")
             p_info["has_key"] = bool(raw_key)
             p_info["api_key"] = mask_api_key(raw_key)
+            if resolved_info.get("base_url"):
+                p_info["base_url"] = resolved_info.get("base_url")
     expected_pw = ACCESS_PASSWORD or cfg.get("access_password", "")
     safe_cfg["has_access_password"] = bool(expected_pw)
     return safe_cfg
@@ -163,34 +242,6 @@ def sanitize_config_for_client(cfg):
 def save_config(cfg):
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2)
-
-def get_active_provider_info(override_key=None, override_url=None):
-    cfg = load_config()
-    active_key = cfg.get("active_provider", "base")
-    providers = cfg.get("providers", {})
-    p = providers.get(active_key, DEFAULT_CONFIG["providers"].get("base", {})).copy()
-    
-    # Environment variable fallbacks for cloud hosting
-    if active_key == "base" and not p.get("api_key") and os.environ.get("BASE_TIER_API_KEY"):
-        p["api_key"] = os.environ.get("BASE_TIER_API_KEY")
-    elif active_key == "google" and not p.get("api_key") and os.environ.get("GEMINI_API_KEY"):
-        p["api_key"] = os.environ.get("GEMINI_API_KEY")
-    elif active_key == "openrouter" and not p.get("api_key") and os.environ.get("OPENROUTER_API_KEY"):
-        p["api_key"] = os.environ.get("OPENROUTER_API_KEY")
-    elif active_key == "groq" and not p.get("api_key") and os.environ.get("GROQ_API_KEY"):
-        p["api_key"] = os.environ.get("GROQ_API_KEY")
-    elif active_key == "deepseek" and not p.get("api_key") and os.environ.get("DEEPSEEK_API_KEY"):
-        p["api_key"] = os.environ.get("DEEPSEEK_API_KEY")
-    elif active_key == "openai" and not p.get("api_key") and os.environ.get("OPENAI_API_KEY"):
-        p["api_key"] = os.environ.get("OPENAI_API_KEY")
-
-    # Ephemeral per-request client override (Zero-Knowledge BYOK)
-    if override_key and override_key.strip():
-        p["api_key"] = override_key.strip()
-    if override_url and override_url.strip():
-        p["base_url"] = override_url.strip()
-
-    return p, active_key
 
 def make_upstream_request(endpoint, data=None, method="GET", stream=False, override_key=None, override_url=None):
     prov, prov_key = get_active_provider_info(override_key=override_key, override_url=override_url)
@@ -318,7 +369,36 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         path = parsed.path
 
         if path == "/api/health":
-            self.send_json({"status": "ok", "port": PORT})
+            prov, _ = get_active_provider_info()
+            current_k = prov.get("api_key", "")
+            key_detected_type = "none"
+            if current_k.startswith("sk-or-"):
+                key_detected_type = "openrouter"
+            elif current_k.startswith("AIza"):
+                key_detected_type = "gemini"
+            elif current_k.startswith("gsk_"):
+                key_detected_type = "groq"
+            elif current_k.startswith("sk-"):
+                key_detected_type = "openai/deepseek"
+            elif current_k:
+                key_detected_type = "configured"
+
+            self.send_json({
+                "status": "ok",
+                "port": PORT,
+                "env_keys_detected": {
+                    "BASE_TIER_API_KEY": bool(get_clean_env("BASE_TIER_API_KEY")),
+                    "OPENROUTER_API_KEY": bool(get_clean_env("OPENROUTER_API_KEY")),
+                    "GEMINI_API_KEY": bool(get_clean_env("GEMINI_API_KEY")),
+                    "GROQ_API_KEY": bool(get_clean_env("GROQ_API_KEY")),
+                    "DEEPSEEK_API_KEY": bool(get_clean_env("DEEPSEEK_API_KEY")),
+                    "OPENAI_API_KEY": bool(get_clean_env("OPENAI_API_KEY")),
+                    "ACCESS_PASSWORD": bool(get_clean_env("ACCESS_PASSWORD")),
+                },
+                "active_provider": prov.get("name", "Base Tier"),
+                "base_tier_has_key": bool(current_k),
+                "key_type": key_detected_type
+            })
             return
 
         if path.startswith("/api/"):
@@ -866,15 +946,21 @@ class AgentChatHandler(BaseHTTPRequestHandler):
     def handle_get_models(self):
         override_key = self.headers.get("X-Custom-Api-Key", "").strip()
         override_url = self.headers.get("X-Custom-Base-Url", "").strip()
+        if is_masked_key(override_key):
+            override_key = ""
 
-        # If user provides their own key & base_url (or selected a provider with a key)
-        if override_key and override_url:
+        prov, prov_key = get_active_provider_info(override_key=override_key, override_url=override_url)
+        active_key = override_key or prov.get("api_key", "")
+        active_url = override_url or prov.get("base_url", "")
+
+        # If non-base provider has a key, dynamically discover all available models under that key
+        if active_key and (prov_key != "base" or (override_key and override_url)):
             try:
                 res = make_upstream_request(
                     "/v1/models",
                     method="GET",
-                    override_key=override_key,
-                    override_url=override_url
+                    override_key=active_key,
+                    override_url=active_url
                 )
                 raw = json.loads(res.read().decode("utf-8"))
                 models_data = raw.get("data", [])
@@ -910,7 +996,7 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 })
                 return
 
-        # Default Base Tier (no custom key or on Base Tier)
+        # Default Base Tier (Curated frontier models)
         self.send_json({
             "success": True,
             "models": BASE_TIER_MODELS,
@@ -946,6 +1032,9 @@ class AgentChatHandler(BaseHTTPRequestHandler):
 
         override_key = self.headers.get("X-Custom-Api-Key", "").strip()
         override_url = self.headers.get("X-Custom-Base-Url", "").strip()
+        if is_masked_key(override_key):
+            override_key = ""
+
         prov, prov_key = get_active_provider_info(override_key=override_key, override_url=override_url)
         api_key = (override_key or prov.get("api_key", "")).strip()
 
@@ -1018,6 +1107,17 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             "max": {"reasoning_effort": "high", "max_tokens": 64000}
         }
         effort_config = effort_map.get(effort.lower(), effort_map["medium"])
+
+        # Smart Model Translation for Upstream Providers
+        active_base_url = (override_url or prov.get("base_url", "")).rstrip("/")
+        if "generativelanguage.googleapis.com" in active_base_url or api_key.startswith("AIza"):
+            if model in ("google/gemini-2.0-flash-001", "gemini-2.0-flash-001") or "/" in model or not model.startswith("gemini"):
+                model = "gemini-2.0-flash"
+        elif "api.groq.com" in active_base_url or api_key.startswith("gsk_"):
+            if "deepseek-r1" in model or "reasoning" in model.lower():
+                model = "deepseek-r1-distill-llama-70b"
+            elif "/" in model:
+                model = "llama-3.3-70b-versatile"
 
         payload = {
             "model": model,

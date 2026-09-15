@@ -221,9 +221,11 @@
     const pw = localStorage.getItem("agentchat_access_password") || "";
     if (pw) headers["X-Access-Password"] = pw;
     const activeP = currentConfig.active_provider || "base";
-    const clientKey = localStorage.getItem("agentchat_client_key_" + activeP) || currentConfig.providers?.[activeP]?.api_key;
-    if (clientKey) headers["X-Custom-Api-Key"] = clientKey;
-    const clientUrl = localStorage.getItem("agentchat_client_url_" + activeP) || currentConfig.providers?.[activeP]?.base_url || PROVIDER_DEFAULTS[activeP]?.base_url;
+    const clientKey = localStorage.getItem("agentchat_client_key_" + activeP) || "";
+    if (clientKey && !clientKey.includes("...") && !clientKey.includes("•••") && !clientKey.includes("••••")) {
+      headers["X-Custom-Api-Key"] = clientKey;
+    }
+    const clientUrl = localStorage.getItem("agentchat_client_url_" + activeP) || "";
     if (clientUrl) headers["X-Custom-Base-Url"] = clientUrl;
     return headers;
   }
