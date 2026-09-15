@@ -1139,8 +1139,8 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         # Smart Model Translation for Upstream Providers
         active_base_url = (override_url or prov.get("base_url", "")).rstrip("/")
         if "generativelanguage.googleapis.com" in active_base_url or api_key.startswith("AIza"):
-            if model in ("google/gemini-2.0-flash-001", "gemini-2.0-flash-001") or "/" in model or not model.startswith("gemini"):
-                model = "gemini-2.0-flash"
+            if model in ("google/gemini-2.0-flash-001", "gemini-2.0-flash-001", "gemini-2.0-flash") or "/" in model or not model.startswith("gemini"):
+                model = "gemini-2.5-flash"
         elif "api.groq.com" in active_base_url or api_key.startswith("gsk_"):
             if "deepseek-r1" in model or "reasoning" in model.lower():
                 model = "deepseek-r1-distill-llama-70b"
