@@ -1977,3 +1977,294 @@ textarea#user-input::placeholder {
   line-height: 1.4;
 }
 
+/* ==========================================================================
+   Mobile Responsive Engine (Smartphones & Tablets <= 768px)
+   Drawer Navigation • Touch Geometry • iOS Zoom Prevention • 100dvh Bounds
+   ========================================================================== */
+@media (max-width: 768px) {
+  html, body, .app-layout {
+    height: 100dvh;
+    max-height: 100dvh;
+    width: 100vw;
+    overflow: hidden;
+    position: fixed;
+  }
+
+  /* --- Mobile Drawer Backdrop --- */
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 80;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  body.sidebar-mobile-open .sidebar-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* --- Navigation Rail on Mobile (Drawer Left Strip) --- */
+  .nav-rail {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 58px;
+    z-index: 100;
+    transform: translateX(-340px);
+    transition: transform 0.28s cubic-bezier(0.2, 0, 0, 1);
+    padding: 12px 0;
+  }
+
+  body.sidebar-mobile-open .nav-rail {
+    transform: translateX(0);
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.4);
+  }
+
+  .rail-btn {
+    width: 50px;
+  }
+
+  .rail-icon-wrapper {
+    width: 42px;
+    height: 28px;
+  }
+
+  .rail-label {
+    font-size: 10px;
+  }
+
+  /* --- Sub-Sidebar on Mobile (Drawer Content Pane) --- */
+  .sub-sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 58px;
+    width: calc(100vw - 75px);
+    max-width: 290px;
+    z-index: 95;
+    transform: translateX(-360px);
+    transition: transform 0.28s cubic-bezier(0.2, 0, 0, 1);
+    border-right: 1px solid var(--md-sys-color-outline-variant);
+    box-shadow: 8px 0 28px rgba(0, 0, 0, 0.55);
+  }
+
+  body.sidebar-mobile-open .sub-sidebar {
+    transform: translateX(0);
+  }
+
+  .sub-sidebar.collapsed {
+    width: calc(100vw - 75px);
+    margin-left: 0;
+  }
+
+  /* --- Main Viewport on Mobile --- */
+  .main-viewport {
+    width: 100vw;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .chat-topbar {
+    height: 52px;
+    padding: 0 10px;
+    gap: 8px;
+  }
+
+  .topbar-left-group {
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .icon-toggle-btn {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+  }
+
+  .select-pill-wrapper {
+    max-width: 175px;
+    min-width: 0;
+    flex-shrink: 1;
+  }
+
+  .select-pill.model-pill {
+    max-width: 175px;
+    font-size: 12px;
+    padding: 5px 22px 5px 8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  /* Hide non-essential badges in mobile topbar */
+  .effort-pill,
+  #effort-select,
+  .provider-pill,
+  #provider-select,
+  .topbar-right-group .tools-status-pill,
+  .topbar-right-group .skills-status-pill,
+  .topbar-right-group .project-status-pill,
+  .topbar-right-group .token-badge {
+    display: none !important;
+  }
+
+  /* --- Messages Viewport --- */
+  .messages-viewport {
+    padding: 10px 10px 130px 10px;
+  }
+
+  .welcome-screen {
+    margin: 6px auto;
+    gap: 12px;
+    padding: 0 2px;
+  }
+
+  .workbench-status-card {
+    padding: 14px 12px;
+    border-radius: 16px;
+  }
+
+  .workbench-title {
+    font-size: 19px;
+    line-height: 1.25;
+  }
+
+  .workbench-desc {
+    font-size: 12px;
+    line-height: 1.45;
+    margin-bottom: 0;
+  }
+
+  .asymmetric-workbench-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .workbench-tile {
+    padding: 12px 14px;
+    border-radius: 14px;
+  }
+
+  .workbench-tile .tile-title {
+    font-size: 13px;
+  }
+
+  .workbench-tile .tile-tag {
+    font-size: 10.5px;
+  }
+
+  /* --- Message Bubbles on Phone --- */
+  .message-row {
+    margin-bottom: 12px;
+  }
+
+  .message-row.user-row .message-bubble {
+    max-width: 88%;
+    padding: 10px 14px;
+    border-radius: 18px 18px 4px 18px;
+  }
+
+  .user-bubble .message-text,
+  .message-row.user-row .message-text {
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  .assistant-bubble,
+  .message-row.assistant-row .message-bubble {
+    padding: 14px 14px;
+    border-radius: 18px 18px 18px 4px;
+  }
+
+  .assistant-bubble .message-text,
+  .message-row.assistant-row .message-text {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* Code Blocks on Mobile */
+  pre {
+    margin: 8px 0;
+    border-radius: 10px;
+    font-size: 11.5px;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* --- Floating Input Dock on Phone --- */
+  .chat-input-wrapper {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 0 8px max(8px, env(safe-area-inset-bottom)) 8px;
+    z-index: 60;
+  }
+
+  .chat-input-box {
+    border-radius: 24px;
+    padding: 6px 8px;
+    gap: 6px;
+    align-items: flex-end;
+  }
+
+  .input-left-buttons, .input-right-buttons {
+    gap: 4px;
+  }
+
+  .action-circle-btn {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+  }
+
+  /* Mobile WebSearch Toggle: Collapse text, icon-only button */
+  .action-pill-btn#websearch-toggle-btn {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .action-pill-btn#websearch-toggle-btn span {
+    display: none;
+  }
+
+  /* CRITICAL: 16px font prevents iOS Safari auto-zoom */
+  #user-input {
+    font-size: 16px !important;
+    line-height: 20px;
+    padding: 7px 4px;
+    max-height: 110px;
+  }
+
+  /* --- Modals on Mobile --- */
+  .modal-overlay {
+    padding: 10px;
+    align-items: flex-end;
+  }
+
+  .modal-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 85dvh;
+    border-radius: 24px 24px 12px 12px;
+    padding: 16px 14px;
+  }
+}
+

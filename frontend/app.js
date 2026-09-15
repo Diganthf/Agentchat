@@ -119,6 +119,7 @@
   const effortSelect = document.getElementById("effort-select");
   const subSidebar = document.getElementById("sub-sidebar");
   const toggleSidebarBtn = document.getElementById("toggle-sidebar-btn");
+  const sidebarBackdrop = document.getElementById("sidebar-backdrop");
 
   // Navigation Rail Tabs
   const railTabChats = document.getElementById("rail-tab-chats");
@@ -337,10 +338,20 @@
       filePreviewInsertBtn.addEventListener("click", insertFileIntoChat);
     }
 
-    // Sidebar Toggle
+    // Sidebar Toggle (Mobile Drawer vs Desktop Collapse)
     toggleSidebarBtn.addEventListener("click", () => {
-      subSidebar.classList.toggle("collapsed");
+      if (window.innerWidth <= 768) {
+        document.body.classList.toggle("sidebar-mobile-open");
+      } else {
+        subSidebar.classList.toggle("collapsed");
+      }
     });
+
+    if (sidebarBackdrop) {
+      sidebarBackdrop.addEventListener("click", () => {
+        document.body.classList.remove("sidebar-mobile-open");
+      });
+    }
 
     // Chat Search
     chatSearchInput.addEventListener("input", (e) => {
@@ -898,6 +909,9 @@
     saveSessions();
     renderMessages();
     renderSidebar();
+    if (window.innerWidth <= 768) {
+      document.body.classList.remove("sidebar-mobile-open");
+    }
   }
 
   function deleteChat(sessionId, event) {
