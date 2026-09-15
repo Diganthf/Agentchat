@@ -1207,7 +1207,11 @@
 
     try {
       const selectedModel = modelSelect.value;
-      const selectedEffort = effortSelect.value || "medium";
+      let selectedEffort = effortSelect.value || "medium";
+      // Auto-adapt for GLM models (GLM-5.3 only supports low, high, max; medium is rejected)
+      if (selectedModel && selectedModel.toLowerCase().includes("glm") && selectedEffort === "medium") {
+        selectedEffort = "high";
+      }
 
       // Prune previous reasoning to save 75% tokens
       const historyToSend = session.messages.slice(0, -1).map(m => ({
@@ -1287,8 +1291,10 @@
                 // Translate known upstream error patterns into friendly messages
                 if (errMsg.includes("content-blocked") || errType.includes("content-blocked") || errMsg.includes("content_filter")) {
                   errMsg = `⚠️ Content was blocked by the upstream provider's safety filter for '${selectedModel}'. Try rephrasing your message or switching to a different model.`;
+                } else if (errMsg.includes("始终思考") || errMsg.includes("不支持关闭思考") || errMsg.includes("请使用 low") || errMsg.includes("1210")) {
+                  errMsg = `⚠️ Reasoning Model Notice: '${selectedModel}' is a compulsory reasoning model that requires effort level 'low', 'high', or 'max'. Setting effort to 'High' resolves this.`;
                 } else if (errMsg.includes("exhausted") || errMsg.includes("budget pool") || errMsg.includes("Budget pool")) {
-                  errMsg = `AgentRouter Upstream Notice: The budget pool for '${selectedModel}' is exhausted. AgentRouter officially releases daily Claude & GPT quotas in 3 batches at 00:00, 08:00, and 16:00 Beijing Time (UTC 16:00, 00:00, 08:00). DeepSeek-V4 and GLM-5.3 are active 24/7.`;
+                  errMsg = `⚠️ Quota Notice: The budget/quota pool for '${selectedModel}' is currently exhausted on the upstream provider. Please try again later or switch your API key in Vault.`;
                   modelStatuses[selectedModel] = { status: "exhausted", code: 402, message: "Quota exhausted" };
                   updateModelDropdownOptions();
                 }

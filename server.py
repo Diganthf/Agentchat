@@ -976,7 +976,7 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 })
                 return
 
-        elif prov_key == "agentrouter" or "agentrouter.org" in base_url:
+        elif "agentrouter.org" in base_url or prov_key == "custom":
             try:
                 res = make_upstream_request("/dashboard/billing/usage", method="GET")
                 data = json.loads(res.read().decode("utf-8"))
@@ -984,19 +984,18 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 usage_usd = float(usage) / 100.0 if float(usage) > 50 else float(usage)
                 self.send_json({
                     "success": True,
-                    "provider": "AgentRouter",
+                    "provider": "Custom Endpoint",
                     "formatted": f"${usage_usd:.2f} Used",
                     "usage": usage_usd,
-                    "mode": "unlimited_pool",
-                    "pool_note": "Daily Quotas refill at 00:00, 08:00, 16:00 BJT"
+                    "mode": "metered"
                 })
                 return
             except Exception:
                 self.send_json({
                     "success": True,
-                    "provider": "AgentRouter",
-                    "formatted": "Daily Pool Active",
-                    "mode": "pool"
+                    "provider": "Custom Endpoint",
+                    "formatted": "Active",
+                    "mode": "active"
                 })
                 return
 
@@ -1419,84 +1418,179 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             elif "/" in model:
                 model = "llama-3.3-70b-versatile"
 
+        # Model Architecture Analysis for Reasoning & Parameter Adaptation
+        model_lower = model.lower()
+        active_base_url_lower = active_base_url.lower()
+        is_glm = "glm" in model_lower or "bigmodel" in active_base_url_lower or "zhipu" in active_base_url_lower
+        is_o_series = any(model_lower.startswith(prefix) or f"/{prefix}" in model_lower for prefix in ["o1", "o3", "o-1", "o-3"])
+
         payload = {
             "model": model,
             "messages": final_messages,
-            "temperature": temperature,
             "stream": stream,
-            "reasoning_effort": effort_config["reasoning_effort"],
-            "max_tokens": effort_config["max_tokens"]
         }
 
-        try:
-            upstream_res = make_upstream_request(
-                "/v1/chat/completions",
-                data=payload,
-                method="POST",
-                stream=True,
-                override_key=override_key,
-                override_url=override_url
-            )
-            # Check status code for curl_cffi
+        # Temperature handling (o-series models reject custom temperature or only allow 1.0)
+        if not is_o_series:
+            payload["temperature"] = temperature
+
+        # Reasoning effort and token budget adaptation
+        if is_glm:
+            # GLM models (GLM-5, GLM-5.3, etc.) strictly require 'low', 'high', or 'max'
+            # Sending 'medium' or omitting thinking triggers error 1210: "该模型始终思考，不支持关闭思考；请使用 low、high 或 max"
+            glm_effort_map = {
+                "low": "low",
+                "medium": "high",  # Auto-map medium to high for GLM compatibility
+                "high": "high",
+                "extra": "high",
+                "ultra": "max",
+                "max": "max"
+            }
+            payload["thinking"] = {"type": "enabled"}
+            payload["reasoning_effort"] = glm_effort_map.get(effort.lower(), "high")
+            payload["max_tokens"] = effort_config["max_tokens"]
+        elif is_o_series:
+            # OpenAI o1/o3 reasoning models support 'low', 'medium', 'high' (no max) and use max_completion_tokens
+            o_effort_map = {
+                "low": "low",
+                "medium": "medium",
+                "high": "high",
+                "extra": "high",
+                "ultra": "high",
+                "max": "high"
+            }
+            payload["reasoning_effort"] = o_effort_map.get(effort.lower(), "medium")
+            payload["max_completion_tokens"] = effort_config["max_tokens"]
+        else:
+            payload["max_tokens"] = effort_config["max_tokens"]
+            payload["reasoning_effort"] = effort_config["reasoning_effort"]
+
+        # Self-Healing Request Dispatch with Dynamic Parameter Recovery
+        max_attempts = 3
+        upstream_res = None
+        for attempt in range(max_attempts):
+            try:
+                upstream_res = make_upstream_request(
+                    "/v1/chat/completions",
+                    data=payload,
+                    method="POST",
+                    stream=True,
+                    override_key=override_key,
+                    override_url=override_url
+                )
+            except urllib.error.HTTPError as e:
+                err_body = e.read().decode("utf-8", errors="replace")
+                if attempt < max_attempts - 1:
+                    # Auto-heal: GLM thinking requirement (1210 / 始终思考)
+                    if any(kw in err_body for kw in ["始终思考", "不支持关闭思考", "请使用 low", "1210"]):
+                        payload["thinking"] = {"type": "enabled"}
+                        payload["reasoning_effort"] = "high"
+                        continue
+                    # Auto-heal: Unrecognized reasoning_effort
+                    if "reasoning_effort" in err_body and any(w in err_body.lower() for w in ["unrecognized", "unexpected", "extra fields", "unknown", "invalid"]):
+                        payload.pop("reasoning_effort", None)
+                        payload.pop("thinking", None)
+                        continue
+                    # Auto-heal: max_completion_tokens vs max_tokens
+                    if "max_completion_tokens" in err_body.lower() or "max_tokens is not supported" in err_body.lower():
+                        if "max_tokens" in payload:
+                            payload["max_completion_tokens"] = payload.pop("max_tokens")
+                            continue
+                    # Auto-heal: Temperature not supported
+                    if "temperature" in err_body.lower() and any(w in err_body.lower() for w in ["unsupported", "not supported", "only default", "1.0", "cannot"]):
+                        payload.pop("temperature", None)
+                        continue
+
+                # Final attempt error reporting
+                friendly_msg = err_body
+                try:
+                    err_json = json.loads(err_body)
+                    msg_val = err_json.get("error", {}).get("message", "")
+                    if "始终思考" in msg_val or "1210" in str(err_json):
+                        friendly_msg = f"Reasoning Parameter Notice: Model '{model}' requires reasoning effort 'low', 'high', or 'max'. Setting effort to High resolves this."
+                    elif msg_val:
+                        friendly_msg = msg_val
+                except Exception:
+                    pass
+
+                err_event = f"event: error\ndata: {json.dumps({'error': friendly_msg, 'code': e.code})}\n\n"
+                self.wfile.write(err_event.encode("utf-8"))
+                self.wfile.flush()
+                return
+            except Exception as e:
+                err_event = f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+                self.wfile.write(err_event.encode("utf-8"))
+                self.wfile.flush()
+                return
+
+            # Check status code for curl_cffi / response object
             status_code = getattr(upstream_res, 'status_code', getattr(upstream_res, 'code', 200))
             if status_code >= 400:
                 err_body = getattr(upstream_res, 'text', '')
                 if not err_body and hasattr(upstream_res, 'read'):
                     err_body = upstream_res.read().decode("utf-8", errors="replace")
-                err_event = f"event: error\ndata: {json.dumps({'error': err_body or f'HTTP {status_code}', 'code': status_code})}\n\n"
+
+                if attempt < max_attempts - 1:
+                    # Auto-heal: GLM thinking requirement (1210 / 始终思考)
+                    if any(kw in err_body for kw in ["始终思考", "不支持关闭思考", "请使用 low", "1210"]):
+                        payload["thinking"] = {"type": "enabled"}
+                        payload["reasoning_effort"] = "high"
+                        continue
+                    # Auto-heal: Unrecognized reasoning_effort
+                    if "reasoning_effort" in err_body and any(w in err_body.lower() for w in ["unrecognized", "unexpected", "extra fields", "unknown", "invalid"]):
+                        payload.pop("reasoning_effort", None)
+                        payload.pop("thinking", None)
+                        continue
+                    # Auto-heal: max_completion_tokens vs max_tokens
+                    if "max_completion_tokens" in err_body.lower() or "max_tokens is not supported" in err_body.lower():
+                        if "max_tokens" in payload:
+                            payload["max_completion_tokens"] = payload.pop("max_tokens")
+                            continue
+                    # Auto-heal: Temperature not supported
+                    if "temperature" in err_body.lower() and any(w in err_body.lower() for w in ["unsupported", "not supported", "only default", "1.0", "cannot"]):
+                        payload.pop("temperature", None)
+                        continue
+
+                # Final attempt error reporting
+                friendly_err = err_body
+                try:
+                    parsed_err = json.loads(err_body)
+                    msg_val = parsed_err.get("error", {}).get("message", "")
+                    if "始终思考" in msg_val or "1210" in str(parsed_err):
+                        friendly_err = f"Reasoning Parameter Notice: Model '{model}' requires reasoning effort 'low', 'high', or 'max'. Setting effort to High resolves this."
+                    elif msg_val:
+                        friendly_err = msg_val
+                except Exception:
+                    pass
+
+                err_event = f"event: error\ndata: {json.dumps({'error': friendly_err or f'HTTP {status_code}', 'code': status_code})}\n\n"
                 self.wfile.write(err_event.encode("utf-8"))
                 self.wfile.flush()
                 return
 
-            if hasattr(upstream_res, 'iter_lines'):
-                for line in upstream_res.iter_lines():
-                    if line:
-                        self.wfile.write(line + b"\n\n")
-                        self.wfile.flush()
-            else:
-                for line in upstream_res:
-                    self.wfile.write(line)
+            # Request succeeded: break retry loop to stream response
+            break
+
+        if upstream_res is None:
+            return
+
+        if hasattr(upstream_res, 'iter_lines'):
+            for line in upstream_res.iter_lines():
+                if line:
+                    self.wfile.write(line + b"\n\n")
                     self.wfile.flush()
-
-            # Ensure client receives explicit stream termination marker
-            try:
-                self.wfile.write(b"data: [DONE]\n\n")
+        else:
+            for line in upstream_res:
+                self.wfile.write(line)
                 self.wfile.flush()
-            except Exception:
-                pass
-            self.close_connection = True
-        except urllib.error.HTTPError as e:
-            err_body = e.read().decode("utf-8", errors="replace")
-            friendly_msg = err_body
-            try:
-                err_json = json.loads(err_body)
-                msg_val = err_json.get("error", {}).get("message", "")
-                err_type = err_json.get("error", {}).get("type", "")
-                if "content-blocked" in msg_val or "content-blocked" in err_type or "content_filter" in msg_val:
-                    friendly_msg = f"Content was blocked by the upstream provider's safety filter for model '{model}'. Try rephrasing your message or switching to a different model."
-                elif e.code == 401 or "invalid_api_key" in msg_val:
-                    friendly_msg = "Invalid API Key. Please verify your API key in Settings / Key Vault."
-                elif e.code == 429 or "rate_limit" in msg_val:
-                    friendly_msg = f"Upstream Rate Limit Exceeded for '{model}'. Please wait a moment or switch keys."
-                elif e.code == 402 or "insufficient_quota" in msg_val or "quota" in msg_val.lower():
-                    friendly_msg = f"Upstream Quota Exhausted for model '{model}'. Please check your provider account balance or switch keys in the Key Vault."
-                else:
-                    friendly_msg = msg_val or err_body
-            except Exception:
-                if "content-blocked" in err_body or "content_filter" in err_body:
-                    friendly_msg = f"Content was blocked by the upstream provider's safety filter for model '{model}'."
-                elif e.code == 401:
-                    friendly_msg = "Invalid API Key. Please verify your key in Settings."
-                elif e.code == 429:
-                    friendly_msg = "Rate limit reached. Please wait a moment."
 
-            err_event = f"event: error\ndata: {json.dumps({'error': friendly_msg, 'code': e.code})}\n\n"
-            self.wfile.write(err_event.encode("utf-8"))
+        # Ensure client receives explicit stream termination marker
+        try:
+            self.wfile.write(b"data: [DONE]\n\n")
             self.wfile.flush()
-        except Exception as e:
-            err_event = f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
-            self.wfile.write(err_event.encode("utf-8"))
-            self.wfile.flush()
+        except Exception:
+            pass
+        self.close_connection = True
 
 def run_server():
     server_address = (HOST, PORT)
