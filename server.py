@@ -272,6 +272,10 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
     base_url = (override_url or prov.get("base_url", "https://openrouter.ai/api")).rstrip("/")
     api_key = (override_key or prov.get("api_key", "")).strip()
 
+    # Google AI Studio OpenAI compatibility: endpoints are /chat/completions and /models without /v1
+    if "generativelanguage.googleapis.com" in base_url and endpoint.startswith("/v1/"):
+        endpoint = endpoint[3:]
+
     target_url = f"{base_url}{endpoint}"
 
     headers = {
