@@ -161,28 +161,46 @@ def get_clean_env(*names):
             cleaned = val.strip().strip("'\" \t\r\n")
             if cleaned:
                 return cleaned
+        # Case-insensitive direct match
+        name_lower = name.lower()
+        for k, v in os.environ.items():
+            if k.lower() == name_lower:
+                cleaned = v.strip().strip("'\" \t\r\n")
+                if cleaned:
+                    return cleaned
+    return ""
+
+def find_env_fuzzy(keyword):
+    kw = keyword.lower()
+    for k, v in os.environ.items():
+        k_lower = k.lower()
+        if kw == k_lower or kw in k_lower:
+            cleaned = v.strip().strip("'\" \t\r\n")
+            if cleaned:
+                return cleaned
     return ""
 
 def get_env_api_key_for(provider_key):
     if provider_key == "base":
-        # Base Tier: OpenRouter-compatible by default, but checks all standard keys
+        # Base Tier: auto-detects ANY key on the server (gemini, groq, openrouter, etc.)
         return (
-            get_clean_env("BASE_TIER_API_KEY", "OPENROUTER_API_KEY", "OPENROUTER_KEY", "OPEN_ROUTER_API_KEY") or
-            get_clean_env("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_AI_STUDIO_API_KEY") or
-            get_clean_env("GROQ_API_KEY") or
-            get_clean_env("DEEPSEEK_API_KEY") or
-            get_clean_env("OPENAI_API_KEY")
+            get_clean_env("BASE_TIER_API_KEY", "OPENROUTER_API_KEY", "OPENROUTER_KEY", "OPEN_ROUTER_API_KEY", "openrouter") or
+            find_env_fuzzy("gemini") or
+            find_env_fuzzy("groq") or
+            find_env_fuzzy("openrouter") or
+            find_env_fuzzy("deepseek") or
+            find_env_fuzzy("openai")
         )
     elif provider_key == "google":
-        return get_clean_env("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_AI_STUDIO_API_KEY")
+        return find_env_fuzzy("gemini") or find_env_fuzzy("google")
     elif provider_key == "openrouter":
-        return get_clean_env("OPENROUTER_API_KEY", "BASE_TIER_API_KEY", "OPENROUTER_KEY", "OPEN_ROUTER_API_KEY")
+        return get_clean_env("OPENROUTER_API_KEY", "BASE_TIER_API_KEY", "OPENROUTER_KEY", "OPEN_ROUTER_API_KEY", "openrouter") or find_env_fuzzy("openrouter")
     elif provider_key == "groq":
-        return get_clean_env("GROQ_API_KEY")
+        return find_env_fuzzy("groq")
     elif provider_key == "deepseek":
-        return get_clean_env("DEEPSEEK_API_KEY")
+        return find_env_fuzzy("deepseek")
     elif provider_key == "openai":
-        return get_clean_env("OPENAI_API_KEY")
+        return find_env_fuzzy("openai")
     return ""
 
 def resolve_provider_info(prov_key, cfg=None, override_key=None, override_url=None):
@@ -387,17 +405,17 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 "status": "ok",
                 "port": PORT,
                 "env_keys_detected": {
-                    "BASE_TIER_API_KEY": bool(get_clean_env("BASE_TIER_API_KEY")),
-                    "OPENROUTER_API_KEY": bool(get_clean_env("OPENROUTER_API_KEY")),
-                    "GEMINI_API_KEY": bool(get_clean_env("GEMINI_API_KEY")),
-                    "GROQ_API_KEY": bool(get_clean_env("GROQ_API_KEY")),
-                    "DEEPSEEK_API_KEY": bool(get_clean_env("DEEPSEEK_API_KEY")),
-                    "OPENAI_API_KEY": bool(get_clean_env("OPENAI_API_KEY")),
-                    "ACCESS_PASSWORD": bool(get_clean_env("ACCESS_PASSWORD")),
+                    "gemini": bool(find_env_fuzzy("gemini")),
+                    "groq": bool(find_env_fuzzy("groq")),
+                    "openrouter": bool(find_env_fuzzy("openrouter") or get_clean_env("BASE_TIER_API_KEY")),
+                    "deepseek": bool(find_env_fuzzy("deepseek")),
+                    "openai": bool(find_env_fuzzy("openai")),
+                    "access_password": bool(find_env_fuzzy("access_password")),
                 },
                 "active_provider": prov.get("name", "Base Tier"),
                 "base_tier_has_key": bool(current_k),
-                "key_type": key_detected_type
+                "key_type": key_detected_type,
+                "base_url": prov.get("base_url", "")
             })
             return
 
