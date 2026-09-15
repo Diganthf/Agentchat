@@ -1,0 +1,25 @@
+{
+  "allowlist": [
+    "python",
+    "python3",
+    "node",
+    "npx"
+  ],
+  "enforce_allowlist": true,
+  "blocked_patterns": [
+    "&&",
+    ";",
+    "||",
+    "|",
+    "`",
+    "$(",
+    ">",
+    "<",
+    "rm -rf",
+    "del /s",
+    "format",
+    "mkfs"
+  ],
+  "max_execution_seconds": 15,
+  "max_memory_mb": 512
+}

@@ -1433,17 +1433,117 @@
     updateBannerStatus();
   }
 
-  // Key Vault Management (Multi-API-Key Support)
+  // --- Client-Side Web Crypto API: AES-GCM Encrypted Vault ---
+  let cachedCryptoKey = null;
+  async function getOrCreateDeviceCryptoKey() {
+    if (cachedCryptoKey) return cachedCryptoKey;
+    if (!window.crypto || !window.crypto.subtle) return null;
+    try {
+      let rawSeed = localStorage.getItem("agentchat_vault_salt");
+      if (!rawSeed) {
+        const arr = new Uint8Array(16);
+        window.crypto.getRandomValues(arr);
+        rawSeed = Array.from(arr).map(b => b.toString(16).padStart(2, "0")).join("");
+        localStorage.setItem("agentchat_vault_salt", rawSeed);
+      }
+      const enc = new TextEncoder();
+      const keyMaterial = await window.crypto.subtle.importKey(
+        "raw",
+        enc.encode("agentchat_device_seed_" + rawSeed),
+        { name: "PBKDF2" },
+        false,
+        ["deriveKey"]
+      );
+      cachedCryptoKey = await window.crypto.subtle.deriveKey(
+        {
+          name: "PBKDF2",
+          salt: enc.encode("agentchat_pbkdf2_salt_v3"),
+          iterations: 100000,
+          hash: "SHA-256"
+        },
+        keyMaterial,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["encrypt", "decrypt"]
+      );
+      return cachedCryptoKey;
+    } catch (e) {
+      console.warn("Web Crypto derivation error:", e);
+      return null;
+    }
+  }
+
+  async function encryptClientVault(plainObj) {
+    const key = await getOrCreateDeviceCryptoKey();
+    if (!key) return JSON.stringify(plainObj);
+    try {
+      const iv = window.crypto.getRandomValues(new Uint8Array(12));
+      const enc = new TextEncoder();
+      const encodedData = enc.encode(JSON.stringify(plainObj));
+      const cipherBuffer = await window.crypto.subtle.encrypt(
+        { name: "AES-GCM", iv: iv },
+        key,
+        encodedData
+      );
+      const ivHex = Array.from(iv).map(b => b.toString(16).padStart(2, "0")).join("");
+      const cipherB64 = btoa(String.fromCharCode(...new Uint8Array(cipherBuffer)));
+      return `enc_gcm::${ivHex}::${cipherB64}`;
+    } catch (e) {
+      return JSON.stringify(plainObj);
+    }
+  }
+
+  async function decryptClientVault(storedVal) {
+    if (!storedVal) return {};
+    if (!storedVal.startsWith("enc_gcm::")) {
+      try { return JSON.parse(storedVal); } catch (_) { return {}; }
+    }
+    const key = await getOrCreateDeviceCryptoKey();
+    if (!key) return {};
+    try {
+      const parts = storedVal.split("::");
+      const ivHex = parts[1];
+      const cipherB64 = parts[2];
+      const iv = new Uint8Array(ivHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+      const cipherBytes = Uint8Array.from(atob(cipherB64), c => c.charCodeAt(0));
+      const decrypted = await window.crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: iv },
+        key,
+        cipherBytes
+      );
+      const dec = new TextDecoder();
+      return JSON.parse(dec.decode(decrypted));
+    } catch (e) {
+      console.warn("Failed to decrypt local vault:", e);
+      return {};
+    }
+  }
+
+  let memoryVaultCache = null;
   function getKeyVault() {
+    if (memoryVaultCache) return memoryVaultCache;
     try {
       const raw = localStorage.getItem("agentchat_key_vault");
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        if (raw.startsWith("enc_gcm::")) {
+          decryptClientVault(raw).then(dec => {
+            memoryVaultCache = dec;
+            const active = currentConfig.active_provider || "base";
+            renderKeyVaultOptions(active);
+          });
+          return {};
+        }
+        return JSON.parse(raw);
+      }
     } catch (e) {}
     return {};
   }
 
   function saveKeyVault(vault) {
-    localStorage.setItem("agentchat_key_vault", JSON.stringify(vault));
+    memoryVaultCache = vault;
+    encryptClientVault(vault).then(enc => {
+      localStorage.setItem("agentchat_key_vault", enc);
+    });
   }
 
   function maskKey(key) {

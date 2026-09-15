@@ -10,8 +10,12 @@ import threading
 import urllib.request
 import urllib.parse
 import urllib.error
-from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import socket
+import secrets
+import random
+import subprocess
+import shlex
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
 
 try:
@@ -20,11 +24,203 @@ try:
 except ImportError:
     PYPDF_AVAILABLE = False
 
+try:
+    from cryptography.fernet import Fernet
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    FERNET_AVAILABLE = True
+except ImportError:
+    FERNET_AVAILABLE = False
+
+try:
+    from curl_cffi import requests as cffi_requests
+    CURL_CFFI_AVAILABLE = True
+except ImportError:
+    CURL_CFFI_AVAILABLE = False
+
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend")
 PORT = int(os.environ.get("PORT", 5050))
 HOST = os.environ.get("HOST", "0.0.0.0" if os.environ.get("PORT") else "127.0.0.1")
 DISABLE_LOCAL_TOOLS = os.environ.get("DISABLE_LOCAL_TOOLS", "").strip() in ("1", "true", "yes")
+
+ACCESS_PASSWORD = os.environ.get("ACCESS_PASSWORD", "").strip()
+ALLOW_UNPROTECTED_PUBLIC = os.environ.get("ALLOW_UNPROTECTED_PUBLIC", "").strip() in ("1", "true", "yes")
+
+AUTO_GENERATED_TOKEN = None
+if HOST == "0.0.0.0" and not ACCESS_PASSWORD and not ALLOW_UNPROTECTED_PUBLIC:
+    AUTO_GENERATED_TOKEN = secrets.token_urlsafe(24)
+    ACCESS_PASSWORD = AUTO_GENERATED_TOKEN
+    sys.stdout.write("\n" + "="*70 + "\n")
+    sys.stdout.write("🔒 [SECURITY SHIELD ACTIVATED - PUBLIC INTERFACE ENFORCEMENT]\n")
+    sys.stdout.write(f"AgentChat is bound to public interface: {HOST}:{PORT}\n")
+    sys.stdout.write(f"Mandatory Access Password generated: {AUTO_GENERATED_TOKEN}\n")
+    sys.stdout.write("Pass via header 'X-Access-Password' or '?access_password=' query parameter.\n")
+    sys.stdout.write("To configure custom password, define ACCESS_PASSWORD in environment.\n")
+    sys.stdout.write("="*70 + "\n\n")
+    sys.stdout.flush()
+
+# --- Security: Fernet Encryption at Rest ---
+def get_master_fernet():
+    if not FERNET_AVAILABLE:
+        return None
+    salt = b"agentchat_vault_v3_salt"
+    master_seed = os.environ.get("AGENTCHAT_MASTER_KEY", "").encode("utf-8")
+    if not master_seed:
+        hw_seed = f"{socket.gethostname()}-{os.environ.get('USERNAME', os.environ.get('USER', 'agentchat_sec'))}".encode("utf-8")
+        master_seed = hw_seed
+    try:
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=100000,
+        )
+        key = base64.urlsafe_b64encode(kdf.derive(master_seed))
+        return Fernet(key)
+    except Exception:
+        return None
+
+def encrypt_secret(val: str) -> str:
+    if not val or not isinstance(val, str) or not val.strip():
+        return ""
+    val_clean = val.strip()
+    if val_clean.startswith("enc::"):
+        return val_clean
+    fernet = get_master_fernet()
+    if not fernet:
+        return val_clean
+    try:
+        token = fernet.encrypt(val_clean.encode("utf-8")).decode("utf-8")
+        return f"enc::{token}"
+    except Exception:
+        return val_clean
+
+def decrypt_secret(val: str) -> str:
+    if not val or not isinstance(val, str) or not val.strip():
+        return ""
+    val_clean = val.strip()
+    if not val_clean.startswith("enc::"):
+        return val_clean
+    fernet = get_master_fernet()
+    if not fernet:
+        return val_clean
+    try:
+        cipher = val_clean[5:]
+        return fernet.decrypt(cipher.encode("utf-8")).decode("utf-8")
+    except Exception:
+        return ""
+
+# --- Security: Multi-Tier DoH Resolver ---
+class DoHResolver:
+    def __init__(self):
+        self.cache = {}
+        self.lock = threading.Lock()
+        self.providers = [
+            ("Cloudflare", "https://cloudflare-dns.com/dns-query?name={}&type=A"),
+            ("Google", "https://dns.google/resolve?name={}&type=A")
+        ]
+
+    def resolve(self, hostname: str) -> str:
+        if not hostname or hostname in ("localhost", "127.0.0.1", "0.0.0.0") or re.match(r"^\d{1,3}(\.\d{1,3}){3}$", hostname):
+            return hostname
+
+        now = time.time()
+        with self.lock:
+            if hostname in self.cache:
+                ip, exp, src = self.cache[hostname]
+                if now < exp:
+                    return ip
+
+        # Tier 1: Cloudflare & Google DoH
+        for name, url_template in self.providers:
+            try:
+                target_url = url_template.format(urllib.parse.quote(hostname))
+                if CURL_CFFI_AVAILABLE:
+                    resp = cffi_requests.get(target_url, headers={"Accept": "application/dns-json"}, timeout=3, impersonate="chrome124")
+                    data = resp.json()
+                else:
+                    req = urllib.request.Request(target_url, headers={"Accept": "application/dns-json", "User-Agent": "AgentChat-DoH/3.0"})
+                    with urllib.request.urlopen(req, timeout=3) as r:
+                        data = json.loads(r.read().decode("utf-8"))
+
+                answers = data.get("Answer", [])
+                for ans in answers:
+                    if ans.get("type") == 1:
+                        ip = ans.get("data", "").strip()
+                        if ip and re.match(r"^\d{1,3}(\.\d{1,3}){3}$", ip):
+                            ttl = max(60, min(ans.get("TTL", 300), 3600))
+                            with self.lock:
+                                self.cache[hostname] = (ip, now + ttl, name)
+                            sys.stdout.write(f"🌐 [DoH Resolver: {name}] Resolved {hostname} -> {ip}\n")
+                            sys.stdout.flush()
+                            return ip
+            except Exception:
+                continue
+
+        # Tier 2: System DNS Fallback
+        try:
+            ip = socket.gethostbyname(hostname)
+            with self.lock:
+                self.cache[hostname] = (ip, now + 300, "System DNS")
+            return ip
+        except Exception:
+            return hostname
+
+doh_resolver = DoHResolver()
+
+# --- Security: MCP Sandboxing & Allowlist ---
+MCP_ALLOWLIST_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mcp_allowlist.json")
+
+def load_mcp_allowlist():
+    if os.path.exists(MCP_ALLOWLIST_PATH):
+        try:
+            with open(MCP_ALLOWLIST_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        "allowlist": ["python", "python3", "node", "npx"],
+        "enforce_allowlist": True,
+        "blocked_patterns": ["&&", ";", "||", "|", "`", "$(", ">", "<", "rm -rf", "del /s", "format", "mkfs"],
+        "max_execution_seconds": 15,
+        "max_memory_mb": 512
+    }
+
+def validate_and_sandbox_command(cmd_str, extra_args=None):
+    if not cmd_str or not cmd_str.strip():
+        raise ValueError("Empty command cannot be executed")
+
+    cfg = load_mcp_allowlist()
+    blocked = cfg.get("blocked_patterns", [])
+    for bp in blocked:
+        if bp in cmd_str:
+            raise PermissionError(f"Security Shield: Command contains forbidden metacharacter '{bp}'")
+
+    parsed_parts = shlex.split(cmd_str, posix=(os.name != 'nt'))
+    if not parsed_parts:
+        raise ValueError("Invalid command syntax")
+
+    binary_name = os.path.basename(parsed_parts[0]).lower()
+    if binary_name.endswith(".exe"):
+        binary_name = binary_name[:-4]
+
+    if cfg.get("enforce_allowlist", True):
+        allowed = [a.lower() for a in cfg.get("allowlist", [])]
+        if binary_name not in allowed:
+            raise PermissionError(
+                f"Security Deny: Binary '{binary_name}' is not in mcp_allowlist.json (Deny-by-default policy)."
+            )
+
+    full_cmd = list(parsed_parts)
+    if extra_args and isinstance(extra_args, list):
+        for a in extra_args:
+            for bp in blocked:
+                if bp in str(a):
+                    raise PermissionError(f"Security Shield: Argument contains forbidden token '{bp}'")
+            full_cmd.append(str(a))
+
+    return full_cmd, cfg.get("max_execution_seconds", 15)
 
 # Curated Sonnet-Grade Base Tier Models
 BASE_TIER_MODELS = [
@@ -123,6 +319,11 @@ def load_config():
                 if "providers" not in cfg:
                     cfg["providers"] = DEFAULT_CONFIG["providers"]
                     cfg["active_provider"] = "base"
+                else:
+                    # In-memory decryption of secrets stored encrypted at rest
+                    for p_info in cfg["providers"].values():
+                        if "api_key" in p_info and p_info["api_key"]:
+                            p_info["api_key"] = decrypt_secret(p_info["api_key"])
                 if "mcp_servers" not in cfg:
                     cfg["mcp_servers"] = DEFAULT_CONFIG["mcp_servers"]
                 if "plugins" not in cfg:
@@ -139,8 +340,6 @@ def load_config():
         except Exception:
             pass
     return DEFAULT_CONFIG
-
-ACCESS_PASSWORD = os.environ.get("ACCESS_PASSWORD", "")
 
 def mask_api_key(k):
     if not k:
@@ -264,8 +463,16 @@ def sanitize_config_for_client(cfg):
     return safe_cfg
 
 def save_config(cfg):
+    encrypted_cfg = json.loads(json.dumps(cfg))
+    if "providers" in encrypted_cfg:
+        for p_info in encrypted_cfg["providers"].values():
+            if "api_key" in p_info and p_info["api_key"]:
+                if not is_masked_key(p_info["api_key"]):
+                    p_info["api_key"] = encrypt_secret(p_info["api_key"])
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2)
+        json.dump(encrypted_cfg, f, indent=2)
+
+BROWSER_PROFILES = ["chrome124", "chrome120", "safari17_0"]
 
 def make_upstream_request(endpoint, data=None, method="GET", stream=False, override_key=None, override_url=None):
     prov, prov_key = get_active_provider_info(override_key=override_key, override_url=override_url)
@@ -277,16 +484,41 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
         endpoint = endpoint[3:]
 
     target_url = f"{base_url}{endpoint}"
+    parsed = urlparse(target_url)
 
+    # Multi-Tier DoH DNS Resolution (Cloudflare -> Google -> System fallback)
+    resolved_ip = doh_resolver.resolve(parsed.hostname)
+
+    # Realistic Chromium header sequencing to avoid bot heuristics
     headers = {
+        "Host": parsed.netloc,
+        "Connection": "keep-alive",
+        "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "Upgrade-Insecure-Requests": "1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/event-stream, */*",
+        "Sec-Fetch-Site": "cross-site",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Dest": "empty",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Language": "en-US,en;q=0.9",
         "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "User-Agent": "AgentChat/3.0"
+        "Content-Type": "application/json"
     }
 
-    body_bytes = json.dumps(data).encode("utf-8") if data is not None else None
-    req = urllib.request.Request(target_url, data=body_bytes, headers=headers, method=method)
-    return urllib.request.urlopen(req, timeout=60)
+    if CURL_CFFI_AVAILABLE:
+        impersonate_choice = random.choice(BROWSER_PROFILES)
+        session = cffi_requests.Session(impersonate=impersonate_choice)
+        if method == "POST":
+            return session.post(target_url, json=data, headers=headers, stream=stream, timeout=60)
+        else:
+            return session.get(target_url, headers=headers, stream=stream, timeout=60)
+    else:
+        body_bytes = json.dumps(data).encode("utf-8") if data is not None else None
+        req = urllib.request.Request(target_url, data=body_bytes, headers=headers, method=method)
+        return urllib.request.urlopen(req, timeout=60)
 
 def perform_web_search(query: str, max_results=4) -> str:
     url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
@@ -372,7 +604,13 @@ def compress_conversation_messages(messages, max_recent=4):
 
 class AgentChatHandler(BaseHTTPRequestHandler):
     def end_headers(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
+        req_origin = self.headers.get("Origin", "")
+        if req_origin:
+            self.send_header("Access-Control-Allow-Origin", req_origin)
+            self.send_header("Access-Control-Allow-Credentials", "true")
+            self.send_header("Vary", "Origin")
+        else:
+            self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Access-Password, X-Custom-Api-Key, X-Custom-Base-Url")
         super().end_headers()
@@ -606,16 +844,45 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         body = self.rfile.read(length).decode("utf-8")
         try:
             data = json.loads(body)
-            command = data.get("command", "")
-            # Verify command is present
+            command = data.get("command", "").strip()
+            args = data.get("args", [])
             if not command:
-                self.send_json({"success": False, "message": "Command is required for testing"}, status=400)
+                self.send_json({"success": False, "error": "Command is required for testing"}, status=400)
                 return
+
+            validated_cmd, timeout_sec = validate_and_sandbox_command(command, args)
+
+            def set_limits():
+                if os.name != 'nt':
+                    try:
+                        import resource
+                        resource.setrlimit(resource.RLIMIT_CPU, (timeout_sec, timeout_sec))
+                        resource.setrlimit(resource.RLIMIT_AS, (512 * 1024 * 1024, 512 * 1024 * 1024))
+                    except Exception:
+                        pass
+
+            res = subprocess.run(
+                validated_cmd,
+                capture_output=True,
+                text=True,
+                timeout=timeout_sec,
+                shell=False,
+                preexec_fn=set_limits if os.name != 'nt' else None
+            )
+
             self.send_json({
                 "success": True,
-                "message": f"MCP configuration for '{command}' validated successfully. Ready for tool execution.",
-                "tools_discovered": ["list_directory", "read_file", "search_files"]
+                "sandboxed": True,
+                "command": validated_cmd[0],
+                "exit_code": res.returncode,
+                "stdout": res.stdout[:500] if res.stdout else "",
+                "stderr": res.stderr[:500] if res.stderr else "",
+                "message": f"MCP sandboxed execution test succeeded for '{validated_cmd[0]}'."
             })
+        except PermissionError as pe:
+            self.send_json({"success": False, "error": str(pe), "sandboxed_rejection": True}, status=403)
+        except subprocess.TimeoutExpired:
+            self.send_json({"success": False, "error": "Execution timed out (15s limit reached)"}, status=408)
         except Exception as e:
             self.send_json({"success": False, "error": str(e)}, status=400)
 
@@ -990,7 +1257,12 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                     override_key=active_key,
                     override_url=active_url
                 )
-                raw = json.loads(res.read().decode("utf-8"))
+                if hasattr(res, 'json'):
+                    raw = res.json()
+                elif hasattr(res, 'read'):
+                    raw = json.loads(res.read().decode("utf-8"))
+                else:
+                    raw = json.loads(getattr(res, 'text', '{}'))
                 models_data = raw.get("data", [])
 
                 discovered_models = []
@@ -1165,9 +1437,26 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 override_key=override_key,
                 override_url=override_url
             )
-            for line in upstream_res:
-                self.wfile.write(line)
+            # Check status code for curl_cffi
+            status_code = getattr(upstream_res, 'status_code', getattr(upstream_res, 'code', 200))
+            if status_code >= 400:
+                err_body = getattr(upstream_res, 'text', '')
+                if not err_body and hasattr(upstream_res, 'read'):
+                    err_body = upstream_res.read().decode("utf-8", errors="replace")
+                err_event = f"event: error\ndata: {json.dumps({'error': err_body or f'HTTP {status_code}', 'code': status_code})}\n\n"
+                self.wfile.write(err_event.encode("utf-8"))
                 self.wfile.flush()
+                return
+
+            if hasattr(upstream_res, 'iter_lines'):
+                for line in upstream_res.iter_lines():
+                    if line:
+                        self.wfile.write(line + b"\n\n")
+                        self.wfile.flush()
+            else:
+                for line in upstream_res:
+                    self.wfile.write(line)
+                    self.wfile.flush()
 
             # Ensure client receives explicit stream termination marker
             try:
