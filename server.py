@@ -1382,10 +1382,14 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         try:
             data = json.loads(body)
             new_name = data.get("name", "").strip()
+            new_email = data.get("email", "").strip().lower()
             new_avatar = data.get("avatar_url", "").strip()
             with get_auth_db() as conn:
-                if new_name or new_avatar:
-                    conn.execute("UPDATE users SET name = COALESCE(NULLIF(?, ''), name), avatar_url = COALESCE(NULLIF(?, ''), avatar_url) WHERE id = ?", (new_name, new_avatar, user["id"]))
+                if new_name or new_avatar or new_email:
+                    conn.execute(
+                        "UPDATE users SET name = COALESCE(NULLIF(?, ''), name), email = COALESCE(NULLIF(?, ''), email), avatar_url = COALESCE(NULLIF(?, ''), avatar_url) WHERE id = ?",
+                        (new_name, new_email, new_avatar, user["id"])
+                    )
                     conn.commit()
                 updated_user = dict(conn.execute("SELECT id, email, name, avatar_url, auth_provider, created_at, last_login FROM users WHERE id = ?", (user["id"],)).fetchone())
             self.send_json({"success": True, "user": updated_user})

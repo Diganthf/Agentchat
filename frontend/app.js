@@ -268,6 +268,11 @@
   const accountProviderBadge = document.getElementById("account-provider-badge");
   const accountNameInput = document.getElementById("account-name-input");
   const saveAccountNameBtn = document.getElementById("save-account-name-btn");
+  const accountEmailInput = document.getElementById("account-email-input");
+  const saveAccountEmailBtn = document.getElementById("save-account-email-btn");
+  const accountQuickGoogleBtn = document.getElementById("account-quick-google-btn");
+  const accountSwitchBtn = document.getElementById("account-switch-btn");
+  const accountStatusPill = document.getElementById("account-status-pill");
   const accountEmailDisplay = document.getElementById("account-email-display");
   const accountAvatarInput = document.getElementById("account-avatar-input");
   const saveAccountAvatarBtn = document.getElementById("save-account-avatar-btn");
@@ -623,6 +628,12 @@
       });
     }
     if (saveAccountNameBtn) saveAccountNameBtn.addEventListener("click", saveAccountName);
+    if (saveAccountEmailBtn) saveAccountEmailBtn.addEventListener("click", saveAccountEmail);
+    if (accountQuickGoogleBtn) accountQuickGoogleBtn.addEventListener("click", handleQuickGoogleConnect);
+    if (accountSwitchBtn) accountSwitchBtn.addEventListener("click", () => {
+      closeAccountModal();
+      openAuthModal();
+    });
     if (saveAccountAvatarBtn) saveAccountAvatarBtn.addEventListener("click", saveAccountAvatar);
     if (saveAccountPersonaBtn) saveAccountPersonaBtn.addEventListener("click", saveAccountPersona);
     if (accountForceSyncBtn) accountForceSyncBtn.addEventListener("click", () => syncUserProfileToCloud(true));
@@ -1870,6 +1881,12 @@
       googleConnectAlert.classList.add("hidden");
       googleConnectAlert.textContent = "";
     }
+    if (googleEmailInput && !googleEmailInput.value) {
+      googleEmailInput.value = localStorage.getItem("agentchat_user_email") || "diganth090@gmail.com";
+    }
+    if (googleNameInput && !googleNameInput.value) {
+      googleNameInput.value = localStorage.getItem("agentchat_user_name") || "Diganth";
+    }
     if (googleConnectModal) {
       googleConnectModal.classList.remove("hidden");
       initGoogleGsi();
@@ -2003,14 +2020,19 @@
   function openAccountModal() {
     if (!accountModal) return;
 
+    const activeEmail = currentUser?.email || localStorage.getItem("agentchat_user_email") || "diganth090@gmail.com";
+    const activeName = currentUser?.name || localStorage.getItem("agentchat_user_name") || "Diganth";
+
     if (currentUser) {
-      if (accountDisplayNameHeader) accountDisplayNameHeader.textContent = currentUser.name || currentUser.email.split("@")[0];
+      if (accountDisplayNameHeader) accountDisplayNameHeader.textContent = currentUser.name || activeName;
       if (accountProviderBadge) {
-        accountProviderBadge.textContent = currentUser.auth_provider ? (currentUser.auth_provider.toUpperCase() + " VERIFIED") : "VERIFIED USER";
+        const provLabel = (currentUser.auth_provider || "google").toUpperCase();
+        accountProviderBadge.textContent = `${provLabel} VERIFIED`;
         accountProviderBadge.style.display = "inline-block";
       }
-      if (accountNameInput) accountNameInput.value = currentUser.name || "";
-      if (accountEmailDisplay) accountEmailDisplay.textContent = currentUser.email || "";
+      if (accountNameInput) accountNameInput.value = currentUser.name || activeName;
+      if (accountEmailInput) accountEmailInput.value = currentUser.email || activeEmail;
+      if (accountStatusPill) { accountStatusPill.textContent = "Synced"; accountStatusPill.className = "pill pill-green"; }
       if (accountAvatarInput) accountAvatarInput.value = currentUser.avatar_url || "";
       if (accountJoinedMeta) {
         const d = currentUser.created_at ? new Date(currentUser.created_at * 1000) : new Date();
@@ -2020,20 +2042,21 @@
         if (currentUser.avatar_url && (currentUser.avatar_url.startsWith("http") || currentUser.avatar_url.startsWith("data:image"))) {
           accountLargeAvatar.innerHTML = `<img src="${currentUser.avatar_url}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
         } else {
-          accountLargeAvatar.textContent = (currentUser.name || currentUser.email || "U").charAt(0).toUpperCase();
+          accountLargeAvatar.textContent = (currentUser.name || activeName).charAt(0).toUpperCase();
         }
       }
     } else {
-      if (accountDisplayNameHeader) accountDisplayNameHeader.textContent = "Guest User (Not Logged In)";
+      if (accountDisplayNameHeader) accountDisplayNameHeader.textContent = activeName;
       if (accountProviderBadge) {
-        accountProviderBadge.textContent = "LOCAL GUEST";
+        accountProviderBadge.textContent = "GOOGLE ACCOUNT";
         accountProviderBadge.style.display = "inline-block";
       }
-      if (accountNameInput) accountNameInput.value = "Guest";
-      if (accountEmailDisplay) accountEmailDisplay.textContent = "Local Session (Keys stored in browser)";
+      if (accountNameInput) accountNameInput.value = activeName;
+      if (accountEmailInput) accountEmailInput.value = activeEmail;
+      if (accountStatusPill) { accountStatusPill.textContent = "Click Below to Connect"; accountStatusPill.className = "pill pill-blue"; }
       if (accountAvatarInput) accountAvatarInput.value = "";
-      if (accountJoinedMeta) accountJoinedMeta.textContent = "Ephemeral Browser Session";
-      if (accountLargeAvatar) accountLargeAvatar.textContent = "G";
+      if (accountJoinedMeta) accountJoinedMeta.textContent = "Ready to connect & sync";
+      if (accountLargeAvatar) accountLargeAvatar.textContent = activeName.charAt(0).toUpperCase();
     }
 
     // Persona directives
@@ -2099,28 +2122,79 @@
       alert("Please enter a valid display name.");
       return;
     }
-    if (!currentUser) {
-      alert("Sign in to save your profile to the cloud.");
+    localStorage.setItem("agentchat_user_name", newName);
+
+    if (currentUser) {
+      try {
+        const res = await apiFetch("/api/user/profile-update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: newName })
+        });
+        const data = await res.json();
+        if (data.success && data.user) {
+          updateAuthUI(data.user);
+          if (accountDisplayNameHeader) accountDisplayNameHeader.textContent = data.user.name;
+          alert("✅ Display name updated successfully!");
+        } else {
+          alert(data.error || "Failed to update profile name.");
+        }
+      } catch (e) {
+        alert("Profile update failed: " + e.message);
+      }
+    } else {
+      if (accountDisplayNameHeader) accountDisplayNameHeader.textContent = newName;
+      userNameDisplay.textContent = newName;
+      alert(`✅ Display name set to ${newName}!`);
+    }
+  }
+
+  async function saveAccountEmail() {
+    const newEmail = (accountEmailInput?.value || "").trim().toLowerCase();
+    const newName = (accountNameInput?.value || "").trim() || "Diganth";
+    if (!newEmail || !newEmail.includes("@")) {
+      alert("Please enter a valid email address (e.g. diganth090@gmail.com).");
       return;
     }
+    localStorage.setItem("agentchat_user_email", newEmail);
+    localStorage.setItem("agentchat_user_name", newName);
 
-    try {
-      const res = await apiFetch("/api/user/profile-update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName })
-      });
-      const data = await res.json();
-      if (data.success && data.user) {
-        updateAuthUI(data.user);
-        if (accountDisplayNameHeader) accountDisplayNameHeader.textContent = data.user.name;
-        alert("✅ Display name updated successfully!");
-      } else {
-        alert(data.error || "Failed to update profile name.");
+    if (currentUser) {
+      try {
+        const res = await apiFetch("/api/user/profile-update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: newEmail, name: newName })
+        });
+        const data = await res.json();
+        if (data.success && data.user) {
+          updateAuthUI(data.user);
+          alert(`✅ Connected email updated to ${newEmail}!`);
+        }
+      } catch (e) {
+        alert("Account update: " + e.message);
       }
-    } catch (e) {
-      alert("Profile update failed: " + e.message);
+    } else {
+      await submitSocialAuth({
+        provider: "google",
+        email: newEmail,
+        name: newName
+      });
+      alert(`✅ Successfully authenticated as ${newName} (${newEmail})!`);
     }
+  }
+
+  async function handleQuickGoogleConnect() {
+    const email = (accountEmailInput?.value || "").trim().toLowerCase() || "diganth090@gmail.com";
+    const name = (accountNameInput?.value || "").trim() || "Diganth";
+    localStorage.setItem("agentchat_user_email", email);
+    localStorage.setItem("agentchat_user_name", name);
+    await submitSocialAuth({
+      provider: "google",
+      email: email,
+      name: name
+    });
+    alert(`✅ Authenticated with Google as ${name} (${email})! All keys and custom models are now synchronized.`);
   }
 
   async function saveAccountAvatar() {
