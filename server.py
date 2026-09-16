@@ -408,6 +408,87 @@ BASE_TIER_MODELS = [
     }
 ]
 
+# Comprehensive Frontier Models Catalog for Custom Provider & Reverse Proxies (AgentRouter, OpenRouter, Anthropic)
+CUSTOM_FRONTIER_MODELS = [
+    {
+        "id": "claude-3-opus-20240229",
+        "name": "🎭 Claude 3 Opus (Anthropic Flagship)",
+        "description": "Anthropic's powerhouse for deep comprehension, synthesis, coding, and long-form analysis.",
+        "category": "Frontier",
+        "status": "online"
+    },
+    {
+        "id": "claude-3-5-sonnet-20241022",
+        "name": "⚡ Claude 3.5 Sonnet (Anthropic)",
+        "description": "Frontier code generation, reasoning, and multimodal understanding.",
+        "category": "Frontier",
+        "status": "online"
+    },
+    {
+        "id": "claude-3-5-haiku-20241022",
+        "name": "🪶 Claude 3.5 Haiku (Fast & Precise)",
+        "description": "Blazing fast response speed with impressive coding and comprehension ability.",
+        "category": "Speed",
+        "status": "online"
+    },
+    {
+        "id": "deepseek/deepseek-r1",
+        "name": "🧠 DeepSeek R1 (671B Reasoning)",
+        "description": "Frontier test-time reasoning & logic. Outperforms Sonnet on math, algorithms, and deep analysis.",
+        "category": "Reasoning",
+        "status": "online"
+    },
+    {
+        "id": "deepseek/deepseek-chat",
+        "name": "⚡ DeepSeek V3 (671B Nuance)",
+        "description": "Instant conversational eloquence and nuanced general intelligence matching Sonnet speed.",
+        "category": "General",
+        "status": "online"
+    },
+    {
+        "id": "qwen/qwen-2.5-coder-72b-instruct",
+        "name": "💻 Qwen 2.5 Coder 72B (Elite Code)",
+        "description": "Undisputed open coding champion. Outperforms Claude 3.5 Sonnet & GPT-4o on programming benchmarks.",
+        "category": "Coding",
+        "status": "online"
+    },
+    {
+        "id": "openai/gpt-4o",
+        "name": "✨ GPT-4o (OpenAI Omni)",
+        "description": "High-intelligence flagship multimodal model for complex analysis.",
+        "category": "Frontier",
+        "status": "online"
+    },
+    {
+        "id": "openai/o1-preview",
+        "name": "🧩 OpenAI o1-preview (Deep Reasoning)",
+        "description": "Trained with reinforcement learning to perform complex multi-step reasoning before responding.",
+        "category": "Reasoning",
+        "status": "online"
+    },
+    {
+        "id": "openai/o3-mini",
+        "name": "🚀 OpenAI o3-mini (High-Speed Logic)",
+        "description": "Next-generation fast STEM and coding reasoning model.",
+        "category": "Reasoning",
+        "status": "online"
+    },
+    {
+        "id": "google/gemini-2.0-flash-001",
+        "name": "🌐 Gemini 2.0 Flash (Fast / 1M)",
+        "description": "Blazing fast multimodal reasoning with massive 1,000,000 token context window.",
+        "category": "Multimodal",
+        "status": "online"
+    },
+    {
+        "id": "google/gemini-2.0-pro-exp-02-05",
+        "name": "🔮 Gemini 2.0 Pro Experimental",
+        "description": "Google's best model for complex reasoning and coding tasks.",
+        "category": "Frontier",
+        "status": "online"
+    }
+]
+
 DEFAULT_CONFIG = {
     "active_provider": "base",
     "providers": {
@@ -662,6 +743,11 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
         "Content-Type": "application/json"
     }
 
+    # Anthropic native or reverse proxy compatibility
+    if api_key.startswith("sk-ant-") or "anthropic" in base_url.lower():
+        headers["x-api-key"] = api_key
+        headers["anthropic-version"] = "2023-06-01"
+
     if CURL_CFFI_AVAILABLE:
         impersonate_choice = random.choice(BROWSER_PROFILES)
         session = cffi_requests.Session(impersonate=impersonate_choice)
@@ -913,6 +999,10 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             self.handle_auth_social_login()
         elif path == "/api/auth/logout":
             self.handle_auth_logout()
+        elif path == "/api/auth/logout-all":
+            self.handle_auth_logout_all()
+        elif path == "/api/user/profile-update":
+            self.handle_user_profile_update()
         elif path == "/api/user/sync":
             self.handle_user_sync_post()
         elif path == "/api/config":
@@ -1084,22 +1174,45 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         try:
             data = json.loads(body)
             provider = data.get("provider", "google").lower()
+            credential = data.get("credential", "").strip()
             email = data.get("email", "").strip().lower()
             name = data.get("name", "").strip()
             avatar_url = data.get("avatar_url", "").strip()
 
+            # If Google GSI credential JWT was sent, decode payload
+            if credential:
+                try:
+                    parts = credential.split(".")
+                    if len(parts) >= 2:
+                        payload_b64 = parts[1]
+                        payload_b64 += "=" * ((4 - len(payload_b64) % 4) % 4)
+                        claims = json.loads(base64.urlsafe_b64decode(payload_b64.encode("utf-8")).decode("utf-8"))
+                        if claims.get("email"):
+                            email = claims["email"].strip().lower()
+                        if claims.get("name"):
+                            name = claims["name"].strip()
+                        if claims.get("picture"):
+                            avatar_url = claims["picture"].strip()
+                except Exception as ex:
+                    print("Google credential decode error:", ex)
+
             if not email:
-                guest_rand = secrets.token_hex(4)
-                email = f"{provider}_user_{guest_rand}@agentchat.local"
-                name = f"{provider.capitalize()} User ({guest_rand})"
+                self.send_json({"success": False, "error": f"A valid {provider.capitalize()} account email is required to authenticate."}, status=400)
+                return
+
+            if not name:
+                name = email.split("@")[0]
 
             with get_auth_db() as conn:
-                row = conn.execute("SELECT id, email, name, avatar_url, auth_provider FROM users WHERE email = ?", (email,)).fetchone()
+                row = conn.execute("SELECT id, email, name, avatar_url, auth_provider, created_at FROM users WHERE email = ?", (email,)).fetchone()
                 if row:
                     user_id = row["id"]
-                    conn.execute("UPDATE users SET last_login = ?, avatar_url = COALESCE(NULLIF(?, ''), avatar_url) WHERE id = ?", (time.time(), avatar_url, user_id))
+                    conn.execute(
+                        "UPDATE users SET last_login = ?, name = COALESCE(NULLIF(?, ''), name), avatar_url = COALESCE(NULLIF(?, ''), avatar_url), auth_provider = ? WHERE id = ?",
+                        (time.time(), name, avatar_url, provider, user_id)
+                    )
                     conn.commit()
-                    user_data = dict(row)
+                    user_data = dict(conn.execute("SELECT id, email, name, avatar_url, auth_provider, created_at FROM users WHERE id = ?", (user_id,)).fetchone())
                 else:
                     user_id = "usr_" + str(uuid.uuid4()).replace("-", "")[:16]
                     now = time.time()
@@ -1111,7 +1224,7 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                         (user_id, email, name, avatar_url, provider, now, now)
                     )
                     conn.commit()
-                    user_data = {"id": user_id, "email": email, "name": name, "avatar_url": avatar_url, "auth_provider": provider}
+                    user_data = {"id": user_id, "email": email, "name": name, "avatar_url": avatar_url, "auth_provider": provider, "created_at": now}
 
             session_token = create_user_session(user_id, duration_days=30)
             profile = get_user_profile(user_id)
@@ -1142,6 +1255,40 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.end_headers()
         self.wfile.write(json.dumps({"success": True, "message": "Logged out"}).encode("utf-8"))
+
+    def handle_auth_logout_all(self):
+        user = self.get_authenticated_user()
+        if not user:
+            self.send_json({"success": False, "error": "Authentication required"}, status=401)
+            return
+        with get_auth_db() as conn:
+            conn.execute("DELETE FROM sessions WHERE user_id = ?", (user["id"],))
+            conn.commit()
+        self.send_response(200)
+        self.send_header("Set-Cookie", "agentchat_session=; Path=/; Max-Age=0; SameSite=Lax")
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps({"success": True, "message": "Signed out of all devices"}).encode("utf-8"))
+
+    def handle_user_profile_update(self):
+        user = self.get_authenticated_user()
+        if not user:
+            self.send_json({"success": False, "error": "Authentication required"}, status=401)
+            return
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8")
+        try:
+            data = json.loads(body)
+            new_name = data.get("name", "").strip()
+            new_avatar = data.get("avatar_url", "").strip()
+            with get_auth_db() as conn:
+                if new_name or new_avatar:
+                    conn.execute("UPDATE users SET name = COALESCE(NULLIF(?, ''), name), avatar_url = COALESCE(NULLIF(?, ''), avatar_url) WHERE id = ?", (new_name, new_avatar, user["id"]))
+                    conn.commit()
+                updated_user = dict(conn.execute("SELECT id, email, name, avatar_url, auth_provider, created_at, last_login FROM users WHERE id = ?", (user["id"],)).fetchone())
+            self.send_json({"success": True, "user": updated_user})
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)}, status=500)
 
     def handle_user_sync_post(self):
         user = self.get_authenticated_user()
@@ -1661,6 +1808,12 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                         "status": "online"
                     })
 
+                # Merge essential frontier models (Claude Opus, Claude 3.5 Sonnet, etc.) if not present
+                existing_ids = {m["id"].lower() for m in discovered_models}
+                for fm in CUSTOM_FRONTIER_MODELS:
+                    if fm["id"].lower() not in existing_ids:
+                        discovered_models.append(fm)
+
                 # Sort alphabetically by display name
                 discovered_models.sort(key=lambda x: x["name"].lower())
 
@@ -1673,12 +1826,24 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                     })
                     return
             except Exception as e:
+                # If provider query fails (e.g. AgentRouter doesn't expose /v1/models), return curated frontier catalog
                 self.send_json({
-                    "success": False,
-                    "error": f"Failed to fetch models from provider: {str(e)}",
-                    "models": BASE_TIER_MODELS
+                    "success": True,
+                    "provider": prov_key,
+                    "models": CUSTOM_FRONTIER_MODELS,
+                    "source": "custom_frontier",
+                    "note": f"Frontier catalog active ({str(e)})"
                 })
                 return
+
+        # If Custom Provider is selected, return full frontier catalog including Claude Opus
+        if prov_key == "custom":
+            self.send_json({
+                "success": True,
+                "models": CUSTOM_FRONTIER_MODELS,
+                "source": "custom_frontier"
+            })
+            return
 
         # Default Base Tier (Curated frontier models)
         self.send_json({
@@ -1778,10 +1943,13 @@ class AgentChatHandler(BaseHTTPRequestHandler):
 
         skills_context = req_data.get("skills_context", "").strip()
         project_context = req_data.get("project_context", "").strip()
+        persona_directives = req_data.get("persona_directives", "").strip()
 
         combined_sys = []
         if system_prompt and system_prompt.strip():
             combined_sys.append(system_prompt.strip())
+        if persona_directives:
+            combined_sys.append(f"### [AI Developer Persona & Engineering Directives]:\n{persona_directives}")
         if skills_context:
             combined_sys.append(f"### [Active Agent Skills & Directives]:\n{skills_context}")
         if project_context:
@@ -1817,6 +1985,7 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         active_base_url_lower = active_base_url.lower()
         is_glm = "glm" in model_lower or "bigmodel" in active_base_url_lower or "zhipu" in active_base_url_lower
         is_o_series = any(model_lower.startswith(prefix) or f"/{prefix}" in model_lower for prefix in ["o1", "o3", "o-1", "o-3"])
+        is_claude = "claude" in model_lower or "anthropic" in model_lower
 
         payload = {
             "model": model,
@@ -1855,6 +2024,9 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             }
             payload["reasoning_effort"] = o_effort_map.get(effort.lower(), "medium")
             payload["max_completion_tokens"] = effort_config["max_tokens"]
+        elif is_claude:
+            # Anthropic Claude models (Opus, Sonnet, Haiku) reject reasoning_effort and thinking parameters
+            payload["max_tokens"] = effort_config["max_tokens"]
         else:
             payload["max_tokens"] = effort_config["max_tokens"]
             payload["reasoning_effort"] = effort_config["reasoning_effort"]

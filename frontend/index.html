@@ -11,6 +11,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="apple-touch-icon" href="/icon.png">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <div class="app-layout">
@@ -180,10 +181,14 @@
           <!-- Active Model Dropdown -->
           <div class="select-pill-wrapper">
             <select id="model-select" class="select-pill model-pill" title="Active Model">
+              <option value="claude-3-opus-20240229">🎭 Claude 3 Opus (Anthropic)</option>
+              <option value="claude-3-5-sonnet-20241022">⚡ Claude 3.5 Sonnet (Anthropic)</option>
               <option value="deepseek/deepseek-r1" selected>🧠 DeepSeek R1 (671B Reasoning)</option>
               <option value="qwen/qwen-2.5-coder-72b-instruct">💻 Qwen 2.5 Coder 72B (Elite Code)</option>
               <option value="deepseek/deepseek-chat">⚡ DeepSeek V3 (671B Nuance)</option>
+              <option value="openai/gpt-4o">✨ GPT-4o (OpenAI Omni)</option>
               <option value="google/gemini-2.0-flash-001">🌐 Gemini 2.0 Flash (Fast / 1M)</option>
+              <option value="__custom_entry__">➕ Enter Custom Model ID...</option>
             </select>
           </div>
 
@@ -202,12 +207,12 @@
           <div class="select-pill-wrapper">
             <select id="provider-select" class="select-pill provider-pill" title="Active AI Provider">
               <option value="base" selected>Base Tier (Curated)</option>
+              <option value="custom">Custom Stealth Proxy (AgentRouter, Anthropic, Proxies)</option>
               <option value="google">Google AI Studio</option>
               <option value="openrouter">OpenRouter</option>
               <option value="groq">Groq Cloud</option>
               <option value="deepseek">DeepSeek</option>
               <option value="openai">OpenAI</option>
-              <option value="custom">Custom Provider</option>
             </select>
           </div>
         </div>
@@ -246,7 +251,7 @@
               <span class="sync-dot-indicator" id="sync-dot-indicator" title="Cloud Sync Status"></span>
             </button>
             <div class="user-dropdown-menu hidden" id="user-dropdown-menu">
-              <div class="user-dropdown-header">
+              <div class="user-dropdown-header" id="user-dropdown-header-btn" style="cursor: pointer;" title="Open Full Account & Profile Portal">
                 <div class="user-dropdown-avatar" id="dropdown-avatar">?</div>
                 <div class="user-dropdown-info">
                   <div class="user-dropdown-name" id="dropdown-name">Guest User</div>
@@ -254,6 +259,10 @@
                 </div>
               </div>
               <div class="user-dropdown-divider"></div>
+              <button class="user-dropdown-item" id="dropdown-account-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="7" r="4"></circle><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path></svg>
+                My Account & Profile
+              </button>
               <button class="user-dropdown-item" id="dropdown-sync-btn">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
                 Sync Settings Now
@@ -408,13 +417,22 @@
           <label for="setting-provider-choice">Active Provider</label>
           <select id="setting-provider-choice" class="form-select">
             <option value="base">Base Tier (Curated Sonnet-Grade)</option>
+            <option value="custom">Custom Stealth Proxy (AgentRouter, Anthropic, Private Proxies)</option>
             <option value="google">Google AI Studio (Gemini 2.0 Flash / Pro)</option>
             <option value="openrouter">OpenRouter (openrouter.ai)</option>
             <option value="groq">Groq Cloud (Ultra-Fast 300 t/s)</option>
             <option value="deepseek">DeepSeek Official (api.deepseek.com)</option>
             <option value="openai">OpenAI (api.openai.com)</option>
-            <option value="custom">Custom (Any OpenAI-Compatible URL)</option>
           </select>
+        </div>
+
+        <!-- Stealth WAF Bypass Notice -->
+        <div class="stealth-shield-banner">
+          <span style="font-size: 14px;">🛡️</span>
+          <div>
+            <strong>WAF Stealth Bypass Active:</strong>
+            <span style="opacity: 0.9;">Uses <code>curl_cffi</code> Chrome 124 TLS/JA3 impersonation and browser header sequencing. AgentRouter and Cloudflare will NOT block your requests.</span>
+          </div>
         </div>
 
         <div class="form-group">
@@ -433,12 +451,22 @@
             <input type="text" id="setting-key-alias" placeholder="Key Label (e.g. Primary, Backup 1, Work Key)" style="flex: 1;" />
             <button type="button" id="save-key-to-vault-btn" class="btn btn-tonal btn-xs">+ Save Key</button>
           </div>
-          <small class="hint">Stored safely in your browser's local storage. Models for your key are discovered dynamically.</small>
+          <small class="hint">Stored safely in your device vault and synchronized to your account profile.</small>
         </div>
 
         <div class="form-group">
           <label for="setting-base-url">Provider Base URL</label>
-          <input type="text" id="setting-base-url" placeholder="https://generativelanguage.googleapis.com/v1beta/openai" />
+          <input type="text" id="setting-base-url" placeholder="https://agentrouter.org/ or https://generativelanguage.googleapis.com/v1beta/openai" />
+          <small class="hint">Supports AgentRouter, Tabitoken, Anthropic native, or any reverse proxy with unblocked streaming.</small>
+        </div>
+
+        <div class="form-group">
+          <label for="setting-protocol-mode">Protocol Dispatch Mode</label>
+          <select id="setting-protocol-mode" class="form-select">
+            <option value="auto" selected>Stealth Auto-Detect (AgentRouter, Tabitoken, Proxies) [Default]</option>
+            <option value="openai">OpenAI ChatCompletions (/v1/chat/completions)</option>
+            <option value="anthropic">Anthropic Messages (/v1/messages)</option>
+          </select>
         </div>
 
         <div class="form-group">
@@ -622,6 +650,215 @@
 
       <div class="modal-footer auth-modal-footer">
         <button class="btn btn-ghost btn-sm" id="auth-guest-btn">Continue as Guest (Local Only)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dedicated User Account & Cloud Profile Modal -->
+  <div class="modal-overlay hidden" id="account-modal">
+    <div class="modal-card account-modal-card">
+      <div class="modal-header">
+        <div class="auth-header-title">
+          <div class="account-avatar-large" id="account-large-avatar">G</div>
+          <div>
+            <h3 id="account-display-name-header">User Profile</h3>
+            <span class="account-badge" id="account-provider-badge">Google Verified</span>
+          </div>
+        </div>
+        <button class="icon-btn close-modal-btn" id="close-account-modal-btn">✕</button>
+      </div>
+
+      <div class="modal-body account-modal-body">
+        <!-- Section 1: User Identity -->
+        <div class="account-section">
+          <div class="account-section-title">Identity & Profile</div>
+          <div class="account-identity-grid">
+            <div class="form-group">
+              <label for="account-name-input">Display Name</label>
+              <div style="display: flex; gap: 8px;">
+                <input type="text" id="account-name-input" class="form-input" placeholder="Your Name" />
+                <button type="button" id="save-account-name-btn" class="btn btn-primary btn-xs">Save</button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Authenticated Email</label>
+              <div class="account-static-value" id="account-email-display">user@gmail.com</div>
+            </div>
+            <div class="form-group">
+              <label>Avatar Photo URL (Optional)</label>
+              <div style="display: flex; gap: 8px;">
+                <input type="text" id="account-avatar-input" class="form-input" placeholder="https://..." />
+                <button type="button" id="save-account-avatar-btn" class="btn btn-tonal btn-xs">Update</button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Account ID & Joined</label>
+              <div class="account-static-meta" id="account-joined-meta">Member since Sep 2026</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: AI Developer Persona & System Directives (NEW FEATURE) -->
+        <div class="account-section">
+          <div class="account-section-title">
+            <span>AI Developer Persona & Directives</span>
+            <span class="pill pill-blue">Synced Across Devices</span>
+          </div>
+          <p class="account-section-desc">Set your permanent engineering directives and reasoning style. AgentChat injects this into every new session on your phone and laptop.</p>
+          
+          <div class="persona-chips-container">
+            <button type="button" class="persona-chip active" data-persona="architect">🚀 Senior Architect</button>
+            <button type="button" class="persona-chip" data-persona="security">🛡️ Security Auditor</button>
+            <button type="button" class="persona-chip" data-persona="concise">⚡ Concise Code-Only</button>
+            <button type="button" class="persona-chip" data-persona="deep">🧠 Deep Problem Solver</button>
+            <button type="button" class="persona-chip" data-persona="custom">⚙️ Custom Directives</button>
+          </div>
+
+          <div class="form-group" style="margin-top: 10px;">
+            <label for="account-persona-prompt">Permanent System Directives</label>
+            <textarea id="account-persona-prompt" rows="3" class="form-input" placeholder="Enter instructions that will always guide the AI across all chats..."></textarea>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <label for="account-default-effort" style="font-size: 12px; color: var(--md-sys-color-on-surface-variant);">Default Effort:</label>
+              <select id="account-default-effort" class="form-select-sm">
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+                <option value="extra">Extra</option>
+                <option value="ultra">Ultra/Max</option>
+              </select>
+            </div>
+            <button type="button" id="save-account-persona-btn" class="btn btn-tonal-tertiary btn-sm">💾 Save Directives</button>
+          </div>
+        </div>
+
+        <!-- Section 3: Cloud Key Vault & Sync Status -->
+        <div class="account-section">
+          <div class="account-section-title">
+            <span>Cloud Key Vault Status</span>
+            <button type="button" id="account-force-sync-btn" class="btn btn-tonal btn-xs">↻ Force Cloud Sync</button>
+          </div>
+          <div class="account-vault-grid" id="account-vault-grid">
+            <!-- Dynamically populated with provider sync indicators -->
+          </div>
+        </div>
+
+        <!-- Section 4: Usage & Productivity Stats (NEW FEATURE) -->
+        <div class="account-section">
+          <div class="account-section-title">Account Usage & Efficiency</div>
+          <div class="account-stats-grid">
+            <div class="stat-card">
+              <div class="stat-num" id="stat-total-chats">0</div>
+              <div class="stat-label">Total Conversations</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-num" style="color: #3fb950;" id="stat-tokens-saved">~75%</div>
+              <div class="stat-label">Tokens Saved (Compression)</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-num" style="color: #58a6ff;" id="stat-active-provider">Custom</div>
+              <div class="stat-label">Active Provider</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 5: Security & Session Management -->
+        <div class="account-section" style="border-bottom: none;">
+          <div class="account-section-title">Security & Device Sessions</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px;">
+            <button type="button" id="account-export-data-btn" class="btn btn-secondary btn-sm">
+              📥 Export All Account Data (JSON)
+            </button>
+            <button type="button" id="account-logout-all-btn" class="btn btn-secondary btn-sm" style="color: #ff7b72;">
+              🚪 Sign Out of All Devices
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" id="account-modal-done-btn">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Model ID Prompt Modal -->
+  <div class="modal-overlay hidden" id="custom-model-modal">
+    <div class="modal-card" style="max-width: 460px;">
+      <div class="modal-header">
+        <h3>Add & Switch to Custom Model</h3>
+        <button id="close-custom-model-modal-btn" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="custom-model-input">Model ID / Name</label>
+          <input type="text" id="custom-model-input" placeholder="e.g. claude-3-opus-20240229, anthropic/claude-3-opus, mistral-large" class="form-input" />
+          <small class="hint">Type the exact model identifier supported by your Custom Provider or AgentRouter endpoint.</small>
+        </div>
+
+        <div style="margin-top: 10px;">
+          <label style="font-size: 12px; font-weight: 500; color: var(--md-sys-color-on-surface-variant);">Quick Frontier Presets:</label>
+          <div class="preset-pills-row" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;">
+            <button type="button" class="pill-btn" onclick="document.getElementById('custom-model-input').value = 'claude-3-opus-20240229'">Claude 3 Opus</button>
+            <button type="button" class="pill-btn" onclick="document.getElementById('custom-model-input').value = 'claude-3-5-sonnet-20241022'">Claude 3.5 Sonnet</button>
+            <button type="button" class="pill-btn" onclick="document.getElementById('custom-model-input').value = 'claude-3-5-haiku-20241022'">Claude 3.5 Haiku</button>
+            <button type="button" class="pill-btn" onclick="document.getElementById('custom-model-input').value = 'openai/o1-preview'">OpenAI o1</button>
+            <button type="button" class="pill-btn" onclick="document.getElementById('custom-model-input').value = 'openai/o3-mini'">OpenAI o3-mini</button>
+            <button type="button" class="pill-btn" onclick="document.getElementById('custom-model-input').value = 'deepseek/deepseek-r1'">DeepSeek R1</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancel-custom-model-btn" class="btn btn-secondary">Cancel</button>
+        <button type="button" id="apply-custom-model-btn" class="btn btn-primary">Select & Switch Model</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Google Account Connection & Sign-In Modal -->
+  <div class="modal-overlay hidden" id="google-connect-modal">
+    <div class="modal-card auth-modal-card" style="max-width: 440px;">
+      <div class="modal-header">
+        <div class="auth-header-title">
+          <div style="width: 36px; height: 36px; border-radius: 50%; background: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+            <svg viewBox="0 0 24 24" width="20" height="20">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+          </div>
+          <div>
+            <h3>Connect Google Account</h3>
+            <p class="auth-modal-subtitle">Sync your personal keys and preferences to your Google identity</p>
+          </div>
+        </div>
+        <button class="icon-btn close-modal-btn" id="close-google-connect-modal-btn">✕</button>
+      </div>
+
+      <div class="modal-body auth-modal-body">
+        <!-- Google One-Tap / GSI Container if initialized -->
+        <div id="google-gsi-button-container" style="display: flex; justify-content: center; margin-bottom: 12px;"></div>
+
+        <form id="google-direct-form" onsubmit="return false;">
+          <div class="form-group">
+            <label for="google-email-input">Your Google Email Address</label>
+            <input type="email" id="google-email-input" placeholder="e.g. yourname@gmail.com" class="text-input" required autocomplete="email" />
+          </div>
+
+          <div class="form-group">
+            <label for="google-name-input">Your Full Name or Handle</label>
+            <input type="text" id="google-name-input" placeholder="e.g. Diganth" class="text-input" autocomplete="name" />
+          </div>
+
+          <div class="auth-alert hidden" id="google-connect-alert"></div>
+
+          <button type="submit" class="btn btn-primary btn-block auth-submit-btn" id="google-connect-submit-btn" style="background: #4285F4; color: #fff;">
+            Authenticate with Google
+          </button>
+        </form>
       </div>
     </div>
   </div>

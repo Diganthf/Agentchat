@@ -13,6 +13,12 @@
   let currentRailTab = "chats";
 
   const MODEL_DISPLAY_NAMES = {
+    "claude-3-opus-20240229": "🎭 Claude 3 Opus (Anthropic Flagship)",
+    "claude-3-opus": "🎭 Claude 3 Opus (Anthropic)",
+    "claude-3-5-sonnet-20241022": "⚡ Claude 3.5 Sonnet (Anthropic)",
+    "claude-3-5-sonnet": "⚡ Claude 3.5 Sonnet (Anthropic)",
+    "claude-3-5-haiku-20241022": "🪶 Claude 3.5 Haiku (Anthropic)",
+    "claude-3-5-haiku": "🪶 Claude 3.5 Haiku (Anthropic)",
     "deepseek/deepseek-r1": "🧠 DeepSeek R1 (671B Reasoning)",
     "qwen/qwen-2.5-coder-72b-instruct": "💻 Qwen 2.5 Coder 72B (Elite Code)",
     "deepseek/deepseek-chat": "⚡ DeepSeek V3 (671B Nuance)",
@@ -20,9 +26,11 @@
     "gemini-2.0-flash": "Gemini 2.0 Flash",
     "gemini-2.0-flash-thinking-exp-01-21": "Gemini 2.0 Flash Thinking",
     "gemini-2.0-pro-exp-02-05": "Gemini 2.0 Pro",
-    "claude-3-5-sonnet-20241022": "Claude 3.5 Sonnet",
-    "gpt-4o": "GPT-4o",
-    "gpt-4o-mini": "GPT-4o Mini"
+    "openai/gpt-4o": "✨ GPT-4o (OpenAI Omni)",
+    "gpt-4o": "✨ GPT-4o",
+    "gpt-4o-mini": "GPT-4o Mini",
+    "openai/o1-preview": "🧩 OpenAI o1-preview",
+    "openai/o3-mini": "🚀 OpenAI o3-mini"
   };
 
   const PROVIDER_DEFAULTS = {
@@ -51,8 +59,8 @@
       base_url: "https://api.openai.com"
     },
     custom: {
-      name: "Custom Provider",
-      base_url: "https://api.openai.com"
+      name: "Custom Stealth Proxy (AgentRouter, Anthropic, Proxies)",
+      base_url: "https://agentrouter.org/"
     }
   };
 
@@ -244,7 +252,48 @@
   const authSubmitBtn = document.getElementById("auth-submit-btn");
   const authToggleModeBtn = document.getElementById("auth-toggle-mode-btn");
   const authToggleText = document.getElementById("auth-toggle-text");
-  const authModalTitle = document.getElementById("auth-modal-title");
+  const settingProtocolMode = document.getElementById("setting-protocol-mode");
+
+  // Account Modal Elements
+  const accountModal = document.getElementById("account-modal");
+  const closeAccountModalBtn = document.getElementById("close-account-modal-btn");
+  const accountModalDoneBtn = document.getElementById("account-modal-done-btn");
+  const accountLargeAvatar = document.getElementById("account-large-avatar");
+  const accountDisplayNameHeader = document.getElementById("account-display-name-header");
+  const accountProviderBadge = document.getElementById("account-provider-badge");
+  const accountNameInput = document.getElementById("account-name-input");
+  const saveAccountNameBtn = document.getElementById("save-account-name-btn");
+  const accountEmailDisplay = document.getElementById("account-email-display");
+  const accountAvatarInput = document.getElementById("account-avatar-input");
+  const saveAccountAvatarBtn = document.getElementById("save-account-avatar-btn");
+  const accountJoinedMeta = document.getElementById("account-joined-meta");
+  const accountPersonaPrompt = document.getElementById("account-persona-prompt");
+  const accountDefaultEffort = document.getElementById("account-default-effort");
+  const saveAccountPersonaBtn = document.getElementById("save-account-persona-btn");
+  const accountVaultGrid = document.getElementById("account-vault-grid");
+  const accountForceSyncBtn = document.getElementById("account-force-sync-btn");
+  const accountExportDataBtn = document.getElementById("account-export-data-btn");
+  const accountLogoutAllBtn = document.getElementById("account-logout-all-btn");
+  const dropdownAccountBtn = document.getElementById("dropdown-account-btn");
+  const userDropdownHeaderBtn = document.getElementById("user-dropdown-header-btn");
+
+  // Custom Model Modal Elements
+  const customModelModal = document.getElementById("custom-model-modal");
+  const closeCustomModelModalBtn = document.getElementById("close-custom-model-modal-btn");
+  const cancelCustomModelBtn = document.getElementById("cancel-custom-model-btn");
+  const applyCustomModelBtn = document.getElementById("apply-custom-model-btn");
+  const customModelInput = document.getElementById("custom-model-input");
+
+  // Google Connect Modal Elements
+  const googleConnectModal = document.getElementById("google-connect-modal");
+  const closeGoogleConnectModalBtn = document.getElementById("close-google-connect-modal-btn");
+  const googleEmailInput = document.getElementById("google-email-input");
+  const googleNameInput = document.getElementById("google-name-input");
+  const googleConnectAlert = document.getElementById("google-connect-alert");
+  const googleConnectSubmitBtn = document.getElementById("google-connect-submit-btn");
+  const googleDirectForm = document.getElementById("google-direct-form");
+  const googleGsiButtonContainer = document.getElementById("google-gsi-button-container");
+
   let authMode = "login";
 
   // Auth & Zero-Knowledge API Wrapper
@@ -535,9 +584,67 @@
       });
     }
 
-    if (googleLoginBtn) googleLoginBtn.addEventListener("click", () => handleSocialSignIn("google"));
+    if (googleLoginBtn) googleLoginBtn.addEventListener("click", () => openGoogleConnectModal());
     if (githubLoginBtn) githubLoginBtn.addEventListener("click", () => handleSocialSignIn("github"));
     if (authForm) authForm.addEventListener("submit", handleEmailAuthSubmit);
+
+    // Google Connect Modal Listeners
+    if (closeGoogleConnectModalBtn) closeGoogleConnectModalBtn.addEventListener("click", closeGoogleConnectModal);
+    if (googleConnectModal) {
+      googleConnectModal.addEventListener("click", (e) => {
+        if (e.target === googleConnectModal) closeGoogleConnectModal();
+      });
+    }
+    if (googleDirectForm) googleDirectForm.addEventListener("submit", handleGoogleDirectAuth);
+
+    // Account Modal Listeners
+    if (dropdownAccountBtn) {
+      dropdownAccountBtn.addEventListener("click", () => {
+        userDropdownMenu.classList.add("hidden");
+        openAccountModal();
+      });
+    }
+    if (userDropdownHeaderBtn) {
+      userDropdownHeaderBtn.addEventListener("click", () => {
+        userDropdownMenu.classList.add("hidden");
+        openAccountModal();
+      });
+    }
+    if (closeAccountModalBtn) closeAccountModalBtn.addEventListener("click", closeAccountModal);
+    if (accountModalDoneBtn) accountModalDoneBtn.addEventListener("click", closeAccountModal);
+    if (accountModal) {
+      accountModal.addEventListener("click", (e) => {
+        if (e.target === accountModal) closeAccountModal();
+      });
+    }
+    if (saveAccountNameBtn) saveAccountNameBtn.addEventListener("click", saveAccountName);
+    if (saveAccountAvatarBtn) saveAccountAvatarBtn.addEventListener("click", saveAccountAvatar);
+    if (saveAccountPersonaBtn) saveAccountPersonaBtn.addEventListener("click", saveAccountPersona);
+    if (accountForceSyncBtn) accountForceSyncBtn.addEventListener("click", () => syncUserProfileToCloud(true));
+    if (accountExportDataBtn) accountExportDataBtn.addEventListener("click", exportUserData);
+    if (accountLogoutAllBtn) accountLogoutAllBtn.addEventListener("click", handleLogoutAll);
+
+    // Persona Chip toggles
+    document.querySelectorAll(".persona-chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        document.querySelectorAll(".persona-chip").forEach(c => c.classList.remove("active"));
+        chip.classList.add("active");
+        const pKey = chip.getAttribute("data-persona");
+        if (PERSONA_PRESETS[pKey] !== undefined && accountPersonaPrompt) {
+          accountPersonaPrompt.value = PERSONA_PRESETS[pKey];
+        }
+      });
+    });
+
+    // Custom Model Modal Listeners
+    if (closeCustomModelModalBtn) closeCustomModelModalBtn.addEventListener("click", closeCustomModelModal);
+    if (cancelCustomModelBtn) cancelCustomModelBtn.addEventListener("click", closeCustomModelModal);
+    if (applyCustomModelBtn) applyCustomModelBtn.addEventListener("click", applyCustomModel);
+    if (customModelModal) {
+      customModelModal.addEventListener("click", (e) => {
+        if (e.target === customModelModal) closeCustomModelModal();
+      });
+    }
 
     if (dropdownSyncBtn) {
       dropdownSyncBtn.addEventListener("click", () => {
@@ -558,6 +665,10 @@
 
     if (modelSelect) {
       modelSelect.addEventListener("change", () => {
+        if (modelSelect.value === "__custom_entry__") {
+          openCustomModelModal();
+          return;
+        }
         localStorage.setItem("agentchat_active_model", modelSelect.value);
         if (currentUser) {
           syncUserProfileToCloud();
@@ -1337,7 +1448,8 @@
           temperature: parseFloat(settingTemp.value) || 0.7,
           system_prompt: settingSystemPrompt.value.trim(),
           skills_context: getActiveSkillsContext(),
-          project_context: getActiveProjectContext()
+          project_context: getActiveProjectContext(),
+          persona_directives: localStorage.getItem("agentchat_developer_persona") || ""
         })
       });
 
@@ -1690,20 +1802,86 @@
     }
   }
 
-  async function handleSocialSignIn(provider) {
-    try {
-      authAlertBox.classList.remove("hidden", "error");
-      authAlertBox.classList.add("success");
-      authAlertBox.textContent = `Connecting ${provider.toUpperCase()}...`;
+  function openGoogleConnectModal() {
+    closeAuthModal();
+    if (googleConnectAlert) {
+      googleConnectAlert.classList.add("hidden");
+      googleConnectAlert.textContent = "";
+    }
+    if (googleConnectModal) {
+      googleConnectModal.classList.remove("hidden");
+      initGoogleGsi();
+      if (googleEmailInput) googleEmailInput.focus();
+    }
+  }
 
+  function closeGoogleConnectModal() {
+    if (googleConnectModal) googleConnectModal.classList.add("hidden");
+  }
+
+  function initGoogleGsi() {
+    if (window.google && window.google.accounts && window.google.accounts.id && googleGsiButtonContainer) {
+      try {
+        googleGsiButtonContainer.innerHTML = "";
+        window.google.accounts.id.initialize({
+          client_id: "agentchat-identity-service",
+          callback: handleGoogleGsiResponse
+        });
+        window.google.accounts.id.renderButton(
+          googleGsiButtonContainer,
+          { theme: "outline", size: "large", width: 280, text: "continue_with" }
+        );
+      } catch (err) {
+        console.log("Google GSI render:", err);
+      }
+    }
+  }
+
+  async function handleGoogleGsiResponse(response) {
+    if (!response || !response.credential) return;
+    await submitSocialAuth({
+      provider: "google",
+      credential: response.credential
+    });
+  }
+
+  async function handleGoogleDirectAuth(e) {
+    if (e) e.preventDefault();
+    const email = (googleEmailInput?.value || "").trim();
+    const name = (googleNameInput?.value || "").trim();
+
+    if (!email || !email.includes("@")) {
+      if (googleConnectAlert) {
+        googleConnectAlert.classList.remove("hidden", "success");
+        googleConnectAlert.classList.add("error");
+        googleConnectAlert.textContent = "Please enter a valid Google email address.";
+      }
+      return;
+    }
+
+    if (googleConnectSubmitBtn) {
+      googleConnectSubmitBtn.disabled = true;
+      googleConnectSubmitBtn.textContent = "Connecting Google Account...";
+    }
+
+    await submitSocialAuth({
+      provider: "google",
+      email: email,
+      name: name || email.split("@")[0]
+    });
+
+    if (googleConnectSubmitBtn) {
+      googleConnectSubmitBtn.disabled = false;
+      googleConnectSubmitBtn.textContent = "Authenticate with Google";
+    }
+  }
+
+  async function submitSocialAuth(payload) {
+    try {
       const res = await apiFetch("/api/auth/social-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: provider,
-          email: "",
-          name: `${provider.charAt(0).toUpperCase() + provider.slice(1)} User`
-        })
+        body: JSON.stringify(payload)
       });
 
       const data = await res.json();
@@ -1713,19 +1891,304 @@
         if (data.profile) {
           applyCloudProfile(data.profile);
         }
+        closeGoogleConnectModal();
         closeAuthModal();
         await fetchModels();
         updateBannerStatus();
       } else {
-        authAlertBox.classList.remove("success");
-        authAlertBox.classList.add("error");
-        authAlertBox.textContent = data.error || "Social login failed";
+        if (googleConnectAlert) {
+          googleConnectAlert.classList.remove("hidden", "success");
+          googleConnectAlert.classList.add("error");
+          googleConnectAlert.textContent = data.error || "Authentication failed.";
+        } else {
+          alert(data.error || "Authentication failed.");
+        }
       }
     } catch (e) {
-      authAlertBox.classList.remove("success");
-      authAlertBox.classList.add("error");
-      authAlertBox.textContent = "Sign-in error: " + e.message;
+      if (googleConnectAlert) {
+        googleConnectAlert.classList.remove("hidden", "success");
+        googleConnectAlert.classList.add("error");
+        googleConnectAlert.textContent = "Connection error: " + e.message;
+      } else {
+        alert("Connection error: " + e.message);
+      }
     }
+  }
+
+  async function handleSocialSignIn(provider) {
+    if (provider === "google") {
+      openGoogleConnectModal();
+      return;
+    }
+    const emailPrompt = prompt(`Enter your ${provider.toUpperCase()} email address to authenticate:`);
+    if (!emailPrompt || !emailPrompt.trim()) return;
+    const namePrompt = prompt(`Enter your name or display handle:`) || emailPrompt.split("@")[0];
+    await submitSocialAuth({
+      provider: provider,
+      email: emailPrompt.trim(),
+      name: namePrompt.trim()
+    });
+  }
+
+  const PERSONA_PRESETS = {
+    architect: "Act as a pragmatic Senior Staff Software Architect. Focus on robust modular designs, clean abstractions, high reliability, and clear technical rationale.",
+    security: "Act as a Principal Security Engineer and Penetration Tester. Analyze edge cases, input validation, authentication boundaries, TLS/WAF mechanisms, and defensive programming.",
+    concise: "Provide direct, production-ready code with minimal conversational filler. Include only necessary explanations directly relevant to code usage.",
+    deep: "Reason through problems with rigorous first-principles analysis. Break down complex architectural and algorithmic problems into clear, step-by-step logic before writing code.",
+    custom: ""
+  };
+
+  function openAccountModal() {
+    if (!accountModal) return;
+
+    if (currentUser) {
+      if (accountDisplayNameHeader) accountDisplayNameHeader.textContent = currentUser.name || currentUser.email.split("@")[0];
+      if (accountProviderBadge) {
+        accountProviderBadge.textContent = currentUser.auth_provider ? (currentUser.auth_provider.toUpperCase() + " VERIFIED") : "VERIFIED USER";
+        accountProviderBadge.style.display = "inline-block";
+      }
+      if (accountNameInput) accountNameInput.value = currentUser.name || "";
+      if (accountEmailDisplay) accountEmailDisplay.textContent = currentUser.email || "";
+      if (accountAvatarInput) accountAvatarInput.value = currentUser.avatar_url || "";
+      if (accountJoinedMeta) {
+        const d = currentUser.created_at ? new Date(currentUser.created_at * 1000) : new Date();
+        accountJoinedMeta.textContent = `Member since ${d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`;
+      }
+      if (accountLargeAvatar) {
+        if (currentUser.avatar_url && (currentUser.avatar_url.startsWith("http") || currentUser.avatar_url.startsWith("data:image"))) {
+          accountLargeAvatar.innerHTML = `<img src="${currentUser.avatar_url}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+        } else {
+          accountLargeAvatar.textContent = (currentUser.name || currentUser.email || "U").charAt(0).toUpperCase();
+        }
+      }
+    } else {
+      if (accountDisplayNameHeader) accountDisplayNameHeader.textContent = "Guest User (Not Logged In)";
+      if (accountProviderBadge) {
+        accountProviderBadge.textContent = "LOCAL GUEST";
+        accountProviderBadge.style.display = "inline-block";
+      }
+      if (accountNameInput) accountNameInput.value = "Guest";
+      if (accountEmailDisplay) accountEmailDisplay.textContent = "Local Session (Keys stored in browser)";
+      if (accountAvatarInput) accountAvatarInput.value = "";
+      if (accountJoinedMeta) accountJoinedMeta.textContent = "Ephemeral Browser Session";
+      if (accountLargeAvatar) accountLargeAvatar.textContent = "G";
+    }
+
+    // Persona directives
+    if (accountPersonaPrompt) {
+      accountPersonaPrompt.value = localStorage.getItem("agentchat_developer_persona") || PERSONA_PRESETS.architect;
+    }
+    if (accountDefaultEffort) {
+      accountDefaultEffort.value = localStorage.getItem("agentchat_default_effort") || "medium";
+    }
+
+    // Usage & Efficiency stats
+    const statTotalChats = document.getElementById("stat-total-chats");
+    const statActiveProv = document.getElementById("stat-active-provider");
+    if (statTotalChats) {
+      try {
+        const savedSessions = JSON.parse(localStorage.getItem("agentchat_sessions") || "[]");
+        statTotalChats.textContent = Array.isArray(savedSessions) ? (savedSessions.length || "1") : "1";
+      } catch (_) {
+        statTotalChats.textContent = "1";
+      }
+    }
+    if (statActiveProv) {
+      statActiveProv.textContent = (currentConfig.active_provider || "custom").toUpperCase();
+    }
+
+    renderAccountVaultGrid();
+    accountModal.classList.remove("hidden");
+  }
+
+  function closeAccountModal() {
+    if (accountModal) accountModal.classList.add("hidden");
+  }
+
+  function renderAccountVaultGrid() {
+    if (!accountVaultGrid) return;
+    accountVaultGrid.innerHTML = "";
+
+    Object.entries(PROVIDER_DEFAULTS).forEach(([pKey, pDef]) => {
+      const storedKey = localStorage.getItem("agentchat_client_key_" + pKey) || currentConfig.providers?.[pKey]?.api_key;
+      const hasKey = !!(storedKey && storedKey.trim());
+      const pUrl = localStorage.getItem("agentchat_client_url_" + pKey) || currentConfig.providers?.[pKey]?.base_url || pDef.base_url;
+
+      const card = document.createElement("div");
+      card.className = "vault-provider-item" + (hasKey ? " active" : "");
+      card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <span style="font-weight:600; font-size:12px; color:var(--md-sys-color-on-surface);">${pDef.name}</span>
+          <span style="font-size:10.5px; padding:2px 6px; border-radius:10px; background:${hasKey ? 'rgba(35,134,54,0.18)' : 'rgba(255,255,255,0.06)'}; color:${hasKey ? '#3fb950' : 'var(--md-sys-color-outline)'};">
+            ${hasKey ? '🔑 Stored & Synced' : '○ Not Set'}
+          </span>
+        </div>
+        <div style="font-size:10.5px; color:var(--md-sys-color-outline); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${pUrl}">
+          ${pUrl}
+        </div>
+      `;
+      accountVaultGrid.appendChild(card);
+    });
+  }
+
+  async function saveAccountName() {
+    const newName = (accountNameInput?.value || "").trim();
+    if (!newName) {
+      alert("Please enter a valid display name.");
+      return;
+    }
+    if (!currentUser) {
+      alert("Sign in to save your profile to the cloud.");
+      return;
+    }
+
+    try {
+      const res = await apiFetch("/api/user/profile-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName })
+      });
+      const data = await res.json();
+      if (data.success && data.user) {
+        updateAuthUI(data.user);
+        if (accountDisplayNameHeader) accountDisplayNameHeader.textContent = data.user.name;
+        alert("✅ Display name updated successfully!");
+      } else {
+        alert(data.error || "Failed to update profile name.");
+      }
+    } catch (e) {
+      alert("Profile update failed: " + e.message);
+    }
+  }
+
+  async function saveAccountAvatar() {
+    const newAvatar = (accountAvatarInput?.value || "").trim();
+    if (!newAvatar) {
+      alert("Please enter an image URL.");
+      return;
+    }
+    if (!currentUser) {
+      alert("Sign in to save your avatar to the cloud.");
+      return;
+    }
+
+    try {
+      const res = await apiFetch("/api/user/profile-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ avatar_url: newAvatar })
+      });
+      const data = await res.json();
+      if (data.success && data.user) {
+        updateAuthUI(data.user);
+        if (accountLargeAvatar) {
+          accountLargeAvatar.innerHTML = `<img src="${data.user.avatar_url}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+        }
+        alert("✅ Avatar updated successfully!");
+      } else {
+        alert(data.error || "Failed to update avatar.");
+      }
+    } catch (e) {
+      alert("Avatar update failed: " + e.message);
+    }
+  }
+
+  function saveAccountPersona() {
+    const promptVal = (accountPersonaPrompt?.value || "").trim();
+    const effortVal = accountDefaultEffort?.value || "medium";
+
+    localStorage.setItem("agentchat_developer_persona", promptVal);
+    localStorage.setItem("agentchat_default_effort", effortVal);
+    if (effortSelect) effortSelect.value = effortVal;
+
+    if (currentUser) {
+      syncUserProfileToCloud();
+    }
+    alert("✅ AI Persona & Directives saved! They will now automatically guide all your chat conversations.");
+  }
+
+  async function handleLogoutAll() {
+    if (!confirm("Are you sure you want to sign out of all active devices and sessions?")) return;
+    try {
+      await apiFetch("/api/auth/logout-all", { method: "POST" });
+    } catch (_) {}
+    localStorage.removeItem("agentchat_session_token");
+    updateAuthUI(null);
+    closeAccountModal();
+    updateBannerStatus();
+    alert("🚪 Signed out of all devices successfully.");
+  }
+
+  function exportUserData() {
+    const backup = {
+      version: "AgentChat-v2",
+      exported_at: new Date().toISOString(),
+      user: currentUser,
+      config: currentConfig,
+      persona: localStorage.getItem("agentchat_developer_persona") || "",
+      default_effort: localStorage.getItem("agentchat_default_effort") || "medium",
+      custom_models: getCustomModels(),
+      vault: getKeyVault(),
+      sessions: JSON.parse(localStorage.getItem("agentchat_sessions") || "[]")
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `agentchat_export_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function getCustomModels() {
+    try {
+      return JSON.parse(localStorage.getItem("agentchat_custom_models") || "[]");
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function saveCustomModel(id) {
+    if (!id) return;
+    const list = getCustomModels();
+    if (!list.includes(id)) {
+      list.push(id);
+      localStorage.setItem("agentchat_custom_models", JSON.stringify(list));
+    }
+  }
+
+  function openCustomModelModal() {
+    if (customModelModal) {
+      if (customModelInput) customModelInput.value = "";
+      customModelModal.classList.remove("hidden");
+      if (customModelInput) customModelInput.focus();
+    }
+  }
+
+  function closeCustomModelModal() {
+    if (customModelModal) customModelModal.classList.add("hidden");
+    const curSaved = localStorage.getItem("agentchat_active_model");
+    if (curSaved && modelSelect) {
+      modelSelect.value = curSaved;
+    }
+  }
+
+  async function applyCustomModel() {
+    const rawVal = customModelInput ? customModelInput.value.trim() : "";
+    if (!rawVal) {
+      alert("Please enter a model identifier.");
+      return;
+    }
+    saveCustomModel(rawVal);
+    MODEL_DISPLAY_NAMES[rawVal] = `⚡ ${rawVal}`;
+    currentConfig.model = rawVal;
+    localStorage.setItem("agentchat_active_model", rawVal);
+    closeCustomModelModal();
+    await fetchModels();
+    modelSelect.value = rawVal;
+    if (currentUser) syncUserProfileToCloud();
   }
 
   async function handleEmailAuthSubmit(e) {
@@ -2057,6 +2520,9 @@
     settingTemp.value = currentConfig.temperature || 0.7;
     tempDisplay.textContent = settingTemp.value;
     settingSystemPrompt.value = currentConfig.system_prompt || "";
+    if (settingProtocolMode) {
+      settingProtocolMode.value = currentConfig.protocol_mode || "stealth_auto";
+    }
   }
 
   async function fetchConfig() {
@@ -2119,6 +2585,10 @@
     currentConfig.temperature = parseFloat(settingTemp.value) || 0.7;
     currentConfig.system_prompt = settingSystemPrompt.value.trim();
     currentConfig.model = modelSelect.value;
+    if (settingProtocolMode) {
+      currentConfig.protocol_mode = settingProtocolMode.value;
+      localStorage.setItem("agentchat_protocol_mode", settingProtocolMode.value);
+    }
 
     localStorage.setItem("agentchat_active_provider", activeP);
     localStorage.setItem("agentchat_active_model", modelSelect.value);
@@ -2162,9 +2632,23 @@
       const res = await apiFetch("/api/models");
       const data = await res.json();
       if (data.models && data.models.length) {
-        const cur = modelSelect.value;
+        const cur = modelSelect.value || localStorage.getItem("agentchat_active_model") || currentConfig.model;
         modelSelect.innerHTML = "";
-        data.models.forEach(m => {
+
+        const allModels = [...data.models];
+        const customModels = getCustomModels();
+        customModels.forEach(cmId => {
+          if (!allModels.some(m => m.id === cmId)) {
+            allModels.push({
+              id: cmId,
+              name: MODEL_DISPLAY_NAMES[cmId] || cmId,
+              status: "online",
+              custom: true
+            });
+          }
+        });
+
+        allModels.forEach(m => {
           const opt = document.createElement("option");
           opt.value = m.id;
           const st = modelStatuses[m.id]?.status || m.status || "online";
@@ -2174,11 +2658,18 @@
           else opt.textContent = `⚪ ${displayName}`;
           modelSelect.appendChild(opt);
         });
+
+        const customPromptOpt = document.createElement("option");
+        customPromptOpt.value = "__custom_entry__";
+        customPromptOpt.textContent = "➕ Enter Custom Model ID...";
+        modelSelect.appendChild(customPromptOpt);
+
         if (cur && Array.from(modelSelect.options).some(o => o.value === cur)) {
           modelSelect.value = cur;
         } else {
-          modelSelect.value = data.models[0].id;
+          modelSelect.value = allModels[0].id;
         }
+        localStorage.setItem("agentchat_active_model", modelSelect.value);
       }
     } catch (e) {
       console.warn("Failed to fetch models:", e);
