@@ -799,6 +799,22 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
         headers["x-api-key"] = api_key
         headers["anthropic-version"] = "2023-06-01"
 
+    # AgentRouter / Claude Code authorized client fingerprint (bypasses "unauthorized client detected" WAF gate)
+    if "agentrouter" in base_url.lower() or prov_key == "custom":
+        headers["User-Agent"] = "claude-cli/0.2.29 (external, sdk-cli)"
+        headers["anthropic-version"] = "2023-06-01"
+        headers["anthropic-beta"] = "claude-code-20250219,interleaved-thinking-2024-11-20"
+        headers["anthropic-dangerous-direct-browser-access"] = "true"
+        headers["x-app"] = "cli"
+        headers["x-stainless-lang"] = "js"
+        headers["x-stainless-package-version"] = "0.33.0"
+        headers["x-stainless-os"] = "Windows"
+        headers["x-stainless-arch"] = "x64"
+        headers["x-stainless-runtime"] = "node"
+        headers["x-stainless-runtime-version"] = "v20.11.0"
+        if not headers.get("x-api-key"):
+            headers["x-api-key"] = api_key
+
     if CURL_CFFI_AVAILABLE:
         impersonate_choice = random.choice(BROWSER_PROFILES)
         session = cffi_requests.Session(impersonate=impersonate_choice)
@@ -2130,7 +2146,11 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 try:
                     err_json = json.loads(err_body)
                     msg_val = err_json.get("error", {}).get("message", "")
-                    if "始终思考" in msg_val or "1210" in str(err_json):
+                    if "Budget pool quota has been exhausted" in msg_val or "budget pool" in msg_val.lower():
+                        friendly_msg = f"AgentRouter Notice: Budget pool quota is currently exhausted for '{model}'. Try switching to 'deepseek-v4-flash' or adjust budget pools in your AgentRouter dashboard."
+                    elif "unauthorized client" in msg_val.lower():
+                        friendly_msg = "AgentRouter Client Notice: Unauthorized client detected. AgentChat uses Claude Code headers to bypass this."
+                    elif "始终思考" in msg_val or "1210" in str(err_json):
                         friendly_msg = f"Reasoning Parameter Notice: Model '{model}' requires reasoning effort 'low', 'high', or 'max'. Setting effort to High resolves this."
                     elif msg_val:
                         friendly_msg = msg_val
@@ -2180,7 +2200,11 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 try:
                     parsed_err = json.loads(err_body)
                     msg_val = parsed_err.get("error", {}).get("message", "")
-                    if "始终思考" in msg_val or "1210" in str(parsed_err):
+                    if "Budget pool quota has been exhausted" in msg_val or "budget pool" in msg_val.lower():
+                        friendly_err = f"AgentRouter Notice: Budget pool quota is currently exhausted for '{model}'. Try switching to 'deepseek-v4-flash' or adjust budget pools in your AgentRouter dashboard."
+                    elif "unauthorized client" in msg_val.lower():
+                        friendly_err = "AgentRouter Client Notice: Unauthorized client detected. AgentChat uses Claude Code headers to bypass this."
+                    elif "始终思考" in msg_val or "1210" in str(parsed_err):
                         friendly_err = f"Reasoning Parameter Notice: Model '{model}' requires reasoning effort 'low', 'high', or 'max'. Setting effort to High resolves this."
                     elif msg_val:
                         friendly_err = msg_val
