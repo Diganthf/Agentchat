@@ -1566,7 +1566,9 @@
                 const errType = typeof data.error === "object" ? (data.error.type || "") : "";
 
                 // Translate known upstream error patterns into friendly messages
-                if (errMsg.includes("content-blocked") || errType.includes("content-blocked") || errMsg.includes("content_filter")) {
+                if (errMsg.includes("405") || errMsg.includes("Method Not Allowed")) {
+                  errMsg = `⚠️ Route Notice (HTTP 405 Method Not Allowed): The upstream AI gateway rejected the request method. Please ensure your Custom Base URL in Settings is set to 'https://agentrouter.org/v1' and model '${selectedModel}' supports chat completions.`;
+                } else if (errMsg.includes("content-blocked") || errType.includes("content-blocked") || errMsg.includes("content_filter")) {
                   errMsg = `⚠️ Content was blocked by the upstream provider's safety filter for '${selectedModel}'. Try rephrasing your message or switching to a different model.`;
                 } else if (errMsg.includes("始终思考") || errMsg.includes("不支持关闭思考") || errMsg.includes("请使用 low") || errMsg.includes("1210")) {
                   errMsg = `⚠️ Reasoning Model Notice: '${selectedModel}' is a compulsory reasoning model that requires effort level 'low', 'high', or 'max'. Setting effort to 'High' resolves this.`;

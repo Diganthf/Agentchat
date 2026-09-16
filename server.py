@@ -763,11 +763,20 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
     base_url = (override_url or prov.get("base_url", "https://openrouter.ai/api")).rstrip("/")
     api_key = (override_key or prov.get("api_key", "")).strip()
 
+    # Normalize base_url: strip trailing /chat/completions or /v1/chat/completions if entered by user
+    for suffix in ("/chat/completions", "/chat/completions/", "/v1/chat/completions", "/v1/chat/completions/"):
+        if base_url.endswith(suffix):
+            base_url = base_url[:-len(suffix)].rstrip("/")
+            break
+
     # Google AI Studio OpenAI compatibility: endpoints are /chat/completions and /models without /v1
     if "generativelanguage.googleapis.com" in base_url and endpoint.startswith("/v1/"):
         endpoint = endpoint[3:]
     elif base_url.endswith("/v1") and endpoint.startswith("/v1/"):
         endpoint = endpoint[3:]
+    elif not base_url.endswith("/v1") and not endpoint.startswith("/v1/") and "generativelanguage" not in base_url:
+        if endpoint.startswith("/chat/completions") or endpoint.startswith("/models"):
+            endpoint = "/v1" + endpoint
 
     target_url = f"{base_url}{endpoint}"
     parsed = urlparse(target_url)
@@ -775,53 +784,59 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
     # Multi-Tier DoH DNS Resolution (Cloudflare -> Google -> System fallback)
     resolved_ip = doh_resolver.resolve(parsed.hostname)
 
-    # Realistic Chromium header sequencing to avoid bot heuristics
+    # Realistic Chromium / SDK header sequencing to avoid bot heuristics
     headers = {
         "Host": parsed.netloc,
         "Connection": "keep-alive",
-        "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-        "Upgrade-Insecure-Requests": "1",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Accept": "application/json, text/event-stream, */*",
-        "Sec-Fetch-Site": "cross-site",
-        "Sec-Fetch-Mode": "cors",
-        "Sec-Fetch-Dest": "empty",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Accept-Language": "en-US,en;q=0.9",
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
 
     # Anthropic native or reverse proxy compatibility
-    if api_key.startswith("sk-ant-") or "anthropic" in base_url.lower():
+    if api_key.startswith("sk-ant-") or "co.agentrouter.org" in base_url.lower():
         headers["x-api-key"] = api_key
         headers["anthropic-version"] = "2023-06-01"
 
-    # AgentRouter / Claude Code authorized client fingerprint (bypasses "unauthorized client detected" WAF gate)
+    # AgentRouter / Custom Stealth Proxy: Separate Anthropic vs OpenAI routes
+    # CRITICAL: AgentRouter WAF triggers HTTP 405 Method Not Allowed if Anthropic headers
+    # (anthropic-version/anthropic-beta) are sent to OpenAI /v1/chat/completions!
     if "agentrouter" in base_url.lower() or prov_key == "custom":
-        headers["User-Agent"] = "claude-cli/0.2.29 (external, sdk-cli)"
-        headers["anthropic-version"] = "2023-06-01"
-        headers["anthropic-beta"] = "claude-code-20250219,interleaved-thinking-2024-11-20"
-        headers["anthropic-dangerous-direct-browser-access"] = "true"
-        headers["x-app"] = "cli"
-        headers["x-stainless-lang"] = "js"
-        headers["x-stainless-package-version"] = "0.33.0"
-        headers["x-stainless-os"] = "Windows"
-        headers["x-stainless-arch"] = "x64"
-        headers["x-stainless-runtime"] = "node"
-        headers["x-stainless-runtime-version"] = "v20.11.0"
-        if not headers.get("x-api-key"):
-            headers["x-api-key"] = api_key
+        if endpoint.startswith("/v1/messages") or "messages" in endpoint:
+            headers["User-Agent"] = "claude-cli/0.2.29 (external, sdk-cli)"
+            headers["anthropic-version"] = "2023-06-01"
+            headers["anthropic-beta"] = "claude-code-20250219,interleaved-thinking-2024-11-20"
+            headers["anthropic-dangerous-direct-browser-access"] = "true"
+            headers["x-app"] = "cli"
+            headers["x-stainless-lang"] = "js"
+            headers["x-stainless-package-version"] = "0.33.0"
+            headers["x-stainless-os"] = "Windows"
+            headers["x-stainless-arch"] = "x64"
+            headers["x-stainless-runtime"] = "node"
+            headers["x-stainless-runtime-version"] = "v20.11.0"
+            if not headers.get("x-api-key"):
+                headers["x-api-key"] = api_key
+        else:
+            # OpenAI / DeepSeek / Chat completions route on AgentRouter
+            headers["User-Agent"] = "OpenAI/Python 1.61.0"
+            headers["x-stainless-lang"] = "python"
+            headers["x-stainless-package-version"] = "1.61.0"
+            headers["x-stainless-os"] = "Windows"
+            headers["x-stainless-arch"] = "x64"
+            headers["x-stainless-runtime"] = "CPython"
+            headers["x-stainless-runtime-version"] = "3.11.0"
+            headers.pop("anthropic-version", None)
+            headers.pop("anthropic-beta", None)
+            headers.pop("x-api-key", None)
 
     if CURL_CFFI_AVAILABLE:
         impersonate_choice = random.choice(BROWSER_PROFILES)
         session = cffi_requests.Session(impersonate=impersonate_choice)
         if method == "POST":
-            return session.post(target_url, json=data, headers=headers, stream=stream, timeout=60)
+            # allow_redirects=False prevents 301/302 from silently converting POST into GET (which causes 405 Method Not Allowed)
+            return session.post(target_url, json=data, headers=headers, stream=stream, timeout=60, allow_redirects=False)
         else:
-            return session.get(target_url, headers=headers, stream=stream, timeout=60)
+            return session.get(target_url, headers=headers, stream=stream, timeout=60, allow_redirects=True)
     else:
         body_bytes = json.dumps(data).encode("utf-8") if data is not None else None
         req = urllib.request.Request(target_url, data=body_bytes, headers=headers, method=method)
@@ -962,11 +977,25 @@ class AgentChatHandler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Access-Password, X-Custom-Api-Key, X-Custom-Base-Url, X-User-Session")
+        self.send_header("Access-Control-Max-Age", "86400")
         self.end_headers()
 
     def do_GET(self):
         parsed = urlparse(self.path)
-        path = parsed.path
+        path = parsed.path.rstrip("/") or "/"
+
+        # If a client sends GET to /api/chat, return compliant 405 with Allow header
+        if path == "/api/chat":
+            self.send_response(405)
+            self.send_header("Allow", "POST, OPTIONS")
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(b'{"error": "Method Not Allowed. Use POST for /api/chat", "code": 405}')
+            return
 
         if path == "/api/health":
             prov, _ = get_active_provider_info()
@@ -1049,9 +1078,24 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         else:
             self.serve_static(path)
 
+    def do_HEAD(self):
+        # Allow HEAD requests on all endpoints (Render health pings, CDN checks) without failing
+        self.do_GET()
+
+    def do_PUT(self):
+        self.do_POST()
+
+    def do_DELETE(self):
+        self.do_POST()
+
     def do_POST(self):
         parsed = urlparse(self.path)
-        path = parsed.path
+        path = parsed.path.rstrip("/") or "/"
+
+        # If a form or client POSTs to root or static files, gracefully serve the application
+        if path in ("", "/", "/index.html"):
+            self.serve_static("/")
+            return
 
         if path.startswith("/api/"):
             if not self.check_auth():
@@ -1074,6 +1118,8 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             self.handle_user_sync_post()
         elif path == "/api/config":
             self.handle_save_config()
+        elif path == "/api/models":
+            self.handle_get_models()
         elif path == "/api/credits":
             self.handle_get_credits()
         elif path == "/api/parse_file":
@@ -1113,6 +1159,9 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Access-Password, X-Custom-Api-Key, X-Custom-Base-Url, X-User-Session")
         self.end_headers()
         self.wfile.write(body)
 
@@ -2146,7 +2195,9 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 try:
                     err_json = json.loads(err_body)
                     msg_val = err_json.get("error", {}).get("message", "")
-                    if "Budget pool quota has been exhausted" in msg_val or "budget pool" in msg_val.lower():
+                    if e.code == 405:
+                        friendly_msg = f"AgentRouter / Gateway Error (HTTP 405 Method Not Allowed): The upstream API route rejected the POST request. Ensure your Custom Base URL is 'https://agentrouter.org/v1' and model '{model}' accepts chat completions."
+                    elif "Budget pool quota has been exhausted" in msg_val or "budget pool" in msg_val.lower():
                         friendly_msg = f"AgentRouter Notice: Budget pool quota is currently exhausted for '{model}'. Try switching to 'deepseek-v4-flash' or adjust budget pools in your AgentRouter dashboard."
                     elif "unauthorized client" in msg_val.lower():
                         friendly_msg = "AgentRouter Client Notice: Unauthorized client detected. AgentChat uses Claude Code headers to bypass this."
@@ -2200,7 +2251,9 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 try:
                     parsed_err = json.loads(err_body)
                     msg_val = parsed_err.get("error", {}).get("message", "")
-                    if "Budget pool quota has been exhausted" in msg_val or "budget pool" in msg_val.lower():
+                    if status_code == 405:
+                        friendly_err = f"AgentRouter / Gateway Error (HTTP 405 Method Not Allowed): The upstream API route rejected the POST request. Ensure your Custom Base URL is 'https://agentrouter.org/v1' and model '{model}' accepts chat completions."
+                    elif "Budget pool quota has been exhausted" in msg_val or "budget pool" in msg_val.lower():
                         friendly_err = f"AgentRouter Notice: Budget pool quota is currently exhausted for '{model}'. Try switching to 'deepseek-v4-flash' or adjust budget pools in your AgentRouter dashboard."
                     elif "unauthorized client" in msg_val.lower():
                         friendly_err = "AgentRouter Client Notice: Unauthorized client detected. AgentChat uses Claude Code headers to bypass this."
@@ -2210,6 +2263,9 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                         friendly_err = msg_val
                 except Exception:
                     pass
+
+                if status_code == 405 and not friendly_err:
+                    friendly_err = f"AgentRouter / Gateway Error (HTTP 405 Method Not Allowed): The upstream API route rejected the POST request. Ensure your Custom Base URL is 'https://agentrouter.org/v1' and model '{model}' accepts chat completions."
 
                 err_event = f"event: error\ndata: {json.dumps({'error': friendly_err or f'HTTP {status_code}', 'code': status_code})}\n\n"
                 self.wfile.write(err_event.encode("utf-8"))
