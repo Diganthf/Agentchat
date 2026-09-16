@@ -408,8 +408,57 @@ BASE_TIER_MODELS = [
     }
 ]
 
+# AgentRouter Exact Models Catalog (matches agentrouter.org dashboard)
+AGENTROUTER_MODELS = [
+    {
+        "id": "claude-opus-4-8",
+        "name": "claude-opus-4-8",
+        "display_name": "✳️ claude-opus-4-8",
+        "category": "Anthropic",
+        "provider": "anthropic",
+        "description": "Anthropic Claude Opus 4-8 on AgentRouter",
+        "status": "online"
+    },
+    {
+        "id": "claude-opus-5",
+        "name": "claude-opus-5",
+        "display_name": "✳️ claude-opus-5",
+        "category": "Anthropic",
+        "provider": "anthropic",
+        "description": "Anthropic Claude Opus 5 flagship on AgentRouter",
+        "status": "online"
+    },
+    {
+        "id": "deepseek-v4-flash",
+        "name": "deepseek-v4-flash",
+        "display_name": "🐳 deepseek-v4-flash",
+        "category": "DeepSeek",
+        "provider": "deepseek",
+        "description": "DeepSeek V4 Flash next-generation reasoning on AgentRouter",
+        "status": "online"
+    },
+    {
+        "id": "gpt-5.6-sol",
+        "name": "gpt-5.6-sol",
+        "display_name": "🌀 gpt-5.6-sol",
+        "category": "OpenAI",
+        "provider": "openai",
+        "description": "OpenAI GPT-5.6 Sol frontier model on AgentRouter",
+        "status": "online"
+    },
+    {
+        "id": "gpt-6-astra",
+        "name": "gpt-6-astra",
+        "display_name": "⚛️ gpt-6-astra",
+        "category": "OpenAI",
+        "provider": "openai",
+        "description": "OpenAI GPT-6 Astra next-generation frontier on AgentRouter",
+        "status": "online"
+    }
+]
+
 # Comprehensive Frontier Models Catalog for Custom Provider & Reverse Proxies (AgentRouter, OpenRouter, Anthropic)
-CUSTOM_FRONTIER_MODELS = [
+CUSTOM_FRONTIER_MODELS = AGENTROUTER_MODELS + [
     {
         "id": "claude-3-opus-20240229",
         "name": "🎭 Claude 3 Opus (Anthropic Flagship)",
@@ -523,8 +572,8 @@ DEFAULT_CONFIG = {
             "api_key": os.environ.get("OPENAI_API_KEY", "")
         },
         "custom": {
-            "name": "Custom Provider",
-            "base_url": "https://api.openai.com",
+            "name": "AgentRouter / Custom Stealth Proxy",
+            "base_url": "https://agentrouter.org/v1",
             "api_key": ""
         }
     },
@@ -716,6 +765,8 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
 
     # Google AI Studio OpenAI compatibility: endpoints are /chat/completions and /models without /v1
     if "generativelanguage.googleapis.com" in base_url and endpoint.startswith("/v1/"):
+        endpoint = endpoint[3:]
+    elif base_url.endswith("/v1") and endpoint.startswith("/v1/"):
         endpoint = endpoint[3:]
 
     target_url = f"{base_url}{endpoint}"
@@ -1808,14 +1859,19 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                         "status": "online"
                     })
 
-                # Merge essential frontier models (Claude Opus, Claude 3.5 Sonnet, etc.) if not present
-                existing_ids = {m["id"].lower() for m in discovered_models}
-                for fm in CUSTOM_FRONTIER_MODELS:
-                    if fm["id"].lower() not in existing_ids:
-                        discovered_models.append(fm)
-
-                # Sort alphabetically by display name
-                discovered_models.sort(key=lambda x: x["name"].lower())
+                # Ensure AGENTROUTER_MODELS are at the top for custom / AgentRouter provider
+                if prov_key == "custom" or "agentrouter" in active_url.lower():
+                    existing_ids = {m["id"].lower() for m in discovered_models}
+                    for arm in reversed(AGENTROUTER_MODELS):
+                        if arm["id"].lower() in existing_ids:
+                            discovered_models = [m for m in discovered_models if m["id"].lower() != arm["id"].lower()]
+                        discovered_models.insert(0, arm)
+                else:
+                    existing_ids = {m["id"].lower() for m in discovered_models}
+                    for fm in CUSTOM_FRONTIER_MODELS:
+                        if fm["id"].lower() not in existing_ids:
+                            discovered_models.append(fm)
+                    discovered_models.sort(key=lambda x: x["name"].lower())
 
                 if discovered_models:
                     self.send_json({
@@ -1826,22 +1882,24 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                     })
                     return
             except Exception as e:
-                # If provider query fails (e.g. AgentRouter doesn't expose /v1/models), return curated frontier catalog
+                # If provider query fails (e.g. AgentRouter requires auth for /v1/models), return curated AgentRouter catalog
+                fallback_models = AGENTROUTER_MODELS if (prov_key == "custom" or "agentrouter" in active_url.lower()) else CUSTOM_FRONTIER_MODELS
                 self.send_json({
                     "success": True,
                     "provider": prov_key,
-                    "models": CUSTOM_FRONTIER_MODELS,
-                    "source": "custom_frontier",
-                    "note": f"Frontier catalog active ({str(e)})"
+                    "models": fallback_models,
+                    "source": "agentrouter_catalog" if (prov_key == "custom" or "agentrouter" in active_url.lower()) else "custom_frontier",
+                    "note": f"Catalog active ({str(e)})"
                 })
                 return
 
-        # If Custom Provider is selected, return full frontier catalog including Claude Opus
-        if prov_key == "custom":
+        # If Custom Provider is selected, return the exact AgentRouter catalog
+        if prov_key == "custom" or "agentrouter" in active_url.lower():
             self.send_json({
                 "success": True,
-                "models": CUSTOM_FRONTIER_MODELS,
-                "source": "custom_frontier"
+                "provider": "custom",
+                "models": AGENTROUTER_MODELS,
+                "source": "agentrouter_exact"
             })
             return
 

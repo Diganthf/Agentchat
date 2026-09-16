@@ -2831,4 +2831,162 @@ textarea#user-input::placeholder {
   font-family: var(--font-mono, monospace);
 }
 
+/* AgentRouter Interactive Model Picker Bar (Matches AgentRouter Dashboard) */
+.agentrouter-bar {
+  background: var(--md-sys-color-surface-container, #161b22);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant, rgba(255, 255, 255, 0.1));
+  padding: 8px 16px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: fadeInDown 0.2s ease-out;
+}
+
+.agentrouter-bar.hidden {
+  display: none !important;
+}
+
+.agentrouter-tabs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 6px;
+  overflow-x: auto;
+}
+
+.ar-tab {
+  background: none;
+  border: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--md-sys-color-on-surface-variant, #8b949e);
+  cursor: pointer;
+  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.ar-tab:hover {
+  color: var(--md-sys-color-on-surface, #f0f6fc);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ar-tab.active {
+  color: var(--md-sys-color-on-surface, #f0f6fc);
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ar-badge {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--md-sys-color-on-surface, #f0f6fc);
+}
+
+.ar-tab.active .ar-badge-all {
+  background: #ffdedb;
+  color: #ba1a1a;
+  font-weight: 700;
+}
+
+.agentrouter-pills {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ar-model-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+  user-select: none;
+  line-height: 1.4;
+}
+
+.ar-model-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.ar-model-pill.active {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35), 0 3px 10px rgba(0, 0, 0, 0.4);
+  transform: scale(1.03);
+}
+
+/* Specific pill colors matching AgentRouter Dashboard */
+.pill-claude-opus-48 {
+  background: #fdf3e2;
+  color: #9a5300;
+  border-color: #f7cb8d;
+}
+
+.pill-claude-opus-5 {
+  background: #ede8ff;
+  color: #5539ab;
+  border-color: #cbbeff;
+}
+
+.pill-deepseek-v4-flash {
+  background: #e2f1ff;
+  color: #14599e;
+  border-color: #a7d3fc;
+}
+
+.pill-gpt-56-sol {
+  background: #fef0e3;
+  color: #a44f15;
+  border-color: #f5c49b;
+}
+
+.pill-gpt-6-astra {
+  background: #fde8f1;
+  color: #ae225e;
+  border-color: #f6abc9;
+}
+
+/* Dark mode palette adjustments */
+@media (prefers-color-scheme: dark) {
+  .pill-claude-opus-48 {
+    background: #2b1f0f;
+    color: #f6b450;
+    border-color: #593e1b;
+  }
+  .pill-claude-opus-5 {
+    background: #211b3b;
+    color: #b9a5fd;
+    border-color: #493b77;
+  }
+  .pill-deepseek-v4-flash {
+    background: #102236;
+    color: #6dbafc;
+    border-color: #1f456c;
+  }
+  .pill-gpt-56-sol {
+    background: #2d1c10;
+    color: #f7a465;
+    border-color: #5c371d;
+  }
+  .pill-gpt-6-astra {
+    background: #331323;
+    color: #f982b0;
+    border-color: #692247;
+  }
+}
+
+
 

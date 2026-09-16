@@ -13,6 +13,11 @@
   let currentRailTab = "chats";
 
   const MODEL_DISPLAY_NAMES = {
+    "claude-opus-4-8": "✳️ claude-opus-4-8 (Anthropic)",
+    "claude-opus-5": "✳️ claude-opus-5 (Anthropic Flagship)",
+    "deepseek-v4-flash": "🐳 deepseek-v4-flash (DeepSeek)",
+    "gpt-5.6-sol": "🌀 gpt-5.6-sol (OpenAI)",
+    "gpt-6-astra": "⚛️ gpt-6-astra (OpenAI)",
     "claude-3-opus-20240229": "🎭 Claude 3 Opus (Anthropic Flagship)",
     "claude-3-opus": "🎭 Claude 3 Opus (Anthropic)",
     "claude-3-5-sonnet-20241022": "⚡ Claude 3.5 Sonnet (Anthropic)",
@@ -59,8 +64,8 @@
       base_url: "https://api.openai.com"
     },
     custom: {
-      name: "Custom Stealth Proxy (AgentRouter, Anthropic, Proxies)",
-      base_url: "https://agentrouter.org/"
+      name: "AgentRouter / Custom Stealth Proxy",
+      base_url: "https://agentrouter.org/v1"
     }
   };
 
@@ -670,11 +675,66 @@
           return;
         }
         localStorage.setItem("agentchat_active_model", modelSelect.value);
+        updateAgentRouterBarActivePill(modelSelect.value);
         if (currentUser) {
           syncUserProfileToCloud();
         }
       });
     }
+
+    // AgentRouter Model Picker Bar Tabs & Pills
+    const arTabs = document.querySelectorAll(".ar-tab");
+    const arPills = document.querySelectorAll(".ar-model-pill");
+
+    arTabs.forEach(tab => {
+      tab.addEventListener("click", () => {
+        arTabs.forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        const cat = tab.getAttribute("data-category");
+        arPills.forEach(pill => {
+          if (cat === "all" || pill.getAttribute("data-category") === cat) {
+            pill.style.display = "inline-flex";
+          } else {
+            pill.style.display = "none";
+          }
+        });
+      });
+    });
+
+    arPills.forEach(pill => {
+      pill.addEventListener("click", async () => {
+        const mid = pill.getAttribute("data-model");
+        if (!mid) return;
+        arPills.forEach(p => p.classList.remove("active"));
+        pill.classList.add("active");
+
+        // Ensure custom provider is active
+        if (currentConfig.active_provider !== "custom") {
+          await switchProvider("custom");
+        }
+
+        // Set model
+        if (modelSelect) {
+          modelSelect.value = mid;
+        }
+        currentConfig.model = mid;
+        localStorage.setItem("agentchat_active_model", mid);
+        if (currentUser) {
+          syncUserProfileToCloud();
+        }
+      });
+    });
+  }
+
+  function updateAgentRouterBarActivePill(modelId) {
+    const arPills = document.querySelectorAll(".ar-model-pill");
+    arPills.forEach(p => {
+      if (p.getAttribute("data-model") === modelId) {
+        p.classList.add("active");
+      } else {
+        p.classList.remove("active");
+      }
+    });
   }
 
   // Rail Tab Switching
@@ -2670,6 +2730,7 @@
           modelSelect.value = allModels[0].id;
         }
         localStorage.setItem("agentchat_active_model", modelSelect.value);
+        updateAgentRouterBarActivePill(modelSelect.value);
       }
     } catch (e) {
       console.warn("Failed to fetch models:", e);
