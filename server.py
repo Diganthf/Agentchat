@@ -1,5 +1,19 @@
 import os
 import sys
+
+# Ensure sys.stdout and sys.stderr are valid file streams when running under pythonw.exe (windowless mode)
+LOG_FILE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server.log")
+if sys.stdout is None:
+    try:
+        sys.stdout = open(LOG_FILE_PATH, "a", encoding="utf-8", buffering=1)
+    except Exception:
+        sys.stdout = open(os.devnull, "w", encoding="utf-8")
+if sys.stderr is None:
+    try:
+        sys.stderr = open(LOG_FILE_PATH, "a", encoding="utf-8", buffering=1)
+    except Exception:
+        sys.stderr = open(os.devnull, "w", encoding="utf-8")
+
 import json
 import ssl
 import re
@@ -940,6 +954,14 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Access-Password, X-Custom-Api-Key, X-Custom-Base-Url, X-User-Session")
         super().end_headers()
+
+    def log_message(self, format, *args):
+        try:
+            if sys.stderr is not None and not getattr(sys.stderr, 'closed', False):
+                sys.stderr.write("%s - - [%s] %s\n" % (self.address_string(), self.log_date_time_string(), format % args))
+                sys.stderr.flush()
+        except Exception:
+            pass
 
     def get_authenticated_user(self):
         auth_header = self.headers.get("Authorization", "")

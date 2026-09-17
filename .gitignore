@@ -17,3 +17,6 @@ ChromeProfile/
 # SQLite Databases
 *.db
 agentchat_users.db
+
+# Logs
+*.log
