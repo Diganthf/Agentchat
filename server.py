@@ -1172,6 +1172,8 @@ class AgentChatHandler(BaseHTTPRequestHandler):
     def serve_static(self, path):
         if path in ("", "/"):
             filename = "index.html"
+        elif path in ("/claude", "/claude/", "/claude.html"):
+            filename = "claude.html"
         else:
             filename = path.lstrip("/")
 
@@ -1674,6 +1676,35 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 "formatted": "Active",
                 "mode": "active"
             })
+
+    def handle_parse_file(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8")
+        try:
+            req_data = json.loads(body)
+            filename = req_data.get("filename", "file.pdf")
+            b64_content = req_data.get("content_base64", "")
+            if not b64_content:
+                self.send_json({"success": False, "error": "No content provided"}, status=400)
+                return
+            raw_bytes = base64.b64decode(b64_content)
+            if filename.lower().endswith(".pdf"):
+                try:
+                    import io, pypdf
+                    stream = io.BytesIO(raw_bytes)
+                    reader = pypdf.PdfReader(stream)
+                    pages_text = [p.extract_text() or "" for p in reader.pages]
+                    full_text = "\n\n".join([f"--- Page {i+1} ---\n{t.strip()}" for i, t in enumerate(pages_text) if t.strip()])
+                    self.send_json({"success": True, "filename": filename, "text": full_text, "pages": len(reader.pages)})
+                    return
+                except Exception as ex:
+                    self.send_json({"success": False, "error": f"PDF parse error: {str(ex)}"}, status=400)
+                    return
+            else:
+                text = raw_bytes.decode("utf-8", errors="replace")
+                self.send_json({"success": True, "filename": filename, "text": text})
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)}, status=500)
 
     def handle_scan_project(self):
         length = int(self.headers.get("Content-Length", 0))
