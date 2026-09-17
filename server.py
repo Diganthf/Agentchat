@@ -2164,8 +2164,10 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             elif "/" in model:
                 model = "llama-3.3-70b-versatile"
         elif "apmix.ai" in active_base_url or api_key.startswith("apx_live_"):
-            if not model.endswith("-free") and not model.endswith("-paid"):
-                model = f"{model}-free"
+            if model.endswith("-free"):
+                model = model[:-5]
+            elif model.endswith("-paid"):
+                model = model[:-5]
 
         # Model Architecture Analysis for Reasoning & Parameter Adaptation
         model_lower = model.lower()
@@ -2253,17 +2255,22 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                     if "temperature" in err_body.lower() and any(w in err_body.lower() for w in ["unsupported", "not supported", "only default", "1.0", "cannot"]):
                         payload.pop("temperature", None)
                         continue
-                    # Auto-heal: APMIX free tier model name requirement (-free suffix)
-                    if ("needs a paid plan" in err_body or "free key" in err_body or e.code == 403) and not payload["model"].endswith("-free"):
-                        payload["model"] = f"{payload['model']}-free"
-                        continue
+                    # Auto-heal: Try anthropic/ prefix if model without prefix returned 404
+                    if e.code == 404 and "/" not in payload["model"] and ("apmix.ai" in active_base_url or api_key.startswith("apx_live_")):
+                        if "claude" in payload["model"]:
+                            payload["model"] = f"anthropic/{payload['model']}"
+                            continue
 
                 # Final attempt error reporting
                 friendly_msg = err_body
                 try:
                     err_json = json.loads(err_body)
                     msg_val = err_json.get("error", {}).get("message", "")
-                    if e.code == 405:
+                    if e.code == 403 and ("needs the" in err_body or "plan" in err_body.lower()):
+                        friendly_msg = f"APMIX Account Notice: {msg_val}. Your API key's free allowance (100k tokens) has been exhausted or requires a plan at apmix.ai/dashboard."
+                    elif e.code == 404 and "model_not_found" in err_body:
+                        friendly_msg = f"APMIX Notice: Model '{model}' not found. See apmix.ai/models for available models."
+                    elif e.code == 405:
                         friendly_msg = f"AgentRouter / Gateway Error (HTTP 405 Method Not Allowed): The upstream API route rejected the POST request. Ensure your Custom Base URL is 'https://agentrouter.org/v1' and model '{model}' accepts chat completions."
                     elif "Budget pool quota has been exhausted" in msg_val or "budget pool" in msg_val.lower():
                         friendly_msg = f"AgentRouter Notice: Budget pool quota is currently exhausted for '{model}'. Try switching to 'deepseek-v4-flash' or adjust budget pools in your AgentRouter dashboard."
@@ -2289,9 +2296,24 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             # Check status code for curl_cffi / response object
             status_code = getattr(upstream_res, 'status_code', getattr(upstream_res, 'code', 200))
             if status_code >= 400:
-                err_body = getattr(upstream_res, 'text', '')
+                err_body = ""
+                if hasattr(upstream_res, 'iter_content'):
+                    try:
+                        err_body = b"".join(upstream_res.iter_content()).decode("utf-8", errors="replace")
+                    except Exception:
+                        pass
+                if not err_body and hasattr(upstream_res, 'content'):
+                    try:
+                        err_body = upstream_res.content.decode("utf-8", errors="replace")
+                    except Exception:
+                        pass
+                if not err_body:
+                    err_body = getattr(upstream_res, 'text', '')
                 if not err_body and hasattr(upstream_res, 'read'):
                     err_body = upstream_res.read().decode("utf-8", errors="replace")
+
+
+
 
                 if attempt < max_attempts - 1:
                     # Auto-heal: GLM thinking requirement (1210 / 始终思考)
@@ -2314,12 +2336,16 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                         payload.pop("temperature", None)
                         continue
 
-                # Final attempt error reporting
                 friendly_err = err_body
                 try:
                     parsed_err = json.loads(err_body)
                     msg_val = parsed_err.get("error", {}).get("message", "")
-                    if status_code == 405:
+                    if status_code == 403 and ("needs the" in err_body or "plan" in err_body.lower()):
+                        friendly_err = f"APMIX Notice: {msg_val}. The free trial quota (100k tokens) on this key has been used up. You can select a plan or grab a new key at apmix.ai/dashboard/billing."
+                    elif status_code == 404 and "model_not_found" in err_body:
+                        friendly_err = f"APMIX Notice: Model '{model}' not found. See apmix.ai/models for available models."
+
+                    elif status_code == 405:
                         friendly_err = f"AgentRouter / Gateway Error (HTTP 405 Method Not Allowed): The upstream API route rejected the POST request. Ensure your Custom Base URL is 'https://agentrouter.org/v1' and model '{model}' accepts chat completions."
                     elif "Budget pool quota has been exhausted" in msg_val or "budget pool" in msg_val.lower():
                         friendly_err = f"AgentRouter Notice: Budget pool quota is currently exhausted for '{model}'. Try switching to 'deepseek-v4-flash' or adjust budget pools in your AgentRouter dashboard."
@@ -2329,6 +2355,7 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                         friendly_err = f"Reasoning Parameter Notice: Model '{model}' requires reasoning effort 'low', 'high', or 'max'. Setting effort to High resolves this."
                     elif msg_val:
                         friendly_err = msg_val
+
                 except Exception:
                     pass
 
