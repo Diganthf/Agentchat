@@ -411,6 +411,24 @@ BASE_TIER_MODELS = [
 # AgentRouter Exact Models Catalog (matches agentrouter.org dashboard)
 AGENTROUTER_MODELS = [
     {
+        "id": "claude-opus-5-free",
+        "name": "claude-opus-5-free",
+        "display_name": "✳️ claude-opus-5-free",
+        "category": "Anthropic",
+        "provider": "anthropic",
+        "description": "Anthropic Claude Opus 5 Free on APMIX",
+        "status": "online"
+    },
+    {
+        "id": "claude-opus-4-8-free",
+        "name": "claude-opus-4-8-free",
+        "display_name": "✳️ claude-opus-4-8-free",
+        "category": "Anthropic",
+        "provider": "anthropic",
+        "description": "Anthropic Claude Opus 4-8 Free on APMIX",
+        "status": "online"
+    },
+    {
         "id": "claude-opus-4-8",
         "name": "claude-opus-4-8",
         "display_name": "✳️ claude-opus-4-8",
@@ -2092,6 +2110,9 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 model = "deepseek-r1-distill-llama-70b"
             elif "/" in model:
                 model = "llama-3.3-70b-versatile"
+        elif "apmix.ai" in active_base_url or api_key.startswith("apx_live_"):
+            if not model.endswith("-free") and not model.endswith("-paid"):
+                model = f"{model}-free"
 
         # Model Architecture Analysis for Reasoning & Parameter Adaptation
         model_lower = model.lower()
@@ -2178,6 +2199,10 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                     # Auto-heal: Temperature not supported
                     if "temperature" in err_body.lower() and any(w in err_body.lower() for w in ["unsupported", "not supported", "only default", "1.0", "cannot"]):
                         payload.pop("temperature", None)
+                        continue
+                    # Auto-heal: APMIX free tier model name requirement (-free suffix)
+                    if ("needs a paid plan" in err_body or "free key" in err_body or e.code == 403) and not payload["model"].endswith("-free"):
+                        payload["model"] = f"{payload['model']}-free"
                         continue
 
                 # Final attempt error reporting
