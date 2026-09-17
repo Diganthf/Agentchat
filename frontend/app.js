@@ -13,11 +13,6 @@
   let currentRailTab = "chats";
 
   const MODEL_DISPLAY_NAMES = {
-    "claude-opus-5-free": "✳️ claude-opus-5-free (Anthropic Flagship)",
-    "claude-opus-4-8-free": "✳️ claude-opus-4-8-free (Anthropic)",
-    "claude-sonnet-4-6-free": "⚡ claude-sonnet-4-6-free (Anthropic)",
-    "gemini-3-flash-preview-free": "✨ gemini-3-flash-preview-free",
-    "gpt-4.1-free": "🌀 gpt-4.1-free",
     "claude-opus-4-8": "✳️ claude-opus-4-8 (Anthropic)",
     "claude-opus-5": "✳️ claude-opus-5 (Anthropic Flagship)",
     "deepseek-v4-flash": "🐳 deepseek-v4-flash (DeepSeek)",

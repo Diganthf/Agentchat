@@ -425,24 +425,6 @@ BASE_TIER_MODELS = [
 # AgentRouter Exact Models Catalog (matches agentrouter.org dashboard)
 AGENTROUTER_MODELS = [
     {
-        "id": "claude-opus-5-free",
-        "name": "claude-opus-5-free",
-        "display_name": "✳️ claude-opus-5-free",
-        "category": "Anthropic",
-        "provider": "anthropic",
-        "description": "Anthropic Claude Opus 5 Free on APMIX",
-        "status": "online"
-    },
-    {
-        "id": "claude-opus-4-8-free",
-        "name": "claude-opus-4-8-free",
-        "display_name": "✳️ claude-opus-4-8-free",
-        "category": "Anthropic",
-        "provider": "anthropic",
-        "description": "Anthropic Claude Opus 4-8 Free on APMIX",
-        "status": "online"
-    },
-    {
         "id": "claude-opus-4-8",
         "name": "claude-opus-4-8",
         "display_name": "✳️ claude-opus-4-8",
@@ -1194,10 +1176,9 @@ class AgentChatHandler(BaseHTTPRequestHandler):
     def serve_static(self, path):
         if path in ("", "/"):
             filename = "index.html"
-        elif path in ("/claude", "/claude/", "/claude.html"):
-            filename = "claude.html"
         else:
             filename = path.lstrip("/")
+
 
         filepath = os.path.join(FRONTEND_DIR, filename)
         if not os.path.exists(filepath) or os.path.isdir(filepath):
@@ -2163,11 +2144,7 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 model = "deepseek-r1-distill-llama-70b"
             elif "/" in model:
                 model = "llama-3.3-70b-versatile"
-        elif "apmix.ai" in active_base_url or api_key.startswith("apx_live_"):
-            if model.endswith("-free"):
-                model = model[:-5]
-            elif model.endswith("-paid"):
-                model = model[:-5]
+
 
         # Model Architecture Analysis for Reasoning & Parameter Adaptation
         model_lower = model.lower()
@@ -2266,11 +2243,8 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 try:
                     err_json = json.loads(err_body)
                     msg_val = err_json.get("error", {}).get("message", "")
-                    if e.code == 403 and ("needs the" in err_body or "plan" in err_body.lower()):
-                        friendly_msg = f"APMIX Account Notice: {msg_val}. Your API key's free allowance (100k tokens) has been exhausted or requires a plan at apmix.ai/dashboard."
-                    elif e.code == 404 and "model_not_found" in err_body:
-                        friendly_msg = f"APMIX Notice: Model '{model}' not found. See apmix.ai/models for available models."
-                    elif e.code == 405:
+                    if e.code == 405:
+
                         friendly_msg = f"AgentRouter / Gateway Error (HTTP 405 Method Not Allowed): The upstream API route rejected the POST request. Ensure your Custom Base URL is 'https://agentrouter.org/v1' and model '{model}' accepts chat completions."
                     elif "Budget pool quota has been exhausted" in msg_val or "budget pool" in msg_val.lower():
                         friendly_msg = f"AgentRouter Notice: Budget pool quota is currently exhausted for '{model}'. Try switching to 'deepseek-v4-flash' or adjust budget pools in your AgentRouter dashboard."
@@ -2340,12 +2314,8 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 try:
                     parsed_err = json.loads(err_body)
                     msg_val = parsed_err.get("error", {}).get("message", "")
-                    if status_code == 403 and ("needs the" in err_body or "plan" in err_body.lower()):
-                        friendly_err = f"APMIX Notice: {msg_val}. The free trial quota (100k tokens) on this key has been used up. You can select a plan or grab a new key at apmix.ai/dashboard/billing."
-                    elif status_code == 404 and "model_not_found" in err_body:
-                        friendly_err = f"APMIX Notice: Model '{model}' not found. See apmix.ai/models for available models."
+                    if status_code == 405:
 
-                    elif status_code == 405:
                         friendly_err = f"AgentRouter / Gateway Error (HTTP 405 Method Not Allowed): The upstream API route rejected the POST request. Ensure your Custom Base URL is 'https://agentrouter.org/v1' and model '{model}' accepts chat completions."
                     elif "Budget pool quota has been exhausted" in msg_val or "budget pool" in msg_val.lower():
                         friendly_err = f"AgentRouter Notice: Budget pool quota is currently exhausted for '{model}'. Try switching to 'deepseek-v4-flash' or adjust budget pools in your AgentRouter dashboard."
