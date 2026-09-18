@@ -289,6 +289,7 @@ class DoHResolver:
         self.known_fallbacks = {
             "agentrouter.org": ["8.214.161.192", "8.214.160.125"],
             "co.agentrouter.org": ["8.214.161.192", "8.214.160.125"],
+            "api.apmix.ai": ["87.106.144.49"],
         }
         self.providers = [
             ("Cloudflare", "https://cloudflare-dns.com/dns-query?name={}&type=A"),
@@ -1206,6 +1207,8 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 self.handle_test_mcp()
         elif path == "/api/chat":
             self.handle_chat()
+        elif path == "/api/apmix/chat":
+            self.handle_apmix_chat()
         else:
             self.send_error(404, "Endpoint not found")
 
@@ -1223,9 +1226,10 @@ class AgentChatHandler(BaseHTTPRequestHandler):
     def serve_static(self, path):
         if path in ("", "/"):
             filename = "index.html"
+        elif path in ("/apmix", "/claude"):
+            filename = "apmix.html"
         else:
             filename = path.lstrip("/")
-
 
         filepath = os.path.join(FRONTEND_DIR, filename)
         if not os.path.exists(filepath) or os.path.isdir(filepath):
@@ -2409,6 +2413,99 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             self.wfile.flush()
         except Exception:
             pass
+        self.close_connection = True
+
+    def handle_apmix_chat(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8")
+        try:
+            req_data = json.loads(body)
+        except Exception:
+            self.send_json({"error": "Invalid JSON in request"}, status=400)
+            return
+
+        model = req_data.get("model", "claude-sonnet-5")
+        max_tokens = int(req_data.get("max_tokens", 1024))
+        temperature = float(req_data.get("temperature", 0.7))
+        messages = req_data.get("messages", [])
+
+        # Read APMix key from ~/.claude/settings.json or fallback
+        apmix_key = "apx_live_KxxuGzfm8i6iFPnIDRuboUrsUk4naNs8JDE0R8SE"
+        settings_path = os.path.expanduser("~/.claude/settings.json")
+        if os.path.exists(settings_path):
+            try:
+                with open(settings_path, "r", encoding="utf-8") as f:
+                    s_data = json.load(f)
+                    apmix_key = s_data.get("env", {}).get("ANTHROPIC_AUTH_TOKEN", apmix_key)
+            except Exception:
+                pass
+
+        target_url = "https://api.apmix.ai/v1/messages"
+        headers = {
+            "x-api-key": apmix_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream"
+        }
+        upstream_payload = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "messages": messages,
+            "stream": True
+        }
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+
+        try:
+            if CURL_CFFI_AVAILABLE:
+                parsed = urlparse(target_url)
+                port = 443
+                resolved_ip = doh_resolver.resolve(parsed.hostname)
+                session_kwargs = {
+                    "impersonate": "chrome124",
+                    "doh_url": "https://1.1.1.1/dns-query"
+                }
+                if CurlOpt and resolved_ip:
+                    session_kwargs["curl_options"] = {CurlOpt.RESOLVE: [f"{parsed.hostname}:{port}:{resolved_ip}"]}
+                session = cffi_requests.Session(**session_kwargs)
+                resp = session.post(target_url, json=upstream_payload, headers=headers, stream=True, timeout=60)
+
+                if resp.status_code >= 400:
+                    err_body = resp.text
+                    err_event = f"data: {json.dumps({'error': {'message': f'APMix returned HTTP {resp.status_code}: {err_body}'}})}\n\n"
+                    self.wfile.write(err_event.encode("utf-8"))
+                    self.wfile.flush()
+                    return
+
+                for chunk in resp.iter_lines():
+                    if chunk:
+                        self.wfile.write(chunk + b"\n")
+                        self.wfile.flush()
+            else:
+                req = urllib.request.Request(
+                    target_url,
+                    data=json.dumps(upstream_payload).encode("utf-8"),
+                    headers=headers,
+                    method="POST"
+                )
+                with urllib.request.urlopen(req, timeout=60) as r:
+                    while True:
+                        line = r.readline()
+                        if not line:
+                            break
+                        self.wfile.write(line)
+                        self.wfile.flush()
+        except Exception as e:
+            err_msg = str(e)
+            err_event = f"data: {json.dumps({'error': {'message': err_msg}})}\n\n"
+            self.wfile.write(err_event.encode("utf-8"))
+            self.wfile.flush()
         self.close_connection = True
 
 def run_server():

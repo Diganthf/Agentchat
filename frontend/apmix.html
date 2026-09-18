@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>APMix Claude Studio | Ultra-Low Token Mode</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #141413;
+      --surface: #1e1e1d;
+      --surface-hover: #272726;
+      --surface-card: #252524;
+      --border: #323230;
+      --border-accent: #cc5533;
+      --claude-terracotta: #cc5533;
+      --claude-terracotta-light: #e06c4b;
+      --claude-sand: #d4c5b9;
+      --claude-cream: #faf8f5;
+      --text-main: #f0eee9;
+      --text-muted: #9c978f;
+      --accent-green: #4ade80;
+      --accent-amber: #fbbf24;
+      --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+      --font-serif: 'Instrument Serif', Georgia, serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Top Navbar */
+    .navbar {
+      height: 58px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      flex-shrink: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .brand-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #cc5533, #e06c4b);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 2px 8px rgba(204, 85, 51, 0.35);
+    }
+
+    .brand-title {
+      font-family: var(--font-serif);
+      font-size: 22px;
+      letter-spacing: 0.2px;
+      color: var(--claude-cream);
+    }
+
+    .token-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(74, 222, 128, 0.1);
+      border: 1px solid rgba(74, 222, 128, 0.25);
+      color: var(--accent-green);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+
+    .token-badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      box-shadow: 0 0 6px var(--accent-green);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .token-meter {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    .meter-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .meter-label {
+      color: var(--text-muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .meter-val {
+      color: var(--claude-cream);
+      font-weight: 600;
+    }
+
+    .btn-action {
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+
+    .btn-action:hover {
+      background: var(--surface-hover);
+      border-color: #555;
+    }
+
+    /* Controls Bar */
+    .controls-bar {
+      background: rgba(30, 30, 29, 0.7);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+      font-size: 12px;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .control-label {
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    select, input[type="text"] {
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    select:focus, input[type="text"]:focus {
+      border-color: var(--claude-terracotta);
+    }
+
+    .slider-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    input[type="range"] {
+      accent-color: var(--claude-terracotta);
+      cursor: pointer;
+    }
+
+    /* Chat Container */
+    .chat-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .messages-list {
+      width: 100%;
+      max-width: 820px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Message Bubbles */
+    .message-row {
+      display: flex;
+      gap: 14px;
+      width: 100%;
+    }
+
+    .message-row.user {
+      flex-direction: row-reverse;
+    }
+
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .avatar.assistant {
+      background: linear-gradient(135deg, #cc5533, #e06c4b);
+      color: white;
+    }
+
+    .avatar.user {
+      background: #3e3e3b;
+      color: var(--claude-cream);
+    }
+
+    .message-bubble {
+      max-width: 85%;
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 18px;
+      line-height: 1.6;
+      font-size: 14px;
+      color: var(--text-main);
+      position: relative;
+      word-break: break-word;
+    }
+
+    .message-row.user .message-bubble {
+      background: #2a2725;
+      border-color: #4a3e38;
+      border-top-right-radius: 4px;
+    }
+
+    .message-row.assistant .message-bubble {
+      border-top-left-radius: 4px;
+    }
+
+    .msg-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 1px dashed rgba(255,255,255,0.08);
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .token-stat {
+      color: var(--accent-green);
+    }
+
+    .message-bubble pre {
+      background: #111110;
+      border: 1px solid #2a2a28;
+      border-radius: 8px;
+      padding: 12px;
+      margin: 10px 0;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+    }
+
+    .message-bubble code {
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      background: rgba(255,255,255,0.06);
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
+
+    .message-bubble p { margin-bottom: 8px; }
+    .message-bubble p:last-child { margin-bottom: 0; }
+    .message-bubble ul, .message-bubble ol { margin-left: 20px; margin-bottom: 8px; }
+
+    /* Empty state */
+    .empty-hero {
+      text-align: center;
+      margin: auto 0;
+      max-width: 540px;
+      padding: 40px 20px;
+    }
+
+    .empty-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      display: inline-block;
+    }
+
+    .empty-title {
+      font-family: var(--font-serif);
+      font-size: 32px;
+      color: var(--claude-cream);
+      margin-bottom: 10px;
+    }
+
+    .empty-desc {
+      color: var(--text-muted);
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+
+    .feature-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+    }
+
+    .pill {
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 16px;
+      font-size: 12px;
+      color: var(--claude-sand);
+    }
+
+    /* Bottom Input Bar */
+    .input-wrapper {
+      padding: 16px 20px 20px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .input-box {
+      width: 100%;
+      max-width: 820px;
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+      transition: border-color 0.2s;
+    }
+
+    .input-box:focus-within {
+      border-color: var(--claude-terracotta);
+    }
+
+    textarea {
+      width: 100%;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      resize: none;
+      min-height: 44px;
+      max-height: 180px;
+    }
+
+    .input-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      padding-top: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .token-estimate {
+      font-family: var(--font-mono);
+    }
+
+    .btn-send {
+      background: var(--claude-terracotta);
+      color: white;
+      border: none;
+      padding: 6px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s;
+    }
+
+    .btn-send:hover {
+      background: var(--claude-terracotta-light);
+    }
+
+    .btn-send:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Cursor blink */
+    .cursor-blink {
+      display: inline-block;
+      width: 7px;
+      height: 14px;
+      background: var(--claude-terracotta);
+      vertical-align: middle;
+      margin-left: 2px;
+      animation: blink 0.9s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navbar -->
+  <header class="navbar">
+    <div class="brand">
+      <div class="brand-icon">✦</div>
+      <div>
+        <div class="brand-title">APMix Claude Studio</div>
+      </div>
+      <div class="token-badge">
+        <span class="dot"></span>
+        Zero-Overhead (~15 tok/prompt)
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <div class="token-meter">
+        <div class="meter-item">
+          <span class="meter-label">In:</span>
+          <span class="meter-val" id="meter-in">0</span>
+        </div>
+        <div class="meter-item">
+          <span class="meter-label">Out:</span>
+          <span class="meter-val" id="meter-out">0</span>
+        </div>
+        <div class="meter-item">
+          <span class="meter-label">Total:</span>
+          <span class="meter-val token-stat" id="meter-total">0</span>
+        </div>
+      </div>
+
+      <button class="btn-action" id="btn-clear" title="Reset message history to 0 tokens">
+        🧹 Clear History
+      </button>
+
+      <a href="/" class="btn-action">
+        ← AgentChat
+      </a>
+    </div>
+  </header>
+
+  <!-- Model & Token Controls Bar -->
+  <div class="controls-bar">
+    <div class="control-group">
+      <span class="control-label">Model:</span>
+      <select id="model-select">
+        <option value="claude-sonnet-5" selected>Claude Sonnet 5 (Recommended)</option>
+        <option value="claude-3-opus-20240229">Claude 3 Opus (Top Reasoning)</option>
+        <option value="claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</option>
+        <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+        <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku (Frugal)</option>
+        <option value="custom">Custom ID...</option>
+      </select>
+      <input type="text" id="custom-model-input" placeholder="e.g. claude-opus-4.7" style="display:none; width: 140px;">
+    </div>
+
+    <div class="control-group">
+      <span class="control-label">Max Output Tokens:</span>
+      <div class="slider-wrap">
+        <input type="range" id="max-tokens-slider" min="128" max="4096" step="128" value="1024">
+        <span class="control-label" id="max-tokens-val" style="font-family: var(--font-mono); font-weight: 600;">1024</span>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <span class="control-label">Temperature:</span>
+      <div class="slider-wrap">
+        <input type="range" id="temp-slider" min="0" max="1" step="0.1" value="0.7">
+        <span class="control-label" id="temp-val" style="font-family: var(--font-mono); font-weight: 600;">0.7</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Messages Chat Container -->
+  <main class="chat-container" id="chat-container">
+    <div class="empty-hero" id="empty-hero">
+      <div class="empty-icon">⚡</div>
+      <h1 class="empty-title">Ultra-Lean Claude Chat</h1>
+      <p class="empty-desc">
+        Unlike Claude Code CLI which injects 15k-45k tokens of files and system tools, this studio connects directly to APMix with <strong>zero background context injection</strong>. Each prompt only consumes the exact words you send.
+      </p>
+      <div class="feature-pills">
+        <span class="pill">✨ 0 Files Injected</span>
+        <span class="pill">🔒 Pinned APMix Key</span>
+        <span class="pill">⚡ Realtime Streaming</span>
+        <span class="pill">🎯 Strict Token Limits</span>
+      </div>
+    </div>
+
+    <div class="messages-list" id="messages-list" style="display:none;"></div>
+  </main>
+
+  <!-- Input Area -->
+  <footer class="input-wrapper">
+    <div class="input-box">
+      <textarea id="user-input" placeholder="Type your prompt... (Enter to send, Shift+Enter for newline)" rows="1"></textarea>
+      <div class="input-footer">
+        <div class="token-estimate" id="token-estimate">
+          Estimated input: ~0 tokens
+        </div>
+        <button class="btn-send" id="btn-send">
+          Send ↵
+        </button>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const chatContainer = document.getElementById('chat-container');
+    const emptyHero = document.getElementById('empty-hero');
+    const messagesList = document.getElementById('messages-list');
+    const userInput = document.getElementById('user-input');
+    const btnSend = document.getElementById('btn-send');
+    const btnClear = document.getElementById('btn-clear');
+    const modelSelect = document.getElementById('model-select');
+    const customModelInput = document.getElementById('custom-model-input');
+    const maxTokensSlider = document.getElementById('max-tokens-slider');
+    const maxTokensVal = document.getElementById('max-tokens-val');
+    const tempSlider = document.getElementById('temp-slider');
+    const tempVal = document.getElementById('temp-val');
+    const tokenEstimate = document.getElementById('token-estimate');
+    
+    const meterIn = document.getElementById('meter-in');
+    const meterOut = document.getElementById('meter-out');
+    const meterTotal = document.getElementById('meter-total');
+
+    let sessionIn = 0;
+    let sessionOut = 0;
+    let isGenerating = false;
+    let conversationHistory = [];
+
+    maxTokensSlider.addEventListener('input', (e) => {
+      maxTokensVal.textContent = e.target.value;
+    });
+
+    tempSlider.addEventListener('input', (e) => {
+      tempVal.textContent = e.target.value;
+    });
+
+    modelSelect.addEventListener('change', (e) => {
+      if (e.target.value === 'custom') {
+        customModelInput.style.display = 'inline-block';
+        customModelInput.focus();
+      } else {
+        customModelInput.style.display = 'none';
+      }
+    });
+
+    function getSelectedModel() {
+      if (modelSelect.value === 'custom') {
+        return customModelInput.value.trim() || 'claude-sonnet-5';
+      }
+      return modelSelect.value;
+    }
+
+    userInput.addEventListener('input', () => {
+      userInput.style.height = 'auto';
+      userInput.style.height = Math.min(userInput.scrollHeight, 180) + 'px';
+      const text = userInput.value.trim();
+      const words = text ? text.split(/\s+/).length : 0;
+      const approxTokens = Math.ceil(words * 1.3);
+      tokenEstimate.textContent = `Estimated input: ~${approxTokens} tokens`;
+    });
+
+    userInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    btnSend.addEventListener('click', sendMessage);
+
+    btnClear.addEventListener('click', () => {
+      if (conversationHistory.length === 0) return;
+      if (confirm('Clear chat history? This resets context back to 0 tokens.')) {
+        conversationHistory = [];
+        messagesList.innerHTML = '';
+        messagesList.style.display = 'none';
+        emptyHero.style.display = 'block';
+      }
+    });
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function formatMarkdown(text) {
+      let out = escapeHtml(text);
+      out = out.replace(/```([a-zA-Z0-9_-]*)
+([\s\S]*?)```/g, (match, lang, code) => {
+        return `<pre><code>${code}</code></pre>`;
+      });
+      out = out.replace(/`([^`]+)`/g, '<code>$1</code>');
+      out = out.replace(/\*\*([^\*]+)\*\*/g, '<strong>$1</strong>');
+      out = out.replace(/\*([^\*]+)\*/g, '<em>$1</em>');
+      out = out.split(/
+
++/).map(p => `<p>${p.replace(/
+/g, '<br>')}</p>`).join('');
+      return out;
+    }
+
+    async function sendMessage() {
+      const text = userInput.value.trim();
+      if (!text || isGenerating) return;
+
+      emptyHero.style.display = 'none';
+      messagesList.style.display = 'flex';
+
+      conversationHistory.push({ role: 'user', content: text });
+      appendMessage('user', text);
+
+      userInput.value = '';
+      userInput.style.height = 'auto';
+      tokenEstimate.textContent = 'Estimated input: ~0 tokens';
+
+      const promptWords = conversationHistory.map(m => m.content.split(/\s+/).length).reduce((a, b) => a + b, 0);
+      const estPromptTokens = Math.ceil(promptWords * 1.3);
+
+      const assistantMsgObj = appendMessage('assistant', '', true);
+      isGenerating = true;
+      btnSend.disabled = true;
+      btnSend.textContent = 'Streaming...';
+
+      let fullContent = '';
+      let outTokensCount = 0;
+
+      try {
+        const payload = {
+          model: getSelectedModel(),
+          max_tokens: parseInt(maxTokensSlider.value),
+          temperature: parseFloat(tempSlider.value),
+          messages: conversationHistory
+        };
+
+        const res = await fetch('/api/apmix/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(`Server returned HTTP ${res.status}: ${errText}`);
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('
+');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            const cleanLine = line.trim();
+            if (!cleanLine || cleanLine.startsWith(':')) continue;
+
+            if (cleanLine.startsWith('data: ')) {
+              const dataStr = cleanLine.slice(6);
+              if (dataStr === '[DONE]') continue;
+
+              try {
+                const parsed = JSON.parse(dataStr);
+                if (parsed.type === 'content_block_delta' && parsed.delta && parsed.delta.text) {
+                  fullContent += parsed.delta.text;
+                  outTokensCount++;
+                  updateAssistantBubble(assistantMsgObj, fullContent, true);
+                } else if (parsed.type === 'message_delta' && parsed.usage) {
+                  if (parsed.usage.output_tokens) outTokensCount = parsed.usage.output_tokens;
+                } else if (parsed.type === 'message_start' && parsed.message && parsed.message.usage) {
+                  if (parsed.message.usage.input_tokens) {
+                    sessionIn += parsed.message.usage.input_tokens;
+                    meterIn.textContent = sessionIn;
+                  }
+                } else if (parsed.error) {
+                  fullContent += `
+
+[Notice: ${parsed.error.message || JSON.stringify(parsed.error)}]`;
+                  updateAssistantBubble(assistantMsgObj, fullContent, false);
+                }
+              } catch (err) {
+              }
+            }
+          }
+        }
+
+        if (!fullContent) {
+          fullContent = '(Empty response received)';
+        }
+
+        conversationHistory.push({ role: 'assistant', content: fullContent });
+        updateAssistantBubble(assistantMsgObj, fullContent, false, estPromptTokens, outTokensCount);
+
+        sessionOut += outTokensCount;
+        sessionIn += estPromptTokens;
+        meterIn.textContent = sessionIn;
+        meterOut.textContent = sessionOut;
+        meterTotal.textContent = sessionIn + sessionOut;
+
+      } catch (err) {
+        fullContent += `
+
+⚠️ Error: ${err.message}`;
+        updateAssistantBubble(assistantMsgObj, fullContent, false);
+      } finally {
+        isGenerating = false;
+        btnSend.disabled = false;
+        btnSend.textContent = 'Send ↵';
+      }
+    }
+
+    function appendMessage(role, text, isStreaming = false) {
+      const row = document.createElement('div');
+      row.className = `message-row ${role}`;
+
+      const avatar = document.createElement('div');
+      avatar.className = `avatar ${role}`;
+      avatar.textContent = role === 'assistant' ? '✦' : 'U';
+
+      const bubble = document.createElement('div');
+      bubble.className = 'message-bubble';
+
+      if (isStreaming) {
+        bubble.innerHTML = '<span class="cursor-blink"></span>';
+      } else {
+        bubble.innerHTML = formatMarkdown(text);
+      }
+
+      row.appendChild(avatar);
+      row.appendChild(bubble);
+      messagesList.appendChild(row);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+
+      return { row, bubble };
+    }
+
+    function updateAssistantBubble(obj, text, isStreaming, inTok = 0, outTok = 0) {
+      let html = formatMarkdown(text);
+      if (isStreaming) {
+        html += '<span class="cursor-blink"></span>';
+      } else {
+        html += `
+          <div class="msg-meta">
+            <span>Model: ${getSelectedModel()}</span>
+            <span>•</span>
+            <span class="token-stat">⚡ ~${inTok} in / ~${outTok} out</span>
+          </div>
+        `;
+      }
+      obj.bubble.innerHTML = html;
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+  </script>
+</body>
+</html>
