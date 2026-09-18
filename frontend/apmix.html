@@ -210,6 +210,41 @@
       cursor: pointer;
     }
 
+    /* Effort Bar */
+    .effort-bar {
+      display: inline-flex;
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 2px;
+      gap: 2px;
+    }
+
+    .effort-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 5px 11px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s ease;
+      text-transform: capitalize;
+    }
+
+    .effort-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .effort-btn.active {
+      background: var(--claude-terracotta);
+      color: #ffffff;
+      box-shadow: 0 1px 4px rgba(204, 85, 51, 0.4);
+    }
+
     /* Chat Container */
     .chat-container {
       flex: 1;
@@ -543,6 +578,17 @@
         <span class="control-label" id="temp-val" style="font-family: var(--font-mono); font-weight: 600;">0.7</span>
       </div>
     </div>
+
+    <div class="control-group">
+      <span class="control-label">Effort:</span>
+      <div class="effort-bar" id="effort-bar">
+        <button type="button" class="effort-btn" data-effort="low" title="Low effort (1,024 thinking tokens)">Low</button>
+        <button type="button" class="effort-btn active" data-effort="medium" title="Medium effort (4,096 thinking tokens)">Medium</button>
+        <button type="button" class="effort-btn" data-effort="high" title="High effort (8,192 thinking tokens)">High</button>
+        <button type="button" class="effort-btn" data-effort="extra" title="Extra effort (16,384 thinking tokens)">Extra</button>
+        <button type="button" class="effort-btn" data-effort="max" title="Max effort (32,000 thinking tokens)">Max</button>
+      </div>
+    </div>
   </div>
 
   <!-- Messages Chat Container -->
@@ -602,6 +648,15 @@
     let sessionOut = 0;
     let isGenerating = false;
     let conversationHistory = [];
+    let currentEffort = 'medium';
+
+    document.querySelectorAll('.effort-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.effort-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentEffort = btn.dataset.effort || 'medium';
+      });
+    });
 
     maxTokensSlider.addEventListener('input', (e) => {
       maxTokensVal.textContent = e.target.value;
@@ -705,6 +760,7 @@
           model: getSelectedModel(),
           max_tokens: parseInt(maxTokensSlider.value),
           temperature: parseFloat(tempSlider.value),
+          reasoning_effort: currentEffort,
           messages: conversationHistory
         };
 

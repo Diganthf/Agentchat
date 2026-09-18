@@ -2428,6 +2428,16 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         max_tokens = int(req_data.get("max_tokens", 1024))
         temperature = float(req_data.get("temperature", 0.7))
         messages = req_data.get("messages", [])
+        effort = str(req_data.get("reasoning_effort", "medium")).lower()
+
+        effort_thinking_budgets = {
+            "low": 1024,
+            "medium": 4096,
+            "high": 8192,
+            "extra": 16384,
+            "max": 32000
+        }
+        budget = effort_thinking_budgets.get(effort, 4096)
 
         # Read APMix key from ~/.claude/settings.json or fallback
         apmix_key = "apx_live_KxxuGzfm8i6iFPnIDRuboUrsUk4naNs8JDE0R8SE"
@@ -2455,6 +2465,14 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             "stream": True
         }
 
+        # Apply reasoning effort / adaptive thinking
+        if any(m in model.lower() for m in ["claude-3-7", "claude-5", "claude-opus-5", "claude-sonnet-5", "claude-fable"]):
+            upstream_payload["thinking"] = {"type": "enabled", "budget_tokens": budget}
+            upstream_payload["max_tokens"] = max(max_tokens, budget + 1024)
+            headers["anthropic-beta"] = "interleaved-thinking-2024-11-20"
+        elif any(m in model.lower() for m in ["deepseek", "glm", "luna"]):
+            upstream_payload["reasoning_effort"] = effort if effort in ("low", "medium", "high") else "high"
+
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-cache")
@@ -2475,6 +2493,11 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                     session_kwargs["curl_options"] = {CurlOpt.RESOLVE: [f"{parsed.hostname}:{port}:{resolved_ip}"]}
                 session = cffi_requests.Session(**session_kwargs)
                 resp = session.post(target_url, json=upstream_payload, headers=headers, stream=True, timeout=60)
+
+                if resp.status_code >= 400 and "thinking" in upstream_payload and any(w in resp.text.lower() for w in ["thinking", "extra fields", "unrecognized", "reasoning"]):
+                    upstream_payload.pop("thinking", None)
+                    headers.pop("anthropic-beta", None)
+                    resp = session.post(target_url, json=upstream_payload, headers=headers, stream=True, timeout=60)
 
                 if resp.status_code >= 400:
                     err_body = resp.text
