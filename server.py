@@ -2478,7 +2478,15 @@ class AgentChatHandler(BaseHTTPRequestHandler):
 
                 if resp.status_code >= 400:
                     err_body = resp.text
-                    err_event = f"data: {json.dumps({'error': {'message': f'APMix returned HTTP {resp.status_code}: {err_body}'}})}\n\n"
+                    clean_msg = f"APMix Error (HTTP {resp.status_code}): {err_body}"
+                    try:
+                        err_json = json.loads(err_body)
+                        api_msg = err_json.get("error", {}).get("message", "")
+                        if api_msg:
+                            clean_msg = api_msg
+                    except Exception:
+                        pass
+                    err_event = f"data: {json.dumps({'error': {'message': clean_msg}})}\n\n"
                     self.wfile.write(err_event.encode("utf-8"))
                     self.wfile.flush()
                     return

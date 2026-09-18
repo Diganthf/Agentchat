@@ -511,12 +511,18 @@
     <div class="control-group">
       <span class="control-label">Model:</span>
       <select id="model-select">
-        <option value="claude-opus-5" selected>Claude Opus 5 (Flagship Reasoning)</option>
-        <option value="claude-sonnet-5">Claude Sonnet 5 (Balanced Agentic)</option>
-        <option value="claude-fable-5.1">Claude Fable 5.1 (Advanced Science & Logic)</option>
-        <option value="claude-haiku-4.5">Claude Haiku 4.5 (High Speed & Frugal)</option>
-        <option value="claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</option>
-        <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+        <optgroup label="APMix Free Tier (Active on your key)">
+          <option value="deepseek-v4.1-flash-free" selected>DeepSeek v4.1 Flash (Free)</option>
+          <option value="gpt-5.6-luna-free">GPT-5.6 Luna (Free)</option>
+          <option value="glm-5.3-flash-free">GLM-5.3 Flash (Free)</option>
+          <option value="kimi-k3-free">Kimi k3 (Free)</option>
+        </optgroup>
+        <optgroup label="Claude 5 Models (Requires Paid Plan on APMix)">
+          <option value="claude-opus-5">Claude Opus 5 (Paid Plan)</option>
+          <option value="claude-sonnet-5">Claude Sonnet 5 (Paid Plan)</option>
+          <option value="claude-fable-5.1">Claude Fable 5.1 (Paid Plan)</option>
+          <option value="claude-haiku-4.5">Claude Haiku 4.5 (Paid Plan)</option>
+        </optgroup>
         <option value="custom">Custom ID...</option>
       </select>
       <input type="text" id="custom-model-input" placeholder="e.g. claude-opus-5" style="display:none; width: 140px;">
