@@ -51,9 +51,11 @@ except ImportError:
 
 try:
     from curl_cffi import requests as cffi_requests
+    from curl_cffi.curl import CurlOpt
     CURL_CFFI_AVAILABLE = True
 except ImportError:
     CURL_CFFI_AVAILABLE = False
+    CurlOpt = None
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend")
@@ -284,6 +286,10 @@ class DoHResolver:
     def __init__(self):
         self.cache = {}
         self.lock = threading.Lock()
+        self.known_fallbacks = {
+            "agentrouter.org": ["8.214.161.192", "8.214.160.125"],
+            "co.agentrouter.org": ["8.214.161.192", "8.214.160.125"],
+        }
         self.providers = [
             ("Cloudflare", "https://cloudflare-dns.com/dns-query?name={}&type=A"),
             ("Google", "https://dns.google/resolve?name={}&type=A")
@@ -333,7 +339,18 @@ class DoHResolver:
                 self.cache[hostname] = (ip, now + 300, "System DNS")
             return ip
         except Exception:
-            return hostname
+            pass
+
+        # Tier 3: Known Static Fallbacks
+        if hostname in self.known_fallbacks:
+            fallback_ip = self.known_fallbacks[hostname][0]
+            with self.lock:
+                self.cache[hostname] = (fallback_ip, now + 86400, "Static Fallback")
+            sys.stdout.write(f"🌐 [DoH Resolver: Static Fallback] Resolved {hostname} -> {fallback_ip}\n")
+            sys.stdout.flush()
+            return fallback_ip
+
+        return hostname
 
 doh_resolver = DoHResolver()
 
@@ -831,12 +848,42 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
 
     if CURL_CFFI_AVAILABLE:
         impersonate_choice = random.choice(BROWSER_PROFILES)
-        session = cffi_requests.Session(impersonate=impersonate_choice)
-        if method == "POST":
-            # allow_redirects=False prevents 301/302 from silently converting POST into GET (which causes 405 Method Not Allowed)
-            return session.post(target_url, json=data, headers=headers, stream=stream, timeout=60, allow_redirects=False)
-        else:
-            return session.get(target_url, headers=headers, stream=stream, timeout=60, allow_redirects=True)
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        session_kwargs = {
+            "impersonate": impersonate_choice,
+            "doh_url": "https://1.1.1.1/dns-query"
+        }
+
+        # Pin resolved IP to bypass local ISP DNS failures (prevents curl: 6 Could not resolve host)
+        if CurlOpt and resolved_ip and re.match(r"^\d{1,3}(\.\d{1,3}){3}$", resolved_ip):
+            resolve_list = [f"{parsed.hostname}:{port}:{resolved_ip}"]
+            fallbacks = doh_resolver.known_fallbacks.get(parsed.hostname, [])
+            for fb_ip in fallbacks:
+                if fb_ip != resolved_ip:
+                    resolve_list.append(f"{parsed.hostname}:{port}:{fb_ip}")
+            session_kwargs["curl_options"] = {CurlOpt.RESOLVE: resolve_list}
+
+        session = cffi_requests.Session(**session_kwargs)
+        try:
+            if method == "POST":
+                # allow_redirects=False prevents 301/302 from silently converting POST into GET (which causes 405 Method Not Allowed)
+                return session.post(target_url, json=data, headers=headers, stream=stream, timeout=60, allow_redirects=False)
+            else:
+                return session.get(target_url, headers=headers, stream=stream, timeout=60, allow_redirects=True)
+        except Exception as e:
+            err_str = str(e)
+            if ("Could not resolve host" in err_str or "curl: (6)" in err_str) and CurlOpt:
+                fb_ips = doh_resolver.known_fallbacks.get(parsed.hostname, ["8.214.161.192"])
+                fallback_kwargs = {
+                    "impersonate": impersonate_choice,
+                    "curl_options": {CurlOpt.RESOLVE: [f"{parsed.hostname}:{port}:{ip}" for ip in fb_ips]}
+                }
+                fb_session = cffi_requests.Session(**fallback_kwargs)
+                if method == "POST":
+                    return fb_session.post(target_url, json=data, headers=headers, stream=stream, timeout=60, allow_redirects=False)
+                else:
+                    return fb_session.get(target_url, headers=headers, stream=stream, timeout=60, allow_redirects=True)
+            raise
     else:
         body_bytes = json.dumps(data).encode("utf-8") if data is not None else None
         req = urllib.request.Request(target_url, data=body_bytes, headers=headers, method=method)
@@ -2262,7 +2309,10 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 self.wfile.flush()
                 return
             except Exception as e:
-                err_event = f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+                err_msg = str(e)
+                if "Could not resolve host" in err_msg or "curl: (6)" in err_msg:
+                    err_msg = "DNS Resolution Notice: Could not resolve upstream host via local ISP DNS. Please try sending your message again — DoH & IP pinning fallback are now engaged."
+                err_event = f"event: error\ndata: {json.dumps({'error': err_msg})}\n\n"
                 self.wfile.write(err_event.encode("utf-8"))
                 self.wfile.flush()
                 return
