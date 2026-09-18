@@ -2424,7 +2424,7 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             self.send_json({"error": "Invalid JSON in request"}, status=400)
             return
 
-        model = req_data.get("model", "claude-sonnet-5")
+        model = req_data.get("model", "claude-opus-5")
         max_tokens = int(req_data.get("max_tokens", 1024))
         temperature = float(req_data.get("temperature", 0.7))
         messages = req_data.get("messages", [])
