@@ -13,9 +13,13 @@
   let currentRailTab = "chats";
 
   const MODEL_DISPLAY_NAMES = {
-    "gemini-2.5-flash": "🌐 Gemini 2.5 Flash (Free 1M Window)",
+    "gemini-3.6-flash": "🌐 Gemini 3.6 Flash (Free 1M Window)",
     "gemini-2.5-pro": "🌐 Gemini 2.5 Pro (2M Window)",
-    "gemini-2.0-flash": "🌐 Gemini 2.5 Flash (Free 1M Window)",
+    "openai/gpt-oss-120b": "🦙 GPT-OSS 120B Flagship (Groq LPUs)",
+    "qwen/qwen3.8-27b": "🧠 Qwen 3.8 27B (Free Reasoning)",
+    "openai/gpt-oss-20b": "⚡ GPT-OSS 20B Instant (Free)",
+    "gemini-2.5-flash": "🌐 Gemini 3.6 Flash (Free 1M Window)",
+    "gemini-2.0-flash": "🌐 Gemini 3.6 Flash (Free 1M Window)",
     "gemini-1.5-flash": "🎁 Gemini 1.5 Flash (Free Tier)",
     "gemini-1.5-pro": "🌐 Gemini 1.5 Pro (2M Window)",
     "llama-3.3-70b-versatile": "🦙 Llama 3.3 70B Versatile (Free Open Weights)",
@@ -893,10 +897,10 @@
     const id = (model.id || "").toLowerCase();
     const cat = (model.category || "").toLowerCase();
     if (id.includes("gemini")) return "pill-gemini-20-flash";
-    if (id.includes("llama")) return "pill-llama-33-70b";
+    if (id.includes("llama") || id.includes("gpt-oss")) return "pill-llama-33-70b";
     if (id.includes("deepseek-v4")) return "pill-deepseek-v4-flash";
     if (id.includes("claude-opus") || id.includes("opus-4-8")) return "pill-claude-opus-48";
-    if (id.includes("r1") || id.includes("distill")) return "pill-deepseek-r1";
+    if (id.includes("r1") || id.includes("distill") || id.includes("qwen")) return "pill-deepseek-r1";
 
     if (model.is_free) return "pill-free";
     if (cat.includes("anthropic") || id.includes("claude")) return "pill-anthropic";

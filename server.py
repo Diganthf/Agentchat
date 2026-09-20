@@ -586,7 +586,7 @@ DEFAULT_CONFIG = {
         "pdf_reader": {"name": "PDF & Document Parser", "description": "High-fidelity pypdf page extraction", "enabled": True},
         "math_eval": {"name": "Math & Code Calculator", "description": "Accurate math logic and python evaluation", "enabled": True}
     },
-    "model": "gemini-2.5-flash",
+    "model": "gemini-3.6-flash",
     "temperature": 0.7,
     "system_prompt": "",
     "auto_compress": True,
@@ -769,29 +769,25 @@ def smart_route_model_provider(requested_model, requested_prov=None, override_ke
     if "gemini" in m_lower or m_lower.startswith("google/"):
         g_p, g_k = resolve_provider_info("google", cfg=cfg, override_key=override_key, override_url=override_url)
         if g_p.get("api_key"):
-            target_model = "gemini-2.5-flash"
+            target_model = "gemini-3.6-flash"
             if "pro" in m_lower:
                 target_model = "gemini-2.5-pro"
-            elif "3.6" in m_lower:
-                target_model = "gemini-3.6-flash"
-            elif "flash-latest" in m_lower:
-                target_model = "gemini-flash-latest"
             return g_p, "google", target_model
         puter_p, puter_k = resolve_provider_info("puter", cfg=cfg)
         if puter_p.get("api_key"):
             return puter_p, "puter", "google/gemini-2.0-flash-001"
 
-    # 3. Llama / Mixtral / Groq Open-Weights -> Groq Cloud or AgentRouter
-    if "llama" in m_lower or "mixtral" in m_lower or "distill" in m_lower:
+    # 3. Groq Open-Weights & Open-Source models
+    if "groq" in m_lower or "llama" in m_lower or "gpt-oss" in m_lower or "qwen" in m_lower or "distill" in m_lower or "mixtral" in m_lower:
         groq_p, groq_k = resolve_provider_info("groq", cfg=cfg, override_key=override_key, override_url=override_url)
         if groq_p.get("api_key"):
-            target_model = "llama-3.3-70b-versatile"
-            if "8b" in m_lower:
-                target_model = "llama-3.1-8b-instant"
-            elif "distill" in m_lower or "r1" in m_lower:
-                target_model = "deepseek-r1-distill-llama-70b"
-            elif "mixtral" in m_lower:
-                target_model = "mixtral-8x7b-32768"
+            target_model = "openai/gpt-oss-120b"
+            if "20b" in m_lower:
+                target_model = "openai/gpt-oss-20b"
+            elif "qwen" in m_lower:
+                target_model = "qwen/qwen3.8-27b"
+            elif "compound" in m_lower:
+                target_model = "groq/compound"
             return groq_p, "groq", target_model
         ar_p, ar_k = resolve_provider_info("agentrouter", cfg=cfg)
         if ar_p.get("api_key"):
@@ -1078,15 +1074,15 @@ def get_curated_working_models(cfg=None):
     # 1. Google Gemini (Free Tier / 1M Context Window)
     g_prov, _ = resolve_provider_info("google", cfg=cfg)
     if g_prov.get("api_key"):
-        add_model("gemini-2.5-flash", "🌐 Gemini 2.5 Flash (Free 1M Window)", "google", "Google", is_free=True, desc="Multimodal reasoning with 1M context")
+        add_model("gemini-3.6-flash", "🌐 Gemini 3.6 Flash (Free 1M Window)", "google", "Google", is_free=True, desc="Multimodal reasoning with 1M context")
         add_model("gemini-2.5-pro", "🌐 Gemini 2.5 Pro (2M Window)", "google", "Google", is_free=False, desc="Deep frontier analysis with 2M context")
 
     # 2. Groq Open-Source Weights (Zero Cost / 500+ Tokens/Sec)
     groq_prov, _ = resolve_provider_info("groq", cfg=cfg)
     if groq_prov.get("api_key"):
-        add_model("llama-3.3-70b-versatile", "🦙 Llama 3.3 70B Versatile (Free Open Weights)", "groq", "OpenAI", is_free=True, desc="Meta open-source flagship on Groq LPUs")
-        add_model("deepseek-r1-distill-llama-70b", "🧠 DeepSeek R1 Distill 70B (Free Reasoning)", "groq", "DeepSeek", is_free=True, desc="Deep reasoning open weights on Groq")
-        add_model("llama-3.1-8b-instant", "⚡ Llama 3.1 8B Instant (Free)", "groq", "OpenAI", is_free=True, desc="Instant lightweight inference")
+        add_model("openai/gpt-oss-120b", "🦙 GPT-OSS 120B Flagship (Groq LPUs)", "groq", "OpenAI", is_free=True, desc="Open-weights flagship on Groq LPUs")
+        add_model("qwen/qwen3.8-27b", "🧠 Qwen 3.8 27B (Free Reasoning)", "groq", "Qwen", is_free=True, desc="Deep reasoning open weights on Groq")
+        add_model("openai/gpt-oss-20b", "⚡ GPT-OSS 20B Instant (Free)", "groq", "OpenAI", is_free=True, desc="Instant lightweight inference")
 
     # 3. AgentRouter (Sub-second Flash Model)
     ar_prov, _ = resolve_provider_info("agentrouter", cfg=cfg)
@@ -1106,8 +1102,8 @@ def get_curated_working_models(cfg=None):
 
     # Clean guaranteed fallback
     if not models:
-        add_model("gemini-2.5-flash", "🌐 Gemini 2.5 Flash (Free 1M Window)", "google", "Google", is_free=True)
-        add_model("llama-3.3-70b-versatile", "🦙 Llama 3.3 70B Versatile (Free Open Weights)", "groq", "OpenAI", is_free=True)
+        add_model("gemini-3.6-flash", "🌐 Gemini 3.6 Flash (Free 1M Window)", "google", "Google", is_free=True)
+        add_model("openai/gpt-oss-120b", "🦙 GPT-OSS 120B Flagship (Groq LPUs)", "groq", "OpenAI", is_free=True)
         add_model("deepseek-v4-flash", "⚡ DeepSeek V4 Flash (Lightning Fast 1.5s)", "agentrouter", "DeepSeek", is_free=True)
         add_model("claude-opus-4-8", "✳️ claude-opus-4-8 (Anthropic Frontier)", "justdowork", "Anthropic", is_free=False)
 
@@ -2463,15 +2459,19 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         # Smart Model Translation for Upstream Providers
         active_base_url = (override_url or prov.get("base_url", "")).rstrip("/")
         if "generativelanguage.googleapis.com" in active_base_url or api_key.startswith("AIza"):
-            if model.startswith("google/"):
-                model = model[7:]
-            if not model.startswith("gemini"):
-                model = "gemini-2.0-flash"
+            if "pro" in model.lower():
+                model = "gemini-2.5-pro"
+            else:
+                model = "gemini-3.6-flash"
         elif "api.groq.com" in active_base_url or api_key.startswith("gsk_"):
-            if "deepseek-r1" in model or "reasoning" in model.lower():
-                model = "deepseek-r1-distill-llama-70b"
-            elif "/" in model or not ("llama" in model.lower() or "mixtral" in model.lower() or "distill" in model.lower()):
-                model = "llama-3.3-70b-versatile"
+            if "20b" in model.lower():
+                model = "openai/gpt-oss-20b"
+            elif "qwen" in model.lower():
+                model = "qwen/qwen3.8-27b"
+            elif "compound" in model.lower():
+                model = "groq/compound"
+            else:
+                model = "openai/gpt-oss-120b"
         elif prov_key == "agentrouter" or "agentrouter.org" in active_base_url.lower():
             if model in ("deepseek/deepseek-r1", "deepseek-r1", "deepseek-chat", "deepseek", "deepseek-v3"):
                 model = "deepseek-v4-flash"
