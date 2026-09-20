@@ -1,6 +1,21 @@
 {
   "active_provider": "base",
   "providers": {
+    "justdowork": {
+      "name": "JustDoWork (api.justwoker.icu)",
+      "base_url": "https://api.justwoker.icu/v1",
+      "api_key": ""
+    },
+    "agentrouter": {
+      "name": "AgentRouter (agentrouter.org)",
+      "base_url": "https://agentrouter.org/v1",
+      "api_key": ""
+    },
+    "puter": {
+      "name": "Puter.ai (api.puter.com)",
+      "base_url": "https://api.puter.com/puterai/openai/v1",
+      "api_key": ""
+    },
     "base": {
       "name": "Base Tier (Sonnet-Grade)",
       "base_url": "https://openrouter.ai/api",
