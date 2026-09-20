@@ -1767,24 +1767,88 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         body = self.rfile.read(length).decode("utf-8")
         try:
             req_data = json.loads(body)
-            filename = req_data.get("filename", "file.pdf")
-            b64_content = req_data.get("content_base64", "")
+            filename = req_data.get("filename", "document.pdf")
+            b64_content = req_data.get("content_base64", "") or req_data.get("base64", "")
             if not b64_content:
                 self.send_json({"success": False, "error": "No content provided"}, status=400)
                 return
             raw_bytes = base64.b64decode(b64_content)
-            if filename.lower().endswith(".pdf"):
+            fn_lower = filename.lower()
+
+            if fn_lower.endswith(".pdf"):
                 try:
                     import io, pypdf
                     stream = io.BytesIO(raw_bytes)
                     reader = pypdf.PdfReader(stream)
                     pages_text = [p.extract_text() or "" for p in reader.pages]
                     full_text = "\n\n".join([f"--- Page {i+1} ---\n{t.strip()}" for i, t in enumerate(pages_text) if t.strip()])
-                    self.send_json({"success": True, "filename": filename, "text": full_text, "pages": len(reader.pages)})
+                    self.send_json({"success": True, "filename": filename, "text": full_text or "(Empty PDF document)", "pages": len(reader.pages)})
                     return
                 except Exception as ex:
                     self.send_json({"success": False, "error": f"PDF parse error: {str(ex)}"}, status=400)
                     return
+
+            elif fn_lower.endswith(".pptx") or fn_lower.endswith(".ppt"):
+                try:
+                    import io
+                    # First try python-pptx
+                    try:
+                        import pptx
+                        prs = pptx.Presentation(io.BytesIO(raw_bytes))
+                        slides_out = []
+                        for i, slide in enumerate(prs.slides):
+                            texts = []
+                            for shape in slide.shapes:
+                                if shape.has_text_frame:
+                                    for p in shape.text_frame.paragraphs:
+                                        t = "".join([r.text for r in p.runs]).strip()
+                                        if t:
+                                            texts.append(t)
+                            if texts:
+                                slides_out.append(f"--- Slide {i+1} ---\n" + "\n".join(texts))
+                        if slides_out:
+                            self.send_json({"success": True, "filename": filename, "text": "\n\n".join(slides_out), "slides": len(prs.slides)})
+                            return
+                    except Exception:
+                        pass
+
+                    # Fallback to direct zipfile XML extraction for pptx
+                    import zipfile, xml.etree.ElementTree as ET
+                    with zipfile.ZipFile(io.BytesIO(raw_bytes)) as z:
+                        slides_out = []
+                        slide_files = sorted([n for n in z.namelist() if n.startswith("ppt/slides/slide") and n.endswith(".xml")])
+                        for i, sfile in enumerate(slide_files):
+                            tree = ET.fromstring(z.read(sfile))
+                            texts = [n.text.strip() for n in tree.iter() if n.tag.endswith("}t") and n.text and n.text.strip()]
+                            if texts:
+                                slides_out.append(f"--- Slide {i+1} ---\n" + "\n".join(texts))
+                        if slides_out:
+                            self.send_json({"success": True, "filename": filename, "text": "\n\n".join(slides_out), "slides": len(slide_files)})
+                            return
+                        else:
+                            self.send_json({"success": True, "filename": filename, "text": "(PowerPoint contains no extractable text elements)", "slides": len(slide_files)})
+                            return
+                except Exception as ex:
+                    self.send_json({"success": False, "error": f"PowerPoint parse error: {str(ex)}"}, status=400)
+                    return
+
+            elif fn_lower.endswith(".docx") or fn_lower.endswith(".doc"):
+                try:
+                    import io, zipfile, xml.etree.ElementTree as ET
+                    with zipfile.ZipFile(io.BytesIO(raw_bytes)) as z:
+                        tree = ET.fromstring(z.read("word/document.xml"))
+                        paras = []
+                        for p in tree.iter("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}p"):
+                            texts = [n.text for n in p.iter("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t") if n.text]
+                            if texts:
+                                paras.append("".join(texts).strip())
+                        full_doc = "\n\n".join([p for p in paras if p])
+                        self.send_json({"success": True, "filename": filename, "text": full_doc or "(Empty Word document)"})
+                        return
+                except Exception as ex:
+                    self.send_json({"success": False, "error": f"Word document parse error: {str(ex)}"}, status=400)
+                    return
+
             else:
                 text = raw_bytes.decode("utf-8", errors="replace")
                 self.send_json({"success": True, "filename": filename, "text": text})

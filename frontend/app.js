@@ -552,10 +552,45 @@
       });
     }
 
-    // Attachments
+    // Attachments (Picker, Drag/Drop, and Clipboard Paste)
     if (attachBtn && fileInput) {
       attachBtn.addEventListener("click", () => fileInput.click());
       fileInput.addEventListener("change", handleFileSelect);
+    }
+
+    // Drag & Drop Support
+    const dropZone = document.querySelector(".chat-input-box") || document.querySelector(".chat-input-area") || document.body;
+    if (dropZone) {
+      ["dragenter", "dragover"].forEach(evName => {
+        dropZone.addEventListener(evName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const box = document.querySelector(".chat-input-box");
+          if (box) box.style.borderColor = "var(--md-sys-color-primary)";
+        }, false);
+      });
+      ["dragleave", "drop"].forEach(evName => {
+        dropZone.addEventListener(evName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const box = document.querySelector(".chat-input-box");
+          if (box) box.style.borderColor = "";
+        }, false);
+      });
+      dropZone.addEventListener("drop", (e) => {
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+          processFiles(e.dataTransfer.files);
+        }
+      }, false);
+    }
+
+    // Clipboard Paste Support (Directly paste images, screenshots, or copied files)
+    if (userInput) {
+      userInput.addEventListener("paste", (e) => {
+        if (e.clipboardData && e.clipboardData.files && e.clipboardData.files.length) {
+          processFiles(e.clipboardData.files);
+        }
+      });
     }
 
     // Provider Dropdown
@@ -1323,43 +1358,74 @@
     `;
   }
 
-  // File Attachments
-  async function handleFileSelect(e) {
-    const files = Array.from(e.target.files);
-    if (!files.length) return;
+  // File Attachments (PDF, PPTX, PPT, DOCX, DOC, XLSX, Images, Code, Text)
+  async function processFiles(files) {
+    if (!files || !files.length) return;
+    const fileArray = Array.from(files);
 
-    for (const file of files) {
-      const ext = file.name.split(".").pop().toLowerCase();
-      const isPdf = ext === "pdf";
-      const isImg = ["png", "jpg", "jpeg", "webp", "gif"].includes(ext);
+    for (const file of fileArray) {
+      const ext = (file.name.split(".").pop() || "").toLowerCase();
+      const isDoc = ["pdf", "pptx", "ppt", "docx", "doc", "xlsx"].includes(ext);
+      const isImg = ["png", "jpg", "jpeg", "webp", "gif", "svg", "bmp"].includes(ext);
 
-      if (isPdf) {
+      // Show temporary processing pill in tray
+      const tempId = "att_loading_" + Math.random().toString(36).slice(2, 7);
+      if (attachmentTray) {
+        attachmentTray.classList.remove("hidden");
+        const loadingChip = document.createElement("div");
+        loadingChip.id = tempId;
+        loadingChip.className = "attachment-chip";
+        loadingChip.innerHTML = `<span class="spin-inline">⏳</span><span>Reading ${file.name}...</span>`;
+        attachmentTray.appendChild(loadingChip);
+      }
+
+      const removeTempChip = () => {
+        const el = document.getElementById(tempId);
+        if (el) el.remove();
+        if (!currentAttachments.length && attachmentTray) {
+          attachmentTray.classList.add("hidden");
+        }
+      };
+
+      if (isDoc) {
         const reader = new FileReader();
         reader.onload = async () => {
-          const base64 = reader.result.split(",")[1];
+          const base64 = (reader.result || "").split(",")[1] || "";
           try {
             const res = await apiFetch("/api/parse_file", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ filename: file.name, base64 })
+              body: JSON.stringify({ filename: file.name, content_base64: base64, base64: base64 })
             });
             const data = await res.json();
-            if (data.success) {
-              currentAttachments.push({ filename: file.name, text: data.text, isImage: false });
+            removeTempChip();
+            if (data.success && data.text) {
+              currentAttachments.push({
+                filename: file.name,
+                text: data.text,
+                isImage: false,
+                type: ext,
+                pages: data.pages || data.slides || null
+              });
               renderAttachmentTray();
+            } else {
+              alert(`Error parsing ${file.name}: ` + (data.error || "Could not extract text"));
             }
           } catch (err) {
-            alert("Error parsing PDF: " + err.message);
+            removeTempChip();
+            alert(`Error reading ${file.name}: ` + err.message);
           }
         };
         reader.readAsDataURL(file);
       } else if (isImg) {
         const reader = new FileReader();
         reader.onload = () => {
+          removeTempChip();
           currentAttachments.push({
             filename: file.name,
             text: `[Image Attached: ${file.name}]`,
             isImage: true,
+            type: ext,
             dataUrl: reader.result
           });
           renderAttachmentTray();
@@ -1368,16 +1434,29 @@
       } else {
         const reader = new FileReader();
         reader.onload = () => {
-          currentAttachments.push({ filename: file.name, text: reader.result, isImage: false });
+          removeTempChip();
+          currentAttachments.push({
+            filename: file.name,
+            text: reader.result || "",
+            isImage: false,
+            type: ext
+          });
           renderAttachmentTray();
         };
         reader.readAsText(file);
       }
     }
-    fileInput.value = "";
+  }
+
+  function handleFileSelect(e) {
+    if (e.target.files) {
+      processFiles(e.target.files);
+    }
+    if (fileInput) fileInput.value = "";
   }
 
   function renderAttachmentTray() {
+    if (!attachmentTray) return;
     attachmentTray.innerHTML = "";
     if (!currentAttachments.length) {
       attachmentTray.classList.add("hidden");
@@ -1394,18 +1473,29 @@
         chip.appendChild(img);
       } else {
         const icon = document.createElement("span");
-        icon.textContent = att.filename.endsWith(".pdf") ? "📄" : "📝";
+        const ext = (att.filename.split(".").pop() || "").toLowerCase();
+        if (ext === "pdf") icon.textContent = "📄";
+        else if (ext === "pptx" || ext === "ppt") icon.textContent = "📊";
+        else if (ext === "docx" || ext === "doc") icon.textContent = "📑";
+        else if (ext === "xlsx" || ext === "csv") icon.textContent = "📈";
+        else icon.textContent = "📝";
         chip.appendChild(icon);
       }
       const name = document.createElement("span");
       name.className = "attachment-chip-name";
-      name.textContent = att.filename;
+      let badge = "";
+      if (att.pages) badge = ` (${att.pages} ${att.type.includes("ppt") ? "slides" : "pages"})`;
+      name.textContent = att.filename + badge;
       chip.appendChild(name);
 
       const delBtn = document.createElement("button");
       delBtn.className = "attachment-chip-remove";
+      delBtn.title = "Remove attachment";
       delBtn.innerHTML = "&times;";
-      delBtn.onclick = () => { currentAttachments.splice(idx, 1); renderAttachmentTray(); };
+      delBtn.onclick = () => {
+        currentAttachments.splice(idx, 1);
+        renderAttachmentTray();
+      };
       chip.appendChild(delBtn);
       attachmentTray.appendChild(chip);
     });
