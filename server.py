@@ -926,7 +926,7 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
 
         if CurlOpt:
             if hasattr(CurlOpt, "LOW_SPEED_TIME"):
-                curl_opts[CurlOpt.LOW_SPEED_TIME] = 120
+                curl_opts[CurlOpt.LOW_SPEED_TIME] = 600
             if hasattr(CurlOpt, "LOW_SPEED_LIMIT"):
                 curl_opts[CurlOpt.LOW_SPEED_LIMIT] = 1
 
@@ -937,16 +937,16 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
         try:
             if method == "POST":
                 # allow_redirects=False prevents 301/302 from silently converting POST into GET (which causes 405 Method Not Allowed)
-                return session.post(target_url, json=data, headers=headers, stream=stream, timeout=45, allow_redirects=False)
+                return session.post(target_url, json=data, headers=headers, stream=stream, timeout=600, allow_redirects=False)
             else:
-                return session.get(target_url, headers=headers, stream=stream, timeout=45, allow_redirects=True)
+                return session.get(target_url, headers=headers, stream=stream, timeout=600, allow_redirects=True)
         except Exception as e:
             err_str = str(e)
             if ("Could not resolve host" in err_str or "curl: (6)" in err_str) and CurlOpt:
                 fb_ips = doh_resolver.known_fallbacks.get(parsed.hostname, ["8.214.161.192"])
                 fb_opts = {CurlOpt.RESOLVE: [f"{parsed.hostname}:{port}:{ip}" for ip in fb_ips]}
                 if hasattr(CurlOpt, "LOW_SPEED_TIME"):
-                    fb_opts[CurlOpt.LOW_SPEED_TIME] = 45
+                    fb_opts[CurlOpt.LOW_SPEED_TIME] = 600
                 if hasattr(CurlOpt, "LOW_SPEED_LIMIT"):
                     fb_opts[CurlOpt.LOW_SPEED_LIMIT] = 1
                 fallback_kwargs = {
@@ -955,14 +955,14 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
                 }
                 fb_session = cffi_requests.Session(**fallback_kwargs)
                 if method == "POST":
-                    return fb_session.post(target_url, json=data, headers=headers, stream=stream, timeout=45, allow_redirects=False)
+                    return fb_session.post(target_url, json=data, headers=headers, stream=stream, timeout=600, allow_redirects=False)
                 else:
-                    return fb_session.get(target_url, headers=headers, stream=stream, timeout=45, allow_redirects=True)
+                    return fb_session.get(target_url, headers=headers, stream=stream, timeout=600, allow_redirects=True)
             raise
     else:
         body_bytes = json.dumps(data).encode("utf-8") if data is not None else None
         req = urllib.request.Request(target_url, data=body_bytes, headers=headers, method=method)
-        return urllib.request.urlopen(req, timeout=45)
+        return urllib.request.urlopen(req, timeout=600)
 
 def perform_web_search(query: str, max_results=4) -> str:
     url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"

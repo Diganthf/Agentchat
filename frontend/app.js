@@ -1938,9 +1938,10 @@
         clearInterval(timerInterval);
         return;
       }
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      const secs = (Date.now() - startTime) / 1000;
+      const displayTime = secs >= 60 ? `${Math.floor(secs / 60)}m ${(secs % 60).toFixed(0)}s` : `${secs.toFixed(1)}s`;
       const timerEl = textDiv.querySelector(".connecting-timer");
-      if (timerEl) timerEl.textContent = ` (${elapsed}s)`;
+      if (timerEl) timerEl.textContent = ` (${displayTime})`;
 
       const container = textDiv.querySelector(".model-connecting-state");
       if (container && parseFloat(elapsed) >= 7.0 && !container.querySelector(".fast-switch-hint")) {
