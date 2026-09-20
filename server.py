@@ -1234,6 +1234,14 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             self.handle_user_sync_get()
         elif path == "/api/config":
             self.send_json(sanitize_config_for_client(load_config()))
+        elif path in ("/v1/models", "/api/v1/models"):
+            self.send_json({
+                "data": [
+                    {"id": "claude-opus-4-8", "object": "model"},
+                    {"id": "claude-3-7-sonnet", "object": "model"},
+                    {"id": "gemini-3.6-flash", "object": "model"}
+                ]
+            })
         elif path == "/api/models":
             self.handle_get_models()
         elif path == "/api/model_status":
@@ -1344,6 +1352,8 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 self.handle_test_mcp()
         elif path == "/api/chat":
             self.handle_chat()
+        elif path in ("/v1/messages", "/api/v1/messages"):
+            self.handle_anthropic_messages()
         else:
             self.send_error(404, "Endpoint not found")
 
@@ -2830,6 +2840,47 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             self.wfile.flush()
         except Exception:
             pass
+        self.close_connection = True
+
+    def handle_anthropic_messages(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8")
+        try:
+            req_data = json.loads(body)
+        except Exception:
+            self.send_error(400, "Invalid JSON payload")
+            return
+
+        stream = req_data.get("stream", True)
+        self.send_response(200)
+        if stream:
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "keep-alive")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+        else:
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+
+        cfg = load_config()
+        prov_key = cfg.get("active_provider", "justdowork")
+        upstream_res = make_upstream_request(
+            "/v1/messages",
+            data=req_data,
+            method="POST",
+            stream=stream,
+            override_provider=prov_key
+        )
+        if hasattr(upstream_res, 'iter_lines'):
+            for line in upstream_res.iter_lines():
+                if line:
+                    self.wfile.write(line + b"\n\n")
+                    self.wfile.flush()
+        elif hasattr(upstream_res, 'read'):
+            self.wfile.write(upstream_res.read())
+            self.wfile.flush()
         self.close_connection = True
 
 def run_server():
