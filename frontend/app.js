@@ -344,7 +344,7 @@
     const pw = localStorage.getItem("agentchat_access_password") || "";
     if (pw) headers["X-Access-Password"] = pw;
 
-    const activeP = currentConfig.active_provider || "justdowork";
+    const activeP = currentConfig.active_provider || "agentrouter";
     headers["X-Active-Provider"] = activeP;
 
     const clientKey = localStorage.getItem("agentchat_client_key_" + activeP) || currentConfig.providers?.[activeP]?.api_key || "";
@@ -1890,8 +1890,40 @@
     let reasoningContainer = null;
     let reasoningDiv = null;
 
+    const selectedModel = modelSelect.value || currentConfig.model || "deepseek-v4-flash";
+    let hasReceivedFirstToken = false;
+    const startTime = Date.now();
+    textDiv.innerHTML = `
+      <div class="model-connecting-state" id="stream-connecting-indicator">
+        <div class="connecting-header">
+          <div class="typing-dots"><span></span><span></span><span></span></div>
+          <span class="connecting-text">Connecting to ${selectedModel}<span class="connecting-timer"> (0.0s)</span>...</span>
+        </div>
+      </div>
+    `;
+    const timerInterval = setInterval(() => {
+      if (hasReceivedFirstToken) {
+        clearInterval(timerInterval);
+        return;
+      }
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      const timerEl = textDiv.querySelector(".connecting-timer");
+      if (timerEl) timerEl.textContent = ` (${elapsed}s)`;
+
+      const container = textDiv.querySelector(".model-connecting-state");
+      if (container && parseFloat(elapsed) >= 7.0 && !container.querySelector(".fast-switch-hint")) {
+        const switchHint = document.createElement("div");
+        switchHint.className = "fast-switch-hint";
+        switchHint.innerHTML = `<span>⚡ Queue taking longer than usual? Click to switch to DeepSeek V4 Flash (1.5s)</span>`;
+        switchHint.onclick = (e) => {
+          e.stopPropagation();
+          if (window.fastSwitchToDeepSeek) window.fastSwitchToDeepSeek();
+        };
+        container.appendChild(switchHint);
+      }
+    }, 100);
+
     try {
-      const selectedModel = modelSelect.value;
       let selectedEffort = effortSelect.value || "medium";
       // Auto-adapt for GLM models (GLM-5.3 only supports low, high, max; medium is rejected)
       if (selectedModel && selectedModel.toLowerCase().includes("glm") && selectedEffort === "medium") {
@@ -1974,6 +2006,16 @@
           }
           if (trimmed.startsWith("event: error")) continue;
 
+          // HTML Challenge or Gateway Error Intercept
+          if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html") || trimmed.includes("aliyun_waf") || trimmed.includes("<title>Challenge")) {
+            bubble.classList.add("error-bubble");
+            const errMsg = "⚠️ Upstream AI provider returned a web verification challenge. Switching to DeepSeek V4 Flash recommended.";
+            textDiv.innerHTML = `${errMsg}<br><br><button class="btn btn-tonal-primary btn-xs" onclick="window.fastSwitchToDeepSeek()" style="cursor:pointer; margin-top:6px; margin-right:6px;">⚡ Switch to DeepSeek V4 Flash</button>`;
+            assistantMsg.content = errMsg;
+            try { reader.cancel().catch(() => {}); } catch (_) {}
+            break streamLoop;
+          }
+
           if (trimmed.startsWith("data: ")) {
             try {
               const data = JSON.parse(trimmed.slice(6));
@@ -1997,18 +2039,27 @@
                 } else if (errMsg.includes("始终思考") || errMsg.includes("不支持关闭思考") || errMsg.includes("请使用 low") || errMsg.includes("1210")) {
                   errMsg = `⚠️ Reasoning Model Notice: '${selectedModel}' is a compulsory reasoning model that requires effort level 'low', 'high', or 'max'. Setting effort to 'High' resolves this.`;
                 } else if (errMsg.includes("exhausted") || errMsg.includes("budget pool") || errMsg.includes("Budget pool")) {
-                  errMsg = `⚠️ Quota Notice: The budget/quota pool for '${selectedModel}' is currently exhausted on the upstream provider. Please try again later or switch your API key in Vault.`;
+                  errMsg = `⚠️ Quota Notice: The budget pool for '${selectedModel}' is currently paused. Click below to switch to DeepSeek V4 Flash (instant 1.5s).`;
                   modelStatuses[selectedModel] = { status: "exhausted", code: 402, message: "Quota exhausted" };
                   updateModelDropdownOptions();
                 }
 
-                textDiv.innerHTML = `${errMsg}<br><br><button class="btn btn-tonal-tertiary btn-xs" onclick="syncSettingsModalWithConfig(); settingsModal.classList.remove('hidden');" style="cursor:pointer; margin-top:6px;">🔑 Switch API Key in Vault</button>`;
+                textDiv.innerHTML = `${errMsg}<br><br><button class="btn btn-tonal-primary btn-xs" onclick="window.fastSwitchToDeepSeek()" style="cursor:pointer; margin-top:6px; margin-right:6px;">⚡ Switch to DeepSeek V4 Flash</button><button class="btn btn-tonal-tertiary btn-xs" onclick="syncSettingsModalWithConfig(); settingsModal.classList.remove('hidden');" style="cursor:pointer; margin-top:6px;">🔑 Switch API Key in Vault</button>`;
                 assistantMsg.content = errMsg;
                 try { reader.cancel().catch(() => {}); } catch (_) {}
                 break streamLoop;
               }
 
               const delta = data.choices?.[0]?.delta || {};
+
+              // Dismiss connecting state placeholder upon first incoming token
+              if (!hasReceivedFirstToken && (delta.content || delta.reasoning_content)) {
+                hasReceivedFirstToken = true;
+                clearInterval(timerInterval);
+                const ind = textDiv.querySelector("#stream-connecting-indicator");
+                if (ind) ind.remove();
+              }
+
               if (delta.reasoning_content) {
                 assistantMsg.reasoning += delta.reasoning_content;
                 if (!reasoningContainer) {
@@ -2061,16 +2112,64 @@
     } catch (err) {
       if (err.name !== "AbortError") {
         bubble.classList.add("error-bubble");
-        textDiv.innerHTML = `Error: ${err.message}<br><br><button class="btn btn-tonal-tertiary btn-xs" onclick="syncSettingsModalWithConfig(); settingsModal.classList.remove('hidden');" style="cursor:pointer; margin-top:6px;">🔑 Switch API Key in Vault</button>`;
+        textDiv.innerHTML = `Error: ${err.message}<br><br><button class="btn btn-tonal-primary btn-xs" onclick="window.fastSwitchToDeepSeek()" style="cursor:pointer; margin-top:6px; margin-right:6px;">⚡ Switch to DeepSeek V4 Flash</button><button class="btn btn-tonal-tertiary btn-xs" onclick="syncSettingsModalWithConfig(); settingsModal.classList.remove('hidden');" style="cursor:pointer; margin-top:6px;">🔑 Switch API Key in Vault</button>`;
         assistantMsg.content = `Error: ${err.message}`;
       }
     } finally {
+      clearInterval(timerInterval);
+      const ind = textDiv.querySelector("#stream-connecting-indicator");
+      if (ind && !assistantMsg.content) {
+        ind.remove();
+      }
       activeAbortController = null;
       setGeneratingState(false);
       saveSessions();
       userInput.focus();
     }
   }
+
+  window.fastSwitchToDeepSeek = function() {
+    if (activeAbortController) {
+      try { activeAbortController.abort(); } catch (_) {}
+      activeAbortController = null;
+    }
+    setGeneratingState(false);
+
+    // Switch config and persistence
+    currentConfig.active_provider = "agentrouter";
+    currentConfig.model = "deepseek-v4-flash";
+    localStorage.setItem("agentchat_active_provider", "agentrouter");
+    localStorage.setItem("agentchat_active_model", "deepseek-v4-flash");
+
+    if (providerSelect) providerSelect.value = "agentrouter";
+    if (modelSelect) modelSelect.value = "deepseek-v4-flash";
+
+    // Highlight active model pill
+    if (typeof updateAgentRouterBarActivePill === "function") {
+      updateAgentRouterBarActivePill("deepseek-v4-flash");
+    }
+
+    // Resend last user prompt
+    const session = getCurrentSession();
+    if (session && session.messages.length) {
+      let lastUserPrompt = "";
+      for (let i = session.messages.length - 1; i >= 0; i--) {
+        if (session.messages[i].role === "user") {
+          lastUserPrompt = session.messages[i].content;
+          break;
+        }
+      }
+      // Remove failed/stalled assistant turn
+      if (session.messages[session.messages.length - 1].role === "assistant" && !session.messages[session.messages.length - 1].content) {
+        session.messages.pop();
+      }
+      renderMessages();
+      if (lastUserPrompt) {
+        userInput.value = lastUserPrompt;
+        sendMessage();
+      }
+    }
+  };
 
   function stopGeneration() {
     if (activeAbortController) {
@@ -2830,7 +2929,7 @@
 
   function populateProviderDropdowns() {
     const customProxies = getCustomProxies();
-    const active = currentConfig.active_provider || "justdowork";
+    const active = currentConfig.active_provider || "agentrouter";
 
     const freePresets = [
       { id: "puter", label: "🚀 Puter.ai (100% Free Claude Opus 5 & Frontier)" },
@@ -2951,7 +3050,7 @@
     localStorage.removeItem("agentchat_client_key_" + active);
     localStorage.removeItem("agentchat_client_url_" + active);
 
-    switchProvider("justdowork");
+    switchProvider("agentrouter");
   }
 
   // Provider Switching
@@ -3272,7 +3371,7 @@
 
   function syncSettingsModalWithConfig() {
     populateProviderDropdowns();
-    const active = currentConfig.active_provider || "justdowork";
+    const active = currentConfig.active_provider || "agentrouter";
     if (settingProviderChoice) settingProviderChoice.value = active;
     populateProviderFields(active);
     settingAutoCompress.checked = currentConfig.auto_compress !== false;

@@ -430,12 +430,22 @@ BASE_TIER_MODELS = [
 # AgentRouter Exact Models Catalog (matches agentrouter.org dashboard)
 AGENTROUTER_MODELS = [
     {
+        "id": "deepseek-v4-flash",
+        "name": "deepseek-v4-flash",
+        "display_name": "⚡ deepseek-v4-flash (Lightning Fast 1.5s)",
+        "is_default": True,
+        "category": "DeepSeek",
+        "provider": "deepseek",
+        "description": "DeepSeek V4 Flash next-generation reasoning on AgentRouter",
+        "status": "online"
+    },
+    {
         "id": "claude-opus-4-8",
         "name": "claude-opus-4-8",
-        "display_name": "✳️ claude-opus-4-8",
+        "display_name": "✳️ claude-opus-4-8 (via JustDoWork Failover)",
         "category": "Anthropic",
         "provider": "anthropic",
-        "description": "Anthropic Claude Opus 4-8 on AgentRouter",
+        "description": "Anthropic Claude Opus 4-8 routed via JustDoWork fallback",
         "status": "online"
     },
     {
@@ -445,15 +455,6 @@ AGENTROUTER_MODELS = [
         "category": "Anthropic",
         "provider": "anthropic",
         "description": "Anthropic Claude Opus 5 flagship on AgentRouter",
-        "status": "online"
-    },
-    {
-        "id": "deepseek-v4-flash",
-        "name": "deepseek-v4-flash",
-        "display_name": "🐳 deepseek-v4-flash",
-        "category": "DeepSeek",
-        "provider": "deepseek",
-        "description": "DeepSeek V4 Flash next-generation reasoning on AgentRouter",
         "status": "online"
     },
     {
@@ -479,7 +480,7 @@ AGENTROUTER_MODELS = [
 # Curated Provider Model Catalogs (ensures clean, dedicated models per proxy)
 PROVIDER_CATALOGS = {
     "justdowork": [
-        {"id": "claude-opus-4-8", "name": "✳️ claude-opus-4-8", "provider": "anthropic", "category": "Anthropic", "status": "online"}
+        {"id": "claude-opus-4-8", "name": "✳️ claude-opus-4-8 (Upstream Queued ~30s)", "provider": "anthropic", "category": "Anthropic", "status": "online"}
     ],
     "agentrouter": AGENTROUTER_MODELS,
     "puter": [
@@ -554,7 +555,7 @@ def is_model_free(mid, mname=""):
     )
 
 DEFAULT_CONFIG = {
-    "active_provider": "justdowork",
+    "active_provider": "agentrouter",
     "providers": {
         "justdowork": {
             "name": "JustDoWork (Claude Opus 4.8 / NewAPI)",
@@ -613,7 +614,7 @@ DEFAULT_CONFIG = {
         "pdf_reader": {"name": "PDF & Document Parser", "description": "High-fidelity pypdf page extraction", "enabled": True},
         "math_eval": {"name": "Math & Code Calculator", "description": "Accurate math logic and python evaluation", "enabled": True}
     },
-    "model": "deepseek/deepseek-r1",
+    "model": "deepseek-v4-flash",
     "temperature": 0.7,
     "system_prompt": "",
     "auto_compress": True,
@@ -885,16 +886,16 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
         try:
             if method == "POST":
                 # allow_redirects=False prevents 301/302 from silently converting POST into GET (which causes 405 Method Not Allowed)
-                return session.post(target_url, json=data, headers=headers, stream=stream, timeout=120, allow_redirects=False)
+                return session.post(target_url, json=data, headers=headers, stream=stream, timeout=45, allow_redirects=False)
             else:
-                return session.get(target_url, headers=headers, stream=stream, timeout=120, allow_redirects=True)
+                return session.get(target_url, headers=headers, stream=stream, timeout=45, allow_redirects=True)
         except Exception as e:
             err_str = str(e)
             if ("Could not resolve host" in err_str or "curl: (6)" in err_str) and CurlOpt:
                 fb_ips = doh_resolver.known_fallbacks.get(parsed.hostname, ["8.214.161.192"])
                 fb_opts = {CurlOpt.RESOLVE: [f"{parsed.hostname}:{port}:{ip}" for ip in fb_ips]}
                 if hasattr(CurlOpt, "LOW_SPEED_TIME"):
-                    fb_opts[CurlOpt.LOW_SPEED_TIME] = 120
+                    fb_opts[CurlOpt.LOW_SPEED_TIME] = 45
                 if hasattr(CurlOpt, "LOW_SPEED_LIMIT"):
                     fb_opts[CurlOpt.LOW_SPEED_LIMIT] = 1
                 fallback_kwargs = {
@@ -903,14 +904,14 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
                 }
                 fb_session = cffi_requests.Session(**fallback_kwargs)
                 if method == "POST":
-                    return fb_session.post(target_url, json=data, headers=headers, stream=stream, timeout=120, allow_redirects=False)
+                    return fb_session.post(target_url, json=data, headers=headers, stream=stream, timeout=45, allow_redirects=False)
                 else:
-                    return fb_session.get(target_url, headers=headers, stream=stream, timeout=120, allow_redirects=True)
+                    return fb_session.get(target_url, headers=headers, stream=stream, timeout=45, allow_redirects=True)
             raise
     else:
         body_bytes = json.dumps(data).encode("utf-8") if data is not None else None
         req = urllib.request.Request(target_url, data=body_bytes, headers=headers, method=method)
-        return urllib.request.urlopen(req, timeout=60)
+        return urllib.request.urlopen(req, timeout=45)
 
 def perform_web_search(query: str, max_results=4) -> str:
     url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
@@ -2226,7 +2227,7 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         user = self.get_authenticated_user()
         if user:
             profile = get_user_profile(user["id"])
-            user_prov = override_prov or profile.get("active_provider", "justdowork")
+            user_prov = override_prov or profile.get("active_provider", "agentrouter")
             if not override_key:
                 override_key = profile.get("keys", {}).get(user_prov, "")
             if not override_url and profile.get("custom_base_url"):
@@ -2330,6 +2331,25 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 model = "deepseek-r1-distill-llama-70b"
             elif "/" in model:
                 model = "llama-3.3-70b-versatile"
+        elif prov_key == "agentrouter" or "agentrouter.org" in active_base_url.lower():
+            if model in ("deepseek/deepseek-r1", "deepseek-r1", "deepseek-chat", "deepseek", "deepseek-v3"):
+                model = "deepseek-v4-flash"
+            elif model in ("claude-opus", "claude-opus-4", "opus-4-8"):
+                model = "claude-opus-4-8"
+
+        # Emit immediate live status event for high-latency queue models (Claude Opus / JustDoWork)
+        if prov_key == "justdowork" or model == "claude-opus-4-8" or "justwoker" in active_base_url.lower():
+            try:
+                progress_event = {
+                    "choices": [{
+                        "index": 0,
+                        "delta": {"reasoning_content": f"⏳ Connecting to {model}... Upstream queue active, preparing tokens...\n\n"}
+                    }]
+                }
+                self.wfile.write(f"data: {json.dumps(progress_event)}\n\n".encode("utf-8"))
+                self.wfile.flush()
+            except Exception:
+                pass
 
 
         # Model Architecture Analysis for Reasoning & Parameter Adaptation
@@ -2523,22 +2543,68 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                         payload.pop("temperature", None)
                         continue
 
+                # Auto-failover: If AgentRouter Opus pool is exhausted, failover seamlessly to JustDoWork
+                if (status_code == 402 or "budget pool" in err_body.lower()) and ("opus" in model.lower() or model == "claude-opus-4-8"):
+                    try:
+                        jdw_prov, _ = resolve_provider_info("justdowork", cfg=cfg)
+                        jdw_key = jdw_prov.get("api_key", "").strip()
+                        if jdw_key:
+                            failover_notice = {
+                                "choices": [{
+                                    "index": 0,
+                                    "delta": {"reasoning_content": "⚡ [AgentRouter Opus quota paused; routing to Claude Opus 4.8 via JustDoWork fallback...]\n\n"}
+                                }]
+                            }
+                            self.wfile.write(f"data: {json.dumps(failover_notice)}\n\n".encode("utf-8"))
+                            self.wfile.flush()
+
+                            chat_endpoint = "/v1/messages"
+                            is_anthropic_endpoint = True
+                            anthropic_messages = []
+                            sys_parts = []
+                            for m in final_messages:
+                                if m.get("role") == "system":
+                                    sys_parts.append(m.get("content", ""))
+                                else:
+                                    anthropic_messages.append({"role": m.get("role", "user"), "content": m.get("content", "")})
+                            jdw_payload = {
+                                "model": "claude-opus-4-8",
+                                "max_tokens": effort_config["max_tokens"],
+                                "stream": stream,
+                                "messages": anthropic_messages or [{"role": "user", "content": "hi"}]
+                            }
+                            if sys_parts:
+                                jdw_payload["system"] = "\n\n".join(sys_parts)
+
+                            upstream_res = make_upstream_request(
+                                chat_endpoint,
+                                data=jdw_payload,
+                                method="POST",
+                                stream=True,
+                                override_key=jdw_key,
+                                override_url="https://api.justwoker.icu/v1",
+                                override_provider="justdowork"
+                            )
+                            status_code = getattr(upstream_res, 'status_code', getattr(upstream_res, 'code', 200))
+                            if status_code < 400:
+                                break
+                    except Exception:
+                        pass
+
                 friendly_err = err_body
                 try:
                     parsed_err = json.loads(err_body)
                     msg_val = parsed_err.get("error", {}).get("message", "")
                     if status_code == 405:
-
                         friendly_err = f"AgentRouter / Gateway Error (HTTP 405 Method Not Allowed): The upstream API route rejected the POST request. Ensure your Custom Base URL is 'https://agentrouter.org/v1' and model '{model}' accepts chat completions."
                     elif "Budget pool quota has been exhausted" in msg_val or "budget pool" in msg_val.lower():
-                        friendly_err = f"AgentRouter Notice: Budget pool quota is currently exhausted for '{model}'. Try switching to 'deepseek-v4-flash' or adjust budget pools in your AgentRouter dashboard."
+                        friendly_err = f"AgentRouter Notice: Budget pool quota is currently exhausted for '{model}'. Try switching to 'deepseek-v4-flash' (instant 1.5s) or adjust budget pools in your AgentRouter dashboard."
                     elif "unauthorized client" in msg_val.lower():
                         friendly_err = "AgentRouter Client Notice: Unauthorized client detected. AgentChat uses Claude Code headers to bypass this."
                     elif "始终思考" in msg_val or "1210" in str(parsed_err):
                         friendly_err = f"Reasoning Parameter Notice: Model '{model}' requires reasoning effort 'low', 'high', or 'max'. Setting effort to High resolves this."
                     elif msg_val:
                         friendly_err = msg_val
-
                 except Exception:
                     pass
 
@@ -2590,6 +2656,13 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                         except Exception:
                             pass
                 else:
+                    line_str = line.decode("utf-8", errors="replace").strip()
+                    # Catch raw HTML challenge / WAF pages before they corrupt the SSE stream
+                    if line_str.startswith("<!DOCTYPE") or line_str.startswith("<html") or "aliyun_waf" in line_str or "<title>Challenge" in line_str:
+                        err_chunk = {"error": "Upstream AI provider returned a web verification challenge. Switching to deepseek-v4-flash recommended."}
+                        self.wfile.write(f"data: {json.dumps(err_chunk)}\n\n".encode("utf-8"))
+                        self.wfile.flush()
+                        break
                     self.wfile.write(line + b"\n\n")
                     self.wfile.flush()
         elif is_anthropic_endpoint and hasattr(upstream_res, 'json'):
