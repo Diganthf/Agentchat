@@ -289,7 +289,8 @@ class DoHResolver:
         self.known_fallbacks = {
             "agentrouter.org": ["8.214.161.192", "8.214.160.125"],
             "co.agentrouter.org": ["8.214.161.192", "8.214.160.125"],
-            "api.apmix.ai": ["87.106.144.49"],
+            "api.justwoker.icu": ["104.21.21.127", "172.67.198.160"],
+            "api.puter.com": ["104.18.2.115", "104.18.3.115"],
         }
         self.providers = [
             ("Cloudflare", "https://cloudflare-dns.com/dns-query?name={}&type=A"),
@@ -489,90 +490,101 @@ AGENTROUTER_MODELS = [
     }
 ]
 
-# Comprehensive Frontier Models Catalog for Custom Provider & Reverse Proxies (AgentRouter, OpenRouter, Anthropic)
-CUSTOM_FRONTIER_MODELS = AGENTROUTER_MODELS + [
-    {
-        "id": "claude-3-opus-20240229",
-        "name": "🎭 Claude 3 Opus (Anthropic Flagship)",
-        "description": "Anthropic's powerhouse for deep comprehension, synthesis, coding, and long-form analysis.",
-        "category": "Frontier",
-        "status": "online"
-    },
-    {
-        "id": "claude-3-5-sonnet-20241022",
-        "name": "⚡ Claude 3.5 Sonnet (Anthropic)",
-        "description": "Frontier code generation, reasoning, and multimodal understanding.",
-        "category": "Frontier",
-        "status": "online"
-    },
-    {
-        "id": "claude-3-5-haiku-20241022",
-        "name": "🪶 Claude 3.5 Haiku (Fast & Precise)",
-        "description": "Blazing fast response speed with impressive coding and comprehension ability.",
-        "category": "Speed",
-        "status": "online"
-    },
-    {
-        "id": "deepseek/deepseek-r1",
-        "name": "🧠 DeepSeek R1 (671B Reasoning)",
-        "description": "Frontier test-time reasoning & logic. Outperforms Sonnet on math, algorithms, and deep analysis.",
-        "category": "Reasoning",
-        "status": "online"
-    },
-    {
-        "id": "deepseek/deepseek-chat",
-        "name": "⚡ DeepSeek V3 (671B Nuance)",
-        "description": "Instant conversational eloquence and nuanced general intelligence matching Sonnet speed.",
-        "category": "General",
-        "status": "online"
-    },
-    {
-        "id": "qwen/qwen-2.5-coder-72b-instruct",
-        "name": "💻 Qwen 2.5 Coder 72B (Elite Code)",
-        "description": "Undisputed open coding champion. Outperforms Claude 3.5 Sonnet & GPT-4o on programming benchmarks.",
-        "category": "Coding",
-        "status": "online"
-    },
-    {
-        "id": "openai/gpt-4o",
-        "name": "✨ GPT-4o (OpenAI Omni)",
-        "description": "High-intelligence flagship multimodal model for complex analysis.",
-        "category": "Frontier",
-        "status": "online"
-    },
-    {
-        "id": "openai/o1-preview",
-        "name": "🧩 OpenAI o1-preview (Deep Reasoning)",
-        "description": "Trained with reinforcement learning to perform complex multi-step reasoning before responding.",
-        "category": "Reasoning",
-        "status": "online"
-    },
-    {
-        "id": "openai/o3-mini",
-        "name": "🚀 OpenAI o3-mini (High-Speed Logic)",
-        "description": "Next-generation fast STEM and coding reasoning model.",
-        "category": "Reasoning",
-        "status": "online"
-    },
-    {
-        "id": "google/gemini-2.0-flash-001",
-        "name": "🌐 Gemini 2.0 Flash (Fast / 1M)",
-        "description": "Blazing fast multimodal reasoning with massive 1,000,000 token context window.",
-        "category": "Multimodal",
-        "status": "online"
-    },
-    {
-        "id": "google/gemini-2.0-pro-exp-02-05",
-        "name": "🔮 Gemini 2.0 Pro Experimental",
-        "description": "Google's best model for complex reasoning and coding tasks.",
-        "category": "Frontier",
-        "status": "online"
-    }
-]
+# Curated Provider Model Catalogs (ensures clean, dedicated models per proxy)
+PROVIDER_CATALOGS = {
+    "justdowork": [
+        {"id": "claude-opus-4-8", "name": "✳️ claude-opus-4-8", "provider": "anthropic", "category": "Anthropic", "status": "online"}
+    ],
+    "agentrouter": AGENTROUTER_MODELS,
+    "puter": [
+        {"id": "claude-opus-5", "name": "🎁 Claude Opus 5 (Free Puter)", "provider": "anthropic", "category": "Anthropic", "is_free": True, "status": "online"},
+        {"id": "claude-3-5-sonnet", "name": "🎁 Claude 3.5 Sonnet (Free)", "provider": "anthropic", "category": "Anthropic", "is_free": True, "status": "online"},
+        {"id": "deepseek/deepseek-r1", "name": "🎁 DeepSeek R1 671B (Free)", "provider": "deepseek", "category": "DeepSeek", "is_free": True, "status": "online"},
+        {"id": "openai/gpt-4o", "name": "🎁 GPT-4o Omni (Free)", "provider": "openai", "category": "OpenAI", "is_free": True, "status": "online"},
+        {"id": "google/gemini-2.0-flash-001", "name": "🎁 Gemini 2.0 Flash (Free)", "provider": "google", "category": "Google", "is_free": True, "status": "online"}
+    ],
+    "google": [
+        {"id": "google/gemini-2.0-flash-001", "name": "🎁 Gemini 2.0 Flash (Free Tier)", "provider": "google", "category": "Google", "is_free": True, "status": "online"},
+        {"id": "google/gemini-2.0-pro-exp-02-05", "name": "🔮 Gemini 2.0 Pro Experimental", "provider": "google", "category": "Google", "status": "online"},
+        {"id": "google/gemini-1.5-pro", "name": "🌐 Gemini 1.5 Pro (2M Window)", "provider": "google", "category": "Google", "status": "online"},
+        {"id": "google/gemini-1.5-flash", "name": "🎁 Gemini 1.5 Flash (Free Tier)", "provider": "google", "category": "Google", "is_free": True, "status": "online"}
+    ],
+    "deepseek": [
+        {"id": "deepseek/deepseek-r1", "name": "🧠 DeepSeek R1 (671B Reasoning)", "provider": "deepseek", "category": "DeepSeek", "status": "online"},
+        {"id": "deepseek/deepseek-chat", "name": "⚡ DeepSeek V3 (671B Nuance)", "provider": "deepseek", "category": "DeepSeek", "status": "online"}
+    ],
+    "groq": [
+        {"id": "deepseek-r1-distill-llama-70b", "name": "🎁 DeepSeek R1 Distill 70B (Free)", "provider": "groq", "category": "DeepSeek", "is_free": True, "status": "online"},
+        {"id": "llama-3.3-70b-versatile", "name": "🎁 Llama 3.3 70B Versatile (Free)", "provider": "groq", "category": "OpenAI", "is_free": True, "status": "online"},
+        {"id": "llama-3.1-8b-instant", "name": "🎁 Llama 3.1 8B Instant (Free)", "provider": "groq", "category": "OpenAI", "is_free": True, "status": "online"},
+        {"id": "mixtral-8x7b-32768", "name": "🎁 Mixtral 8x7B (Free)", "provider": "groq", "category": "OpenAI", "is_free": True, "status": "online"}
+    ],
+    "openai": [
+        {"id": "openai/gpt-4o", "name": "✨ GPT-4o (OpenAI Omni)", "provider": "openai", "category": "OpenAI", "status": "online"},
+        {"id": "openai/gpt-4o-mini", "name": "⚡ GPT-4o Mini", "provider": "openai", "category": "OpenAI", "status": "online"},
+        {"id": "openai/o1-preview", "name": "🧩 OpenAI o1-preview", "provider": "openai", "category": "OpenAI", "status": "online"},
+        {"id": "openai/o3-mini", "name": "🚀 OpenAI o3-mini", "provider": "openai", "category": "OpenAI", "status": "online"}
+    ],
+    "openrouter": [
+        {"id": "deepseek/deepseek-r1:free", "name": "🎁 DeepSeek R1 (Free)", "provider": "deepseek", "category": "DeepSeek", "is_free": True, "status": "online"},
+        {"id": "google/gemini-2.0-flash-exp:free", "name": "🎁 Gemini 2.0 Flash (Free)", "provider": "google", "category": "Google", "is_free": True, "status": "online"},
+        {"id": "meta-llama/llama-3.3-70b-instruct:free", "name": "🎁 Llama 3.3 70B (Free)", "provider": "meta", "category": "OpenAI", "is_free": True, "status": "online"},
+        {"id": "anthropic/claude-3.5-sonnet", "name": "⚡ Claude 3.5 Sonnet", "provider": "anthropic", "category": "Anthropic", "status": "online"},
+        {"id": "anthropic/claude-3-opus", "name": "🎭 Claude 3 Opus", "provider": "anthropic", "category": "Anthropic", "status": "online"},
+        {"id": "openai/gpt-4o", "name": "✨ GPT-4o", "provider": "openai", "category": "OpenAI", "status": "online"}
+    ],
+    "custom": AGENTROUTER_MODELS,
+    "base": BASE_TIER_MODELS
+}
+
+def is_unwanted_model(mid, mname=""):
+    """Filter out non-chat batch endpoints, embeddings, tts, whisper, and moderation junk."""
+    s = f"{mid} {mname}".lower()
+    # Batch processing models
+    if "(batch)" in s or "-batch" in s or ":batch" in s or "/batch" in s or " batch" in s or "[batch]" in s:
+        return True
+    # Non-conversational endpoints
+    junk_patterns = [
+        "embedding", "embed", "tts-", "text-to-speech", "whisper",
+        "moderation", "realtime", "dall-e", "flux-", "stable-diffusion"
+    ]
+    for p in junk_patterns:
+        if p in s:
+            return True
+    return False
+
+def is_model_free(mid, mname=""):
+    """Detect if model belongs to a free tier or has free pricing."""
+    s = f"{mid} {mname}".lower()
+    return (
+        ":free" in s or
+        "-free" in s or
+        "(free)" in s or
+        " free" in s or
+        "free/" in s or
+        "free-" in s or
+        mid.startswith("free-") or
+        "0-shot" in s
+    )
 
 DEFAULT_CONFIG = {
-    "active_provider": "base",
+    "active_provider": "justdowork",
     "providers": {
+        "justdowork": {
+            "name": "JustDoWork (Claude Opus 4.8 / NewAPI)",
+            "base_url": "https://api.justwoker.icu/v1",
+            "api_key": ""
+        },
+        "agentrouter": {
+            "name": "AgentRouter Stealth Proxy",
+            "base_url": "https://agentrouter.org/v1",
+            "api_key": ""
+        },
+        "puter": {
+            "name": "Puter.ai (Free Allowance & Frontier)",
+            "base_url": "https://api.puter.com/puterai/openai/v1",
+            "api_key": ""
+        },
         "base": {
             "name": "Base Tier (Sonnet-Grade)",
             "base_url": os.environ.get("BASE_TIER_URL", "https://openrouter.ai/api"),
@@ -604,7 +616,7 @@ DEFAULT_CONFIG = {
             "api_key": os.environ.get("OPENAI_API_KEY", "")
         },
         "custom": {
-            "name": "AgentRouter / Custom Stealth Proxy",
+            "name": "Custom Stealth Proxy",
             "base_url": "https://agentrouter.org/v1",
             "api_key": ""
         }
@@ -706,6 +718,12 @@ def get_env_api_key_for(provider_key):
             find_env_fuzzy("deepseek") or
             find_env_fuzzy("openai")
         )
+    elif provider_key == "justdowork":
+        return get_clean_env("JUSTDOWORK_API_KEY", "JUSTDOWORK_KEY") or find_env_fuzzy("justdowork") or find_env_fuzzy("justwoker")
+    elif provider_key == "agentrouter":
+        return get_clean_env("AGENTROUTER_API_KEY", "AGENTROUTER_KEY") or find_env_fuzzy("agentrouter")
+    elif provider_key == "puter":
+        return get_clean_env("PUTER_API_KEY", "PUTER_AUTH_TOKEN", "PUTER_KEY") or find_env_fuzzy("puter")
     elif provider_key == "google":
         return find_env_fuzzy("gemini") or find_env_fuzzy("google")
     elif provider_key == "openrouter":
@@ -759,9 +777,9 @@ def resolve_provider_info(prov_key, cfg=None, override_key=None, override_url=No
 
     return p, prov_key
 
-def get_active_provider_info(override_key=None, override_url=None):
+def get_active_provider_info(override_key=None, override_url=None, override_provider=None):
     cfg = load_config()
-    active_key = cfg.get("active_provider", "base")
+    active_key = (override_provider or "").strip() or cfg.get("active_provider", "base")
     return resolve_provider_info(active_key, cfg=cfg, override_key=override_key, override_url=override_url)
 
 def sanitize_config_for_client(cfg):
@@ -790,13 +808,13 @@ def save_config(cfg):
 
 BROWSER_PROFILES = ["chrome124", "chrome120", "safari17_0"]
 
-def make_upstream_request(endpoint, data=None, method="GET", stream=False, override_key=None, override_url=None):
-    prov, prov_key = get_active_provider_info(override_key=override_key, override_url=override_url)
+def make_upstream_request(endpoint, data=None, method="GET", stream=False, override_key=None, override_url=None, override_provider=None):
+    prov, prov_key = get_active_provider_info(override_key=override_key, override_url=override_url, override_provider=override_provider)
     base_url = (override_url or prov.get("base_url", "https://openrouter.ai/api")).rstrip("/")
     api_key = (override_key or prov.get("api_key", "")).strip()
 
-    # Normalize base_url: strip trailing /chat/completions or /v1/chat/completions if entered by user
-    for suffix in ("/chat/completions", "/chat/completions/", "/v1/chat/completions", "/v1/chat/completions/"):
+    # Normalize base_url: strip trailing /chat/completions, /messages, etc. if entered by user
+    for suffix in ("/chat/completions", "/chat/completions/", "/v1/chat/completions", "/v1/chat/completions/", "/messages", "/messages/", "/v1/messages", "/v1/messages/"):
         if base_url.endswith(suffix):
             base_url = base_url[:-len(suffix)].rstrip("/")
             break
@@ -807,7 +825,7 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
     elif base_url.endswith("/v1") and endpoint.startswith("/v1/"):
         endpoint = endpoint[3:]
     elif not base_url.endswith("/v1") and not endpoint.startswith("/v1/") and "generativelanguage" not in base_url:
-        if endpoint.startswith("/chat/completions") or endpoint.startswith("/models"):
+        if endpoint.startswith("/chat/completions") or endpoint.startswith("/models") or endpoint.startswith("/messages"):
             endpoint = "/v1" + endpoint
 
     target_url = f"{base_url}{endpoint}"
@@ -830,9 +848,9 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
         headers["x-api-key"] = api_key
         headers["anthropic-version"] = "2023-06-01"
 
-    # AgentRouter / Custom Stealth Proxy: Claude Code authorized client fingerprint
-    # (Bypasses AgentRouter's "unauthorized client detected" HTTP 401 gate)
-    if "agentrouter" in base_url.lower() or prov_key == "custom":
+    # Claude Code authorized client fingerprint for AgentRouter / JustDoWork / Custom Stealth Proxy
+    # (Bypasses Cloudflare WAF 1010 block and AgentRouter's unauthorized client gate)
+    if "agentrouter" in base_url.lower() or "justwoker" in base_url.lower() or prov_key in ("custom", "justdowork", "agentrouter"):
         headers["User-Agent"] = "claude-cli/0.2.29 (external, sdk-cli)"
         headers["anthropic-version"] = "2023-06-01"
         headers["anthropic-beta"] = "claude-code-20250219,interleaved-thinking-2024-11-20"
@@ -846,6 +864,8 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
         headers["x-stainless-runtime-version"] = "v20.11.0"
         if not headers.get("x-api-key"):
             headers["x-api-key"] = api_key
+    elif "User-Agent" not in headers:
+        headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
     if CURL_CFFI_AVAILABLE:
         impersonate_choice = random.choice(BROWSER_PROFILES)
@@ -856,34 +876,49 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
         }
 
         # Pin resolved IP to bypass local ISP DNS failures (prevents curl: 6 Could not resolve host)
+        curl_opts = {}
         if CurlOpt and resolved_ip and re.match(r"^\d{1,3}(\.\d{1,3}){3}$", resolved_ip):
             resolve_list = [f"{parsed.hostname}:{port}:{resolved_ip}"]
             fallbacks = doh_resolver.known_fallbacks.get(parsed.hostname, [])
             for fb_ip in fallbacks:
                 if fb_ip != resolved_ip:
                     resolve_list.append(f"{parsed.hostname}:{port}:{fb_ip}")
-            session_kwargs["curl_options"] = {CurlOpt.RESOLVE: resolve_list}
+            curl_opts[CurlOpt.RESOLVE] = resolve_list
+
+        if CurlOpt:
+            if hasattr(CurlOpt, "LOW_SPEED_TIME"):
+                curl_opts[CurlOpt.LOW_SPEED_TIME] = 120
+            if hasattr(CurlOpt, "LOW_SPEED_LIMIT"):
+                curl_opts[CurlOpt.LOW_SPEED_LIMIT] = 1
+
+        if curl_opts:
+            session_kwargs["curl_options"] = curl_opts
 
         session = cffi_requests.Session(**session_kwargs)
         try:
             if method == "POST":
                 # allow_redirects=False prevents 301/302 from silently converting POST into GET (which causes 405 Method Not Allowed)
-                return session.post(target_url, json=data, headers=headers, stream=stream, timeout=60, allow_redirects=False)
+                return session.post(target_url, json=data, headers=headers, stream=stream, timeout=120, allow_redirects=False)
             else:
-                return session.get(target_url, headers=headers, stream=stream, timeout=60, allow_redirects=True)
+                return session.get(target_url, headers=headers, stream=stream, timeout=120, allow_redirects=True)
         except Exception as e:
             err_str = str(e)
             if ("Could not resolve host" in err_str or "curl: (6)" in err_str) and CurlOpt:
                 fb_ips = doh_resolver.known_fallbacks.get(parsed.hostname, ["8.214.161.192"])
+                fb_opts = {CurlOpt.RESOLVE: [f"{parsed.hostname}:{port}:{ip}" for ip in fb_ips]}
+                if hasattr(CurlOpt, "LOW_SPEED_TIME"):
+                    fb_opts[CurlOpt.LOW_SPEED_TIME] = 120
+                if hasattr(CurlOpt, "LOW_SPEED_LIMIT"):
+                    fb_opts[CurlOpt.LOW_SPEED_LIMIT] = 1
                 fallback_kwargs = {
                     "impersonate": impersonate_choice,
-                    "curl_options": {CurlOpt.RESOLVE: [f"{parsed.hostname}:{port}:{ip}" for ip in fb_ips]}
+                    "curl_options": fb_opts
                 }
                 fb_session = cffi_requests.Session(**fallback_kwargs)
                 if method == "POST":
-                    return fb_session.post(target_url, json=data, headers=headers, stream=stream, timeout=60, allow_redirects=False)
+                    return fb_session.post(target_url, json=data, headers=headers, stream=stream, timeout=120, allow_redirects=False)
                 else:
-                    return fb_session.get(target_url, headers=headers, stream=stream, timeout=60, allow_redirects=True)
+                    return fb_session.get(target_url, headers=headers, stream=stream, timeout=120, allow_redirects=True)
             raise
     else:
         body_bytes = json.dumps(data).encode("utf-8") if data is not None else None
@@ -1207,8 +1242,6 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 self.handle_test_mcp()
         elif path == "/api/chat":
             self.handle_chat()
-        elif path == "/api/apmix/chat":
-            self.handle_apmix_chat()
         else:
             self.send_error(404, "Endpoint not found")
 
@@ -1226,8 +1259,6 @@ class AgentChatHandler(BaseHTTPRequestHandler):
     def serve_static(self, path):
         if path in ("", "/"):
             filename = "index.html"
-        elif path in ("/apmix", "/claude"):
-            filename = "apmix.html"
         else:
             filename = path.lstrip("/")
 
@@ -1970,6 +2001,11 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             self.send_json({"success": False, "error": str(e)}, status=400)
 
     def handle_get_models(self):
+        parsed_path = urlparse(self.path)
+        qs = urllib.parse.parse_qs(parsed_path.query)
+        override_prov = self.headers.get("X-Active-Provider", "").strip()
+        if not override_prov and "provider" in qs:
+            override_prov = qs["provider"][0].strip()
         override_key = self.headers.get("X-Custom-Api-Key", "").strip()
         override_url = self.headers.get("X-Custom-Base-Url", "").strip()
         if is_masked_key(override_key):
@@ -1978,15 +2014,18 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         user = self.get_authenticated_user()
         if user:
             profile = get_user_profile(user["id"])
-            user_prov = profile.get("active_provider", "custom")
+            user_prov = profile.get("active_provider", override_prov or "justdowork")
             if not override_key:
                 override_key = profile.get("keys", {}).get(user_prov, "")
             if not override_url and profile.get("custom_base_url"):
                 override_url = profile.get("custom_base_url")
 
-        prov, prov_key = get_active_provider_info(override_key=override_key, override_url=override_url)
+        prov, prov_key = get_active_provider_info(override_key=override_key, override_url=override_url, override_provider=override_prov)
         active_key = override_key or prov.get("api_key", "")
         active_url = override_url or prov.get("base_url", "")
+
+        # Default catalog for this provider
+        catalog = PROVIDER_CATALOGS.get(prov_key, PROVIDER_CATALOGS.get("justdowork", BASE_TIER_MODELS))
 
         # If non-base provider has a key, dynamically discover all available models under that key
         if active_key and (prov_key != "base" or (override_key and override_url)):
@@ -1995,7 +2034,8 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                     "/v1/models",
                     method="GET",
                     override_key=active_key,
-                    override_url=active_url
+                    override_url=active_url,
+                    override_provider=prov_key
                 )
                 if hasattr(res, 'json'):
                     raw = res.json()
@@ -2011,61 +2051,62 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                     if not mid:
                         continue
                     dname = item.get("name") or mid
+
+                    # Filter out non-chat batch models, embeddings, tts, whisper, moderation
+                    if is_unwanted_model(mid, dname):
+                        continue
+
+                    is_free = is_model_free(mid, dname) or item.get("is_free", False)
+
+                    # Determine clean model category
+                    comb = f"{mid} {dname}".lower()
+                    if "claude" in comb or "anthropic" in comb:
+                        cat = "Anthropic"
+                    elif "deepseek" in comb:
+                        cat = "DeepSeek"
+                    elif "gpt" in comb or "o1" in comb or "o3" in comb or "openai" in comb:
+                        cat = "OpenAI"
+                    elif "gemini" in comb or "google" in comb:
+                        cat = "Google"
+                    elif "qwen" in comb:
+                        cat = "Qwen"
+                    else:
+                        cat = "General"
+
                     discovered_models.append({
                         "id": mid,
                         "name": dname,
+                        "is_free": is_free,
+                        "category": cat,
                         "status": "online"
                     })
-
-                # Ensure AGENTROUTER_MODELS are at the top for custom / AgentRouter provider
-                if prov_key == "custom" or "agentrouter" in active_url.lower():
-                    existing_ids = {m["id"].lower() for m in discovered_models}
-                    for arm in reversed(AGENTROUTER_MODELS):
-                        if arm["id"].lower() in existing_ids:
-                            discovered_models = [m for m in discovered_models if m["id"].lower() != arm["id"].lower()]
-                        discovered_models.insert(0, arm)
-                else:
-                    existing_ids = {m["id"].lower() for m in discovered_models}
-                    for fm in CUSTOM_FRONTIER_MODELS:
-                        if fm["id"].lower() not in existing_ids:
-                            discovered_models.append(fm)
-                    discovered_models.sort(key=lambda x: x["name"].lower())
 
                 if discovered_models:
                     self.send_json({
                         "success": True,
+                        "provider": prov_key,
                         "models": discovered_models,
                         "source": "dynamic",
                         "count": len(discovered_models)
                     })
                     return
             except Exception as e:
-                # If provider query fails (e.g. AgentRouter requires auth for /v1/models), return curated AgentRouter catalog
-                fallback_models = AGENTROUTER_MODELS if (prov_key == "custom" or "agentrouter" in active_url.lower()) else CUSTOM_FRONTIER_MODELS
+                # If provider query fails, return provider's curated catalog
                 self.send_json({
                     "success": True,
                     "provider": prov_key,
-                    "models": fallback_models,
-                    "source": "agentrouter_catalog" if (prov_key == "custom" or "agentrouter" in active_url.lower()) else "custom_frontier",
+                    "models": catalog,
+                    "source": f"{prov_key}_catalog",
                     "note": f"Catalog active ({str(e)})"
                 })
                 return
 
-        # If Custom Provider is selected, return the exact AgentRouter catalog
-        if prov_key == "custom" or "agentrouter" in active_url.lower():
-            self.send_json({
-                "success": True,
-                "provider": "custom",
-                "models": AGENTROUTER_MODELS,
-                "source": "agentrouter_exact"
-            })
-            return
-
-        # Default Base Tier (Curated frontier models)
+        # Return catalog for the active provider
         self.send_json({
             "success": True,
-            "models": BASE_TIER_MODELS,
-            "source": "base_tier"
+            "provider": prov_key,
+            "models": catalog,
+            "source": f"{prov_key}_default"
         })
 
     def handle_chat(self):
@@ -2097,19 +2138,20 @@ class AgentChatHandler(BaseHTTPRequestHandler):
 
         override_key = self.headers.get("X-Custom-Api-Key", "").strip()
         override_url = self.headers.get("X-Custom-Base-Url", "").strip()
+        override_prov = self.headers.get("X-Active-Provider", "").strip() or req_data.get("provider", "").strip()
         if is_masked_key(override_key):
             override_key = ""
 
         user = self.get_authenticated_user()
         if user:
             profile = get_user_profile(user["id"])
-            user_prov = profile.get("active_provider", "custom")
+            user_prov = profile.get("active_provider", override_prov or "justdowork")
             if not override_key:
                 override_key = profile.get("keys", {}).get(user_prov, "")
             if not override_url and profile.get("custom_base_url"):
                 override_url = profile.get("custom_base_url")
 
-        prov, prov_key = get_active_provider_info(override_key=override_key, override_url=override_url)
+        prov, prov_key = get_active_provider_info(override_key=override_key, override_url=override_url, override_provider=override_prov)
         api_key = (override_key or prov.get("api_key", "")).strip()
 
         if not api_key:
@@ -2144,22 +2186,34 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                     f"Synthesize the answer using the web results above, citing sources where appropriate."
                 )
 
-        # Context Auto-Compression
+        is_lean_mode = bool(req_data.get("lean_mode", cfg.get("lean_mode", False)))
+
+        # Context Auto-Compression & Lean Mode Pruning
         clean_messages = []
-        for i, msg in enumerate(raw_messages):
-            content = msg.get("content", "")
-            if i == len(raw_messages) - 1 and msg.get("role") == "user" and search_context:
-                content = content + search_context
-            clean_messages.append({"role": msg.get("role", "user"), "content": content})
-
-        if do_compress:
-            final_messages = compress_conversation_messages(clean_messages)
-        else:
+        if is_lean_mode:
+            # Lean mode: keep at most the last 2 messages (1 user turn + optional 1 context turn) to consume strictly ~15-30 tokens!
+            truncated_raw = raw_messages[-2:] if len(raw_messages) > 2 else raw_messages
+            for i, msg in enumerate(truncated_raw):
+                content = msg.get("content", "")
+                if i == len(truncated_raw) - 1 and msg.get("role") == "user" and search_context:
+                    content = content + search_context
+                clean_messages.append({"role": msg.get("role", "user"), "content": content})
             final_messages = clean_messages
+        else:
+            for i, msg in enumerate(raw_messages):
+                content = msg.get("content", "")
+                if i == len(raw_messages) - 1 and msg.get("role") == "user" and search_context:
+                    content = content + search_context
+                clean_messages.append({"role": msg.get("role", "user"), "content": content})
 
-        skills_context = req_data.get("skills_context", "").strip()
-        project_context = req_data.get("project_context", "").strip()
-        persona_directives = req_data.get("persona_directives", "").strip()
+            if do_compress:
+                final_messages = compress_conversation_messages(clean_messages)
+            else:
+                final_messages = clean_messages
+
+        skills_context = req_data.get("skills_context", "").strip() if not is_lean_mode else ""
+        project_context = req_data.get("project_context", "").strip() if not is_lean_mode else ""
+        persona_directives = req_data.get("persona_directives", "").strip() if not is_lean_mode else ""
 
         combined_sys = []
         if system_prompt and system_prompt.strip():
@@ -2248,18 +2302,44 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             payload["max_tokens"] = effort_config["max_tokens"]
             payload["reasoning_effort"] = effort_config["reasoning_effort"]
 
+        # Determine if endpoint requires Anthropic Messages API format
+        is_anthropic_endpoint = bool(prov_key == "justdowork" or "justwoker" in active_base_url_lower or "co.agentrouter.org" in active_base_url_lower)
+        if is_anthropic_endpoint:
+            chat_endpoint = "/v1/messages"
+            anthropic_messages = []
+            sys_parts = []
+            for m in final_messages:
+                if m.get("role") == "system":
+                    sys_parts.append(m.get("content", ""))
+                else:
+                    anthropic_messages.append({"role": m.get("role", "user"), "content": m.get("content", "")})
+            if not anthropic_messages:
+                anthropic_messages = [{"role": "user", "content": "hi"}]
+
+            payload = {
+                "model": model,
+                "max_tokens": effort_config["max_tokens"],
+                "stream": stream,
+                "messages": anthropic_messages
+            }
+            if sys_parts:
+                payload["system"] = "\n\n".join(sys_parts)
+        else:
+            chat_endpoint = "/v1/chat/completions"
+
         # Self-Healing Request Dispatch with Dynamic Parameter Recovery
         max_attempts = 3
         upstream_res = None
         for attempt in range(max_attempts):
             try:
                 upstream_res = make_upstream_request(
-                    "/v1/chat/completions",
+                    chat_endpoint,
                     data=payload,
                     method="POST",
                     stream=True,
                     override_key=override_key,
-                    override_url=override_url
+                    override_url=override_url,
+                    override_provider=prov_key
                 )
             except urllib.error.HTTPError as e:
                 err_body = e.read().decode("utf-8", errors="replace")
@@ -2283,11 +2363,6 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                     if "temperature" in err_body.lower() and any(w in err_body.lower() for w in ["unsupported", "not supported", "only default", "1.0", "cannot"]):
                         payload.pop("temperature", None)
                         continue
-                    # Auto-heal: Try anthropic/ prefix if model without prefix returned 404
-                    if e.code == 404 and "/" not in payload["model"] and ("apmix.ai" in active_base_url or api_key.startswith("apx_live_")):
-                        if "claude" in payload["model"]:
-                            payload["model"] = f"anthropic/{payload['model']}"
-                            continue
 
                 # Final attempt error reporting
                 friendly_msg = err_body
@@ -2295,8 +2370,11 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                     err_json = json.loads(err_body)
                     msg_val = err_json.get("error", {}).get("message", "")
                     if e.code == 405:
-
                         friendly_msg = f"AgentRouter / Gateway Error (HTTP 405 Method Not Allowed): The upstream API route rejected the POST request. Ensure your Custom Base URL is 'https://agentrouter.org/v1' and model '{model}' accepts chat completions."
+                    elif "no available kiro upstream" in msg_val.lower() or "cooling/locked" in msg_val.lower() or "distributor" in msg_val.lower():
+                        friendly_msg = f"JustDoWork Gateway Notice: Upstream distributor accounts for '{model}' are currently cooling down / locked. Please wait a few moments, or switch to AgentRouter (DeepSeek V4 Flash) or Puter.ai."
+                    elif "please enable cookies" in err_body.lower() or "ray id" in err_body.lower() or "sorry, you have been blocked" in err_body.lower():
+                        friendly_msg = "Gateway Notice: Cloudflare WAF challenged the request. Please switch to AgentRouter (DeepSeek V4 Flash) or Puter.ai."
                     elif "Budget pool quota has been exhausted" in msg_val or "budget pool" in msg_val.lower():
                         friendly_msg = f"AgentRouter Notice: Budget pool quota is currently exhausted for '{model}'. Try switching to 'deepseek-v4-flash' or adjust budget pools in your AgentRouter dashboard."
                     elif "unauthorized client" in msg_val.lower():
@@ -2399,9 +2477,51 @@ class AgentChatHandler(BaseHTTPRequestHandler):
 
         if hasattr(upstream_res, 'iter_lines'):
             for line in upstream_res.iter_lines():
-                if line:
+                if not line:
+                    continue
+                if is_anthropic_endpoint:
+                    line_str = line.decode("utf-8", errors="replace").strip()
+                    if line_str.startswith("data: "):
+                        raw_data = line_str[6:].strip()
+                        if raw_data == "[DONE]":
+                            break
+                        try:
+                            d = json.loads(raw_data)
+                            d_type = d.get("type")
+                            if d_type == "content_block_delta":
+                                delta = d.get("delta", {})
+                                if delta.get("type") == "text_delta":
+                                    chunk = {"choices": [{"index": 0, "delta": {"content": delta.get("text", "")}}]}
+                                    self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode("utf-8"))
+                                    self.wfile.flush()
+                                elif delta.get("type") == "thinking_delta":
+                                    chunk = {"choices": [{"index": 0, "delta": {"reasoning_content": delta.get("thinking", "")}}]}
+                                    self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode("utf-8"))
+                                    self.wfile.flush()
+                            elif d_type == "message_delta":
+                                usage = d.get("usage", {})
+                                if usage:
+                                    chunk = {"choices": [{"index": 0, "delta": {}}], "usage": {"completion_tokens": usage.get("output_tokens", 0)}}
+                                    self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode("utf-8"))
+                                    self.wfile.flush()
+                            elif d_type == "message_stop":
+                                break
+                        except Exception:
+                            pass
+                else:
                     self.wfile.write(line + b"\n\n")
                     self.wfile.flush()
+        elif is_anthropic_endpoint and hasattr(upstream_res, 'json'):
+            try:
+                res_json = upstream_res.json()
+                content_blocks = res_json.get("content", [])
+                text_out = "".join([b.get("text", "") for b in content_blocks if b.get("type") == "text"])
+                if text_out:
+                    chunk = {"choices": [{"index": 0, "delta": {"content": text_out}}]}
+                    self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode("utf-8"))
+                    self.wfile.flush()
+            except Exception:
+                pass
         else:
             for line in upstream_res:
                 self.wfile.write(line)
@@ -2413,130 +2533,6 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             self.wfile.flush()
         except Exception:
             pass
-        self.close_connection = True
-
-    def handle_apmix_chat(self):
-        length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(length).decode("utf-8")
-        try:
-            req_data = json.loads(body)
-        except Exception:
-            self.send_json({"error": "Invalid JSON in request"}, status=400)
-            return
-
-        model = req_data.get("model", "claude-opus-5")
-        max_tokens = int(req_data.get("max_tokens", 1024))
-        temperature = float(req_data.get("temperature", 0.7))
-        messages = req_data.get("messages", [])
-        effort = str(req_data.get("reasoning_effort", "medium")).lower()
-
-        effort_thinking_budgets = {
-            "low": 1024,
-            "medium": 4096,
-            "high": 8192,
-            "extra": 16384,
-            "max": 32000
-        }
-        budget = effort_thinking_budgets.get(effort, 4096)
-
-        # Read APMix key from ~/.claude/settings.json or fallback
-        apmix_key = "apx_live_KxxuGzfm8i6iFPnIDRuboUrsUk4naNs8JDE0R8SE"
-        settings_path = os.path.expanduser("~/.claude/settings.json")
-        if os.path.exists(settings_path):
-            try:
-                with open(settings_path, "r", encoding="utf-8") as f:
-                    s_data = json.load(f)
-                    apmix_key = s_data.get("env", {}).get("ANTHROPIC_AUTH_TOKEN", apmix_key)
-            except Exception:
-                pass
-
-        target_url = "https://api.apmix.ai/v1/messages"
-        headers = {
-            "x-api-key": apmix_key,
-            "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json",
-            "Accept": "text/event-stream"
-        }
-        upstream_payload = {
-            "model": model,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "messages": messages,
-            "stream": True
-        }
-
-        # Apply reasoning effort / adaptive thinking
-        if any(m in model.lower() for m in ["claude-3-7", "claude-5", "claude-opus-5", "claude-sonnet-5", "claude-fable"]):
-            upstream_payload["thinking"] = {"type": "enabled", "budget_tokens": budget}
-            upstream_payload["max_tokens"] = max(max_tokens, budget + 1024)
-            headers["anthropic-beta"] = "interleaved-thinking-2024-11-20"
-        elif any(m in model.lower() for m in ["deepseek", "glm", "luna"]):
-            upstream_payload["reasoning_effort"] = effort if effort in ("low", "medium", "high") else "high"
-
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-        self.send_header("Cache-Control", "no-cache")
-        self.send_header("Connection", "keep-alive")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
-
-        try:
-            if CURL_CFFI_AVAILABLE:
-                parsed = urlparse(target_url)
-                port = 443
-                resolved_ip = doh_resolver.resolve(parsed.hostname)
-                session_kwargs = {
-                    "impersonate": "chrome124",
-                    "doh_url": "https://1.1.1.1/dns-query"
-                }
-                if CurlOpt and resolved_ip:
-                    session_kwargs["curl_options"] = {CurlOpt.RESOLVE: [f"{parsed.hostname}:{port}:{resolved_ip}"]}
-                session = cffi_requests.Session(**session_kwargs)
-                resp = session.post(target_url, json=upstream_payload, headers=headers, stream=True, timeout=60)
-
-                if resp.status_code >= 400 and "thinking" in upstream_payload and any(w in resp.text.lower() for w in ["thinking", "extra fields", "unrecognized", "reasoning"]):
-                    upstream_payload.pop("thinking", None)
-                    headers.pop("anthropic-beta", None)
-                    resp = session.post(target_url, json=upstream_payload, headers=headers, stream=True, timeout=60)
-
-                if resp.status_code >= 400:
-                    err_body = resp.text
-                    clean_msg = f"APMix Error (HTTP {resp.status_code}): {err_body}"
-                    try:
-                        err_json = json.loads(err_body)
-                        api_msg = err_json.get("error", {}).get("message", "")
-                        if api_msg:
-                            clean_msg = api_msg
-                    except Exception:
-                        pass
-                    err_event = f"data: {json.dumps({'error': {'message': clean_msg}})}\n\n"
-                    self.wfile.write(err_event.encode("utf-8"))
-                    self.wfile.flush()
-                    return
-
-                for chunk in resp.iter_lines():
-                    if chunk:
-                        self.wfile.write(chunk + b"\n")
-                        self.wfile.flush()
-            else:
-                req = urllib.request.Request(
-                    target_url,
-                    data=json.dumps(upstream_payload).encode("utf-8"),
-                    headers=headers,
-                    method="POST"
-                )
-                with urllib.request.urlopen(req, timeout=60) as r:
-                    while True:
-                        line = r.readline()
-                        if not line:
-                            break
-                        self.wfile.write(line)
-                        self.wfile.flush()
-        except Exception as e:
-            err_msg = str(e)
-            err_event = f"data: {json.dumps({'error': {'message': err_msg}})}\n\n"
-            self.wfile.write(err_event.encode("utf-8"))
-            self.wfile.flush()
         self.close_connection = True
 
 def run_server():

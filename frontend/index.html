@@ -51,12 +51,6 @@
           </div>
           <span class="rail-label">MCP</span>
         </button>
-        <a href="/apmix" class="rail-btn" title="APMix Claude Studio (Ultra-Low Tokens)" style="text-decoration: none;">
-          <div class="rail-icon-wrapper" style="color: #cc5533;">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-          </div>
-          <span class="rail-label" style="color: #cc5533;">Claude</span>
-        </a>
       </div>
 
       <div class="rail-bottom">
@@ -213,25 +207,47 @@
               <option value="medium" selected>Effort: Medium</option>
               <option value="high">Effort: High</option>
               <option value="extra">Effort: Extra</option>
+              <option value="max">Effort: Max</option>
               <option value="ultra">Effort: Ultra/Max</option>
             </select>
           </div>
 
           <!-- Provider Pill -->
           <div class="select-pill-wrapper">
-            <select id="provider-select" class="select-pill provider-pill" title="Active AI Provider">
-              <option value="base">Base Tier (Curated)</option>
-              <option value="custom" selected>AgentRouter / Custom Stealth Proxy</option>
-              <option value="google">Google AI Studio</option>
-              <option value="openrouter">OpenRouter</option>
-              <option value="groq">Groq Cloud</option>
-              <option value="deepseek">DeepSeek</option>
-              <option value="openai">OpenAI</option>
+            <select id="provider-select" class="select-pill provider-pill" title="Active AI Provider / Proxy">
+              <option value="justdowork" selected>💼 JustDoWork (api.justwoker.icu)</option>
+              <option value="agentrouter">🛡️ AgentRouter (agentrouter.org)</option>
+              <option value="puter">🚀 Puter.ai (Free Claude Opus 5)</option>
+              <option value="google">🌐 Google AI Studio (Gemini)</option>
+              <option value="openrouter">🔀 OpenRouter</option>
+              <option value="groq">⚡ Groq Cloud</option>
+              <option value="deepseek">🐳 DeepSeek Official</option>
+              <option value="openai">✨ OpenAI Official</option>
+              <option value="custom">⚙️ Custom Stealth Proxy</option>
+              <option value="__add_proxy__">➕ Add Custom Proxy...</option>
             </select>
           </div>
+
+          <!-- Quick Refresh & Auto-Discovery Button -->
+          <button id="refresh-models-btn" class="header-refresh-btn" title="Refresh & Auto-Discover Models for Active Proxy">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          </button>
+
+          <!-- Ultra-Lean / Zero Token Overhead Mode Button -->
+          <button id="lean-mode-toggle-btn" class="pill-btn lean-mode-pill" title="Toggle Ultra-Lean Mode: Strips background context, sending only your exact prompt (~15 tokens!)">
+            <span class="lean-icon">🌿</span>
+            <span class="lean-label" id="lean-mode-label">Lean: Off</span>
+          </button>
         </div>
 
         <div class="topbar-right-group">
+          <!-- Live Token Usage Meter -->
+          <div class="tools-status-pill" id="token-meter-pill" title="Real-time Session Tokens & Prompt Overhead">
+            <span style="color: #10b981; font-weight: 600;">⚡ <span id="meter-in-tokens">0</span> in</span>
+            <span style="opacity: 0.4;">/</span>
+            <span style="color: #60a5fa;"><span id="meter-out-tokens">0</span> out</span>
+          </div>
+
           <!-- Active Tools Indicator Pill -->
           <div class="tools-status-pill" id="tools-status-pill" title="Active Tools & MCP Servers">
             <span class="tools-dot"></span>
@@ -318,6 +334,18 @@
               <span>DeepSeek</span>
               <span class="ar-badge" id="ar-badge-deepseek">1</span>
             </button>
+          </div>
+
+          <!-- Interactive Reasoning Effort Bar (Low, Medium, High, Extra, Max) -->
+          <div class="ar-effort-group" id="ar-effort-group">
+            <span class="ar-effort-label">⚡ Reasoning Effort:</span>
+            <div class="effort-bar" id="effort-bar" role="group" aria-label="Reasoning Effort">
+              <button type="button" class="effort-btn" data-effort="low" title="Low effort (1,024 reasoning tokens - Fastest)">Low</button>
+              <button type="button" class="effort-btn active" data-effort="medium" title="Medium effort (4,096 reasoning tokens - Balanced)">Medium</button>
+              <button type="button" class="effort-btn" data-effort="high" title="High effort (8,192 reasoning tokens - Deep Thinking)">High</button>
+              <button type="button" class="effort-btn" data-effort="extra" title="Extra effort (16,384 reasoning tokens - Extensive)">Extra</button>
+              <button type="button" class="effort-btn" data-effort="max" title="Max effort (32,000 reasoning tokens - Maximum Depth)">Max</button>
+            </div>
           </div>
         </div>
 
@@ -478,16 +506,29 @@
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label for="setting-provider-choice">Active Provider</label>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label for="setting-provider-choice" style="font-weight: 600;">Active AI Provider / Proxy</label>
+            <div style="display: flex; gap: 6px;">
+              <button type="button" id="btn-add-custom-proxy" class="btn btn-tonal btn-xs" title="Create a new custom proxy preset">+ Add Proxy</button>
+              <button type="button" id="btn-delete-custom-proxy" class="btn btn-secondary btn-xs hidden" style="color: var(--md-sys-color-error); border-color: transparent;" title="Delete this custom proxy">Delete</button>
+            </div>
+          </div>
           <select id="setting-provider-choice" class="form-select">
-            <option value="base">Base Tier (Curated Sonnet-Grade)</option>
-            <option value="custom">Custom Stealth Proxy (AgentRouter, Anthropic, Private Proxies)</option>
-            <option value="google">Google AI Studio (Gemini 2.0 Flash / Pro)</option>
-            <option value="openrouter">OpenRouter (openrouter.ai)</option>
-            <option value="groq">Groq Cloud (Ultra-Fast 300 t/s)</option>
-            <option value="deepseek">DeepSeek Official (api.deepseek.com)</option>
-            <option value="openai">OpenAI (api.openai.com)</option>
+            <option value="justdowork">💼 JustDoWork (api.justwoker.icu)</option>
+            <option value="agentrouter">🛡️ AgentRouter (agentrouter.org)</option>
+            <option value="puter">🚀 Puter.ai (Free Claude Opus 5)</option>
+            <option value="google">🌐 Google AI Studio (Gemini 2.0 / 2.5)</option>
+            <option value="openrouter">🔀 OpenRouter (openrouter.ai)</option>
+            <option value="groq">⚡ Groq Cloud (Ultra-Fast 300 t/s)</option>
+            <option value="deepseek">🐳 DeepSeek Official (api.deepseek.com)</option>
+            <option value="openai">✨ OpenAI (api.openai.com)</option>
+            <option value="custom">⚙️ Custom Stealth Proxy</option>
           </select>
+        </div>
+
+        <div class="form-group hidden" id="proxy-custom-name-group">
+          <label for="setting-proxy-custom-name">Custom Proxy Label</label>
+          <input type="text" id="setting-proxy-custom-name" placeholder="e.g. My Private Gateway, Ollama, Company Proxy" />
         </div>
 
         <!-- Stealth WAF Bypass Notice -->
@@ -495,13 +536,13 @@
           <span style="font-size: 14px;">🛡️</span>
           <div>
             <strong>WAF Stealth Bypass Active:</strong>
-            <span style="opacity: 0.9;">Uses <code>curl_cffi</code> Chrome 124 TLS/JA3 impersonation and browser header sequencing. AgentRouter and Cloudflare will NOT block your requests.</span>
+            <span style="opacity: 0.9;">Uses <code>curl_cffi</code> Chrome 124 TLS/JA3 impersonation and browser header sequencing. JustDoWork, AgentRouter, and Cloudflare will NOT block your requests.</span>
           </div>
         </div>
 
         <div class="form-group">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <label for="setting-saved-keys-select">API Key Vault (Saved Keys)</label>
+            <label for="setting-saved-keys-select">API Key Vault (Saved Keys for Active Provider)</label>
             <button type="button" id="delete-current-key-btn" class="btn btn-secondary btn-xs" style="color: var(--md-sys-color-error); border-color: transparent;">Remove Key</button>
           </div>
           <select id="setting-saved-keys-select" class="form-select" style="width: 100%; margin-bottom: 8px;">
@@ -520,17 +561,25 @@
 
         <div class="form-group">
           <label for="setting-base-url">Provider Base URL</label>
-          <input type="text" id="setting-base-url" placeholder="https://agentrouter.org/ or https://generativelanguage.googleapis.com/v1beta/openai" />
-          <small class="hint">Supports AgentRouter, Tabitoken, Anthropic native, or any reverse proxy with unblocked streaming.</small>
+          <input type="text" id="setting-base-url" placeholder="https://api.justwoker.icu/v1 or https://agentrouter.org/v1" />
+          <small class="hint">Supports JustDoWork, AgentRouter, Puter, Anthropic native, or any OpenAI-compatible reverse proxy.</small>
         </div>
 
         <div class="form-group">
           <label for="setting-protocol-mode">Protocol Dispatch Mode</label>
           <select id="setting-protocol-mode" class="form-select">
-            <option value="auto" selected>Stealth Auto-Detect (AgentRouter, Tabitoken, Proxies) [Default]</option>
+            <option value="auto" selected>Stealth Auto-Detect (JustDoWork, AgentRouter, Proxies) [Default]</option>
             <option value="openai">OpenAI ChatCompletions (/v1/chat/completions)</option>
             <option value="anthropic">Anthropic Messages (/v1/messages)</option>
           </select>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-container">
+            <input type="checkbox" id="setting-lean-mode" />
+            <span class="checkmark"></span>
+            <span class="checkbox-text">🌿 <strong>Ultra-Lean Mode (Zero Token Overhead)</strong> (Strips background files & system prompts, strictly sending ~15 tokens per message)</span>
+          </label>
         </div>
 
         <div class="form-group">

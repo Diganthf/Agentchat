@@ -39,6 +39,18 @@
   };
 
   const PROVIDER_DEFAULTS = {
+    justdowork: {
+      name: "JustDoWork (api.justwoker.icu)",
+      base_url: "https://api.justwoker.icu/v1"
+    },
+    agentrouter: {
+      name: "AgentRouter (agentrouter.org)",
+      base_url: "https://agentrouter.org/v1"
+    },
+    puter: {
+      name: "Puter.ai (api.puter.com)",
+      base_url: "https://api.puter.com/puterai/openai/v1"
+    },
     base: {
       name: "Base Tier (Sonnet-Grade)",
       base_url: "https://openrouter.ai/api"
@@ -64,7 +76,7 @@
       base_url: "https://api.openai.com"
     },
     custom: {
-      name: "AgentRouter / Custom Stealth Proxy",
+      name: "Custom Stealth Proxy",
       base_url: "https://agentrouter.org/v1"
     }
   };
@@ -219,6 +231,7 @@
   const settingApiKey = document.getElementById("setting-api-key");
   const settingBaseUrl = document.getElementById("setting-base-url");
   const settingAutoCompress = document.getElementById("setting-auto-compress");
+  const settingLeanMode = document.getElementById("setting-lean-mode");
   const settingTemp = document.getElementById("setting-temp");
   const tempDisplay = document.getElementById("temp-display");
   const settingSystemPrompt = document.getElementById("setting-system-prompt");
@@ -227,6 +240,19 @@
   const settingKeyAlias = document.getElementById("setting-key-alias");
   const saveKeyToVaultBtn = document.getElementById("save-key-to-vault-btn");
   const deleteCurrentKeyBtn = document.getElementById("delete-current-key-btn");
+  const btnAddCustomProxy = document.getElementById("btn-add-custom-proxy");
+  const btnDeleteCustomProxy = document.getElementById("btn-delete-custom-proxy");
+  const proxyCustomNameGroup = document.getElementById("proxy-custom-name-group");
+  const settingProxyCustomName = document.getElementById("setting-proxy-custom-name");
+
+  // Topbar Lean Mode & Token Meter Elements
+  const leanModeToggleBtn = document.getElementById("lean-mode-toggle-btn");
+  const leanModeLabel = document.getElementById("lean-mode-label");
+  const meterInTokens = document.getElementById("meter-in-tokens");
+  const meterOutTokens = document.getElementById("meter-out-tokens");
+  let isLeanMode = localStorage.getItem("agentchat_lean_mode") === "true";
+  let sessionInTokens = 0;
+  let sessionOutTokens = 0;
 
   // Auth Portal & Cloud Sync Elements
   let currentUser = null;
@@ -316,12 +342,15 @@
     }
     const pw = localStorage.getItem("agentchat_access_password") || "";
     if (pw) headers["X-Access-Password"] = pw;
-    const activeP = currentConfig.active_provider || "base";
-    const clientKey = localStorage.getItem("agentchat_client_key_" + activeP) || "";
-    if (clientKey && !clientKey.includes("...") && !clientKey.includes("•••") && !clientKey.includes("••••")) {
+
+    const activeP = currentConfig.active_provider || "justdowork";
+    headers["X-Active-Provider"] = activeP;
+
+    const clientKey = localStorage.getItem("agentchat_client_key_" + activeP) || currentConfig.providers?.[activeP]?.api_key || "";
+    if (clientKey && !clientKey.includes("...") && !clientKey.includes("•••") && !clientKey.includes("••••") && !clientKey.startsWith("enc::")) {
       headers["X-Custom-Api-Key"] = clientKey;
     }
-    const clientUrl = localStorage.getItem("agentchat_client_url_" + activeP) || "";
+    const clientUrl = localStorage.getItem("agentchat_client_url_" + activeP) || currentConfig.providers?.[activeP]?.base_url || "";
     if (clientUrl) headers["X-Custom-Base-Url"] = clientUrl;
     return headers;
   }
@@ -369,15 +398,17 @@
 
   function setupEventListeners() {
     // Rail Navigation
-    railTabChats.addEventListener("click", () => switchToRailTab("chats"));
-    railTabModels.addEventListener("click", () => switchToRailTab("models"));
+    if (railTabChats) railTabChats.addEventListener("click", () => switchToRailTab("chats"));
+    if (railTabModels) railTabModels.addEventListener("click", () => switchToRailTab("models"));
     if (railTabSkills) railTabSkills.addEventListener("click", () => switchToRailTab("skills"));
     if (railTabProjects) railTabProjects.addEventListener("click", () => switchToRailTab("projects"));
-    railTabMcp.addEventListener("click", () => switchToRailTab("mcp"));
-    railTabSettings.addEventListener("click", () => {
-      syncSettingsModalWithConfig();
-      settingsModal.classList.remove("hidden");
-    });
+    if (railTabMcp) railTabMcp.addEventListener("click", () => switchToRailTab("mcp"));
+    if (railTabSettings) {
+      railTabSettings.addEventListener("click", () => {
+        syncSettingsModalWithConfig();
+        if (settingsModal) settingsModal.classList.remove("hidden");
+      });
+    }
 
     // History Actions (Export / Clear)
     if (exportAllChatsBtn) exportAllChatsBtn.addEventListener("click", exportAllChatsJSON);
@@ -385,8 +416,8 @@
     if (clearAllBtn) clearAllBtn.addEventListener("click", clearAllChats);
 
     // Skills Modal Events
-    if (openAddSkillBtn) openAddSkillBtn.addEventListener("click", () => createSkillModal.classList.remove("hidden"));
-    if (closeSkillModalBtn) closeSkillModalBtn.addEventListener("click", () => createSkillModal.classList.add("hidden"));
+    if (openAddSkillBtn) openAddSkillBtn.addEventListener("click", () => createSkillModal?.classList.remove("hidden"));
+    if (closeSkillModalBtn) closeSkillModalBtn.addEventListener("click", () => createSkillModal?.classList.add("hidden"));
     if (createSkillModal) {
       createSkillModal.addEventListener("click", (e) => {
         if (e.target === createSkillModal) createSkillModal.classList.add("hidden");
@@ -396,10 +427,10 @@
 
     // Projects Modal Events
     if (openImportProjectBtn) openImportProjectBtn.addEventListener("click", () => {
-      importProjectModal.classList.remove("hidden");
+      if (importProjectModal) importProjectModal.classList.remove("hidden");
       if (projectScanStatus) projectScanStatus.textContent = "";
     });
-    if (closeImportProjectBtn) closeImportProjectBtn.addEventListener("click", () => importProjectModal.classList.add("hidden"));
+    if (closeImportProjectBtn) closeImportProjectBtn.addEventListener("click", () => importProjectModal?.classList.add("hidden"));
     if (importProjectModal) {
       importProjectModal.addEventListener("click", (e) => {
         if (e.target === importProjectModal) importProjectModal.classList.add("hidden");
@@ -417,7 +448,7 @@
     }
 
     // File Preview Modal Events
-    if (closeFilePreviewBtn) closeFilePreviewBtn.addEventListener("click", () => filePreviewModal.classList.add("hidden"));
+    if (closeFilePreviewBtn) closeFilePreviewBtn.addEventListener("click", () => filePreviewModal?.classList.add("hidden"));
     if (filePreviewModal) {
       filePreviewModal.addEventListener("click", (e) => {
         if (e.target === filePreviewModal) filePreviewModal.classList.add("hidden");
@@ -437,13 +468,15 @@
     }
 
     // Sidebar Toggle (Mobile Drawer vs Desktop Collapse)
-    toggleSidebarBtn.addEventListener("click", () => {
-      if (window.innerWidth <= 768) {
-        document.body.classList.toggle("sidebar-mobile-open");
-      } else {
-        subSidebar.classList.toggle("collapsed");
-      }
-    });
+    if (toggleSidebarBtn) {
+      toggleSidebarBtn.addEventListener("click", () => {
+        if (window.innerWidth <= 768) {
+          document.body.classList.toggle("sidebar-mobile-open");
+        } else if (subSidebar) {
+          subSidebar.classList.toggle("collapsed");
+        }
+      });
+    }
 
     if (sidebarBackdrop) {
       sidebarBackdrop.addEventListener("click", () => {
@@ -452,23 +485,27 @@
     }
 
     // Chat Search
-    chatSearchInput.addEventListener("input", (e) => {
-      renderSidebar(e.target.value.trim().toLowerCase());
-    });
+    if (chatSearchInput) {
+      chatSearchInput.addEventListener("input", (e) => {
+        renderSidebar(e.target.value.trim().toLowerCase());
+      });
+    }
 
     // Input Handling - Instant Single-Tap Enter to Send
-    userInput.addEventListener("input", autoResizeTextarea);
-    userInput.addEventListener("keydown", (e) => {
-      if ((e.key === "Enter" || e.keyCode === 13) && !e.shiftKey) {
-        // If the user is currently completing an IME word / composition, allow composition to commit
-        if (e.isComposing || e.keyCode === 229) {
-          return;
+    if (userInput) {
+      userInput.addEventListener("input", autoResizeTextarea);
+      userInput.addEventListener("keydown", (e) => {
+        if ((e.key === "Enter" || e.keyCode === 13) && !e.shiftKey) {
+          // If the user is currently completing an IME word / composition, allow composition to commit
+          if (e.isComposing || e.keyCode === 229) {
+            return;
+          }
+          e.preventDefault();
+          e.stopPropagation();
+          sendMessage();
         }
-        e.preventDefault();
-        e.stopPropagation();
-        sendMessage();
-      }
-    });
+      });
+    }
 
     // Global shortcut: pressing Enter when not inside another input or open modal automatically focuses the chat input
     window.addEventListener("keydown", (e) => {
@@ -477,68 +514,123 @@
         const isInput = active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.tagName === "SELECT" || active.isContentEditable);
         if (!isInput && !document.querySelector(".modal-overlay:not(.hidden)")) {
           e.preventDefault();
-          userInput.focus();
+          if (userInput) userInput.focus();
         }
       }
     });
 
-    sendBtn.addEventListener("click", sendMessage);
-    stopBtn.addEventListener("click", stopGeneration);
-    newChatBtn.addEventListener("click", createNewChat);
+    if (sendBtn) {
+      sendBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        sendBtn.classList.add("button-pressed");
+        setTimeout(() => sendBtn.classList.remove("button-pressed"), 180);
+        sendMessage();
+      });
+    }
+    if (stopBtn) stopBtn.addEventListener("click", stopGeneration);
+    if (newChatBtn) newChatBtn.addEventListener("click", createNewChat);
+
+    // Effort Bar Interactive Controls
+    initEffortBar();
 
     // Web Search
-    websearchToggleBtn.addEventListener("click", () => {
-      webSearchEnabled = !webSearchEnabled;
-      if (webSearchEnabled) {
-        websearchToggleBtn.classList.add("active");
-        websearchToggleBtn.querySelector("span").textContent = "Search: ON";
-      } else {
-        websearchToggleBtn.classList.remove("active");
-        websearchToggleBtn.querySelector("span").textContent = "Search: OFF";
-      }
-      updateToolsIndicator();
-    });
+    if (websearchToggleBtn) {
+      websearchToggleBtn.addEventListener("click", () => {
+        webSearchEnabled = !webSearchEnabled;
+        const span = websearchToggleBtn.querySelector("span");
+        if (webSearchEnabled) {
+          websearchToggleBtn.classList.add("active");
+          if (span) span.textContent = "Search: ON";
+        } else {
+          websearchToggleBtn.classList.remove("active");
+          if (span) span.textContent = "Search: OFF";
+        }
+        updateToolsIndicator();
+      });
+    }
 
     // Attachments
-    attachBtn.addEventListener("click", () => fileInput.click());
-    fileInput.addEventListener("change", handleFileSelect);
+    if (attachBtn && fileInput) {
+      attachBtn.addEventListener("click", () => fileInput.click());
+      fileInput.addEventListener("change", handleFileSelect);
+    }
 
     // Provider Dropdown
-    providerSelect.addEventListener("change", (e) => switchProvider(e.target.value));
+    if (providerSelect) {
+      providerSelect.addEventListener("change", (e) => switchProvider(e.target.value));
+    }
 
     // MCP Modal
-    openAddMcpBtn.addEventListener("click", () => addMcpModal.classList.remove("hidden"));
-    closeMcpModalBtn.addEventListener("click", () => addMcpModal.classList.add("hidden"));
-    addMcpModal.addEventListener("click", (e) => {
-      if (e.target === addMcpModal) addMcpModal.classList.add("hidden");
-    });
+    if (openAddMcpBtn) openAddMcpBtn.addEventListener("click", () => addMcpModal?.classList.remove("hidden"));
+    if (closeMcpModalBtn) closeMcpModalBtn.addEventListener("click", () => addMcpModal?.classList.add("hidden"));
+    if (addMcpModal) {
+      addMcpModal.addEventListener("click", (e) => {
+        if (e.target === addMcpModal) addMcpModal.classList.add("hidden");
+      });
+    }
 
-    testMcpBtn.addEventListener("click", testMcpConnection);
-    saveMcpServerBtn.addEventListener("click", saveMcpServer);
+    if (testMcpBtn) testMcpBtn.addEventListener("click", testMcpConnection);
+    if (saveMcpServerBtn) saveMcpServerBtn.addEventListener("click", saveMcpServer);
 
     // Settings Modal
-    closeSettingsBtn.addEventListener("click", () => settingsModal.classList.add("hidden"));
-    settingsModal.addEventListener("click", (e) => {
-      if (e.target === settingsModal) settingsModal.classList.add("hidden");
-    });
+    if (closeSettingsBtn) closeSettingsBtn.addEventListener("click", () => settingsModal?.classList.add("hidden"));
+    if (settingsModal) {
+      settingsModal.addEventListener("click", (e) => {
+        if (e.target === settingsModal) settingsModal.classList.add("hidden");
+      });
+    }
 
-    settingProviderChoice.addEventListener("change", (e) => populateProviderFields(e.target.value));
+    if (settingProviderChoice) {
+      settingProviderChoice.addEventListener("change", (e) => {
+        const val = e.target.value;
+        if (val === "__add_proxy__") {
+          addNewCustomProxyPrompt();
+        } else {
+          switchProvider(val);
+        }
+      });
+    }
 
-    settingTemp.addEventListener("input", (e) => {
-      tempDisplay.textContent = e.target.value;
-    });
+    if (btnAddCustomProxy) {
+      btnAddCustomProxy.addEventListener("click", () => addNewCustomProxyPrompt());
+    }
+    if (btnDeleteCustomProxy) {
+      btnDeleteCustomProxy.addEventListener("click", () => deleteCustomProxyProfile());
+    }
 
-    toggleKeyVisibility.addEventListener("click", () => {
-      if (settingApiKey.type === "password") {
-        settingApiKey.type = "text";
-        toggleKeyVisibility.textContent = "Hide";
-      } else {
-        settingApiKey.type = "password";
-        toggleKeyVisibility.textContent = "Show";
-      }
-    });
+    // Lean Mode toggle listeners
+    if (leanModeToggleBtn) {
+      leanModeToggleBtn.addEventListener("click", () => toggleLeanMode());
+    }
+    if (settingLeanMode) {
+      settingLeanMode.addEventListener("change", (e) => {
+        isLeanMode = e.target.checked;
+        localStorage.setItem("agentchat_lean_mode", isLeanMode ? "true" : "false");
+        updateLeanModeUI();
+      });
+    }
 
-    saveSettingsBtn.addEventListener("click", saveConfig);
+    if (settingTemp) {
+      settingTemp.addEventListener("input", (e) => {
+        if (tempDisplay) tempDisplay.textContent = e.target.value;
+      });
+    }
+
+    if (toggleKeyVisibility) {
+      toggleKeyVisibility.addEventListener("click", () => {
+        if (settingApiKey) {
+          if (settingApiKey.type === "password") {
+            settingApiKey.type = "text";
+            toggleKeyVisibility.textContent = "Hide";
+          } else {
+            settingApiKey.type = "password";
+            toggleKeyVisibility.textContent = "Show";
+          }
+        }
+      });
+    }
+
+    if (saveSettingsBtn) saveSettingsBtn.addEventListener("click", saveConfig);
 
     if (settingSavedKeysSelect) {
       settingSavedKeysSelect.addEventListener("change", () => {
@@ -693,38 +785,150 @@
       });
     }
 
-    // AgentRouter Model Picker Bar Tabs & Pills
-    const arTabs = document.querySelectorAll(".ar-tab");
-    const arPills = document.querySelectorAll(".ar-model-pill");
-
-    arTabs.forEach(tab => {
-      tab.addEventListener("click", () => {
-        arTabs.forEach(t => t.classList.remove("active"));
-        tab.classList.add("active");
-        const cat = tab.getAttribute("data-category");
-        arPills.forEach(pill => {
-          if (cat === "all" || pill.getAttribute("data-category") === cat) {
-            pill.style.display = "inline-flex";
-          } else {
-            pill.style.display = "none";
-          }
-        });
+    // Quick Refresh & Auto-Discovery Models Button
+    const refreshModelsBtn = document.getElementById("refresh-models-btn");
+    if (refreshModelsBtn) {
+      refreshModelsBtn.addEventListener("click", async () => {
+        refreshModelsBtn.classList.add("spinning");
+        await fetchModels();
+        setTimeout(() => refreshModelsBtn.classList.remove("spinning"), 600);
       });
+    }
+  }
+
+  function getModelPillStyleClass(model) {
+    const id = (model.id || "").toLowerCase();
+    const cat = (model.category || "").toLowerCase();
+    if (id === "claude-opus-4-8" || id === "claude-opus-4.8") return "pill-claude-opus-48";
+    if (id === "claude-opus-5") return "pill-claude-opus-5";
+    if (id === "deepseek-v4-flash") return "pill-deepseek-v4-flash";
+    if (id === "gpt-5.6-sol") return "pill-gpt-56-sol";
+    if (id === "gpt-6-astra") return "pill-gpt-6-astra";
+
+    if (model.is_free) return "pill-free";
+    if (cat.includes("anthropic") || id.includes("claude")) return "pill-anthropic";
+    if (cat.includes("deepseek")) return "pill-deepseek";
+    if (cat.includes("openai") || id.includes("gpt") || id.includes("o1") || id.includes("o3")) return "pill-openai";
+    if (cat.includes("google") || id.includes("gemini")) return "pill-google";
+    return "pill-generic";
+  }
+
+  function getModelIcon(model) {
+    const id = (model.id || "").toLowerCase();
+    const cat = (model.category || "").toLowerCase();
+    if (model.is_free) return "🎁";
+    if (id.includes("claude") || cat.includes("anthropic")) return "✳️";
+    if (id.includes("deepseek") || cat.includes("deepseek")) return "🐳";
+    if (id.includes("gpt") || id.includes("o1") || id.includes("o3") || cat.includes("openai")) return "🌀";
+    if (id.includes("gemini") || cat.includes("google")) return "🌐";
+    if (id.includes("qwen")) return "💻";
+    return "⚡";
+  }
+
+  function renderModelPickerBar(models, activeModelId) {
+    const tabsContainer = document.getElementById("agentrouter-tabs");
+    const pillsContainer = document.getElementById("agentrouter-pills");
+    if (!pillsContainer) return;
+
+    // Categorize models for tabs
+    const categories = {
+      all: { label: "All Models", icon: "", count: 0 },
+      free: { label: "Free Tier", icon: "🎁", count: 0 },
+      Anthropic: { label: "Anthropic", icon: "✳️", count: 0 },
+      DeepSeek: { label: "DeepSeek", icon: "🐳", count: 0 },
+      OpenAI: { label: "OpenAI", icon: "🌀", count: 0 },
+      Google: { label: "Google", icon: "🌐", count: 0 }
+    };
+
+    models.forEach(m => {
+      categories.all.count++;
+      if (m.is_free) categories.free.count++;
+      const cat = m.category || "General";
+      if (categories[cat]) categories[cat].count++;
     });
 
-    arPills.forEach(pill => {
-      pill.addEventListener("click", async () => {
+    // Build Category Tabs
+    if (tabsContainer) {
+      tabsContainer.innerHTML = "";
+      const allTab = document.createElement("button");
+      allTab.type = "button";
+      allTab.className = "ar-tab active";
+      allTab.setAttribute("data-category", "all");
+      allTab.innerHTML = `<span>All Models</span><span class="ar-badge ar-badge-all">${categories.all.count}</span>`;
+      tabsContainer.appendChild(allTab);
+
+      ["free", "Anthropic", "DeepSeek", "OpenAI", "Google"].forEach(cKey => {
+        const info = categories[cKey];
+        if (info && info.count > 0) {
+          const tab = document.createElement("button");
+          tab.type = "button";
+          tab.className = "ar-tab";
+          tab.setAttribute("data-category", cKey);
+          tab.innerHTML = `<span style="font-size:12px;">${info.icon}</span><span>${info.label}</span><span class="ar-badge">${info.count}</span>`;
+          tabsContainer.appendChild(tab);
+        }
+      });
+
+      const arTabs = tabsContainer.querySelectorAll(".ar-tab");
+      arTabs.forEach(tab => {
+        tab.addEventListener("click", () => {
+          arTabs.forEach(t => t.classList.remove("active"));
+          tab.classList.add("active");
+          const cat = tab.getAttribute("data-category");
+          const pills = pillsContainer.querySelectorAll(".ar-model-pill");
+          pills.forEach(pill => {
+            if (cat === "all") {
+              pill.style.display = "inline-flex";
+            } else if (cat === "free") {
+              pill.style.display = pill.getAttribute("data-is-free") === "true" ? "inline-flex" : "none";
+            } else {
+              pill.style.display = pill.getAttribute("data-category") === cat ? "inline-flex" : "none";
+            }
+          });
+        });
+      });
+    }
+
+    // Build dynamic pills for current proxy
+    pillsContainer.innerHTML = "";
+
+    // Sort to prioritize free models and flagship models
+    const sorted = [...models].sort((a, b) => {
+      if (a.is_free && !b.is_free) return -1;
+      if (!a.is_free && b.is_free) return 1;
+      const isAFlagship = a.id.includes("opus-5") || a.id.includes("opus-4-8") || a.id.includes("sonnet-4") || a.id.includes("r1") || a.id.includes("gpt-6") || a.id.includes("gpt-5");
+      const isBFlagship = b.id.includes("opus-5") || b.id.includes("opus-4-8") || b.id.includes("sonnet-4") || b.id.includes("r1") || b.id.includes("gpt-6") || b.id.includes("gpt-5");
+      if (isAFlagship && !isBFlagship) return -1;
+      if (!isAFlagship && isBFlagship) return 1;
+      return 0;
+    });
+
+    const displayModels = sorted.slice(0, 8);
+
+    displayModels.forEach(m => {
+      const pill = document.createElement("button");
+      pill.type = "button";
+      const styleClass = getModelPillStyleClass(m);
+      pill.className = `ar-model-pill ${styleClass}${m.id === activeModelId ? " active" : ""}`;
+      pill.setAttribute("data-category", m.category || "General");
+      pill.setAttribute("data-is-free", m.is_free ? "true" : "false");
+      pill.setAttribute("data-model", m.id);
+      pill.title = `${m.name || m.id}${m.is_free ? " (100% Free Zero Cost)" : ""}`;
+
+      const icon = getModelIcon(m);
+      const freeTag = m.is_free ? `<span class="ar-free-tag">FREE</span>` : "";
+      const rawName = m.name || m.id;
+      // Strip leading emoji if present for a clean button label
+      const cleanName = rawName.replace(/^[^\w\s\-\.\/]+/, "").trim();
+
+      pill.innerHTML = `<span style="font-size:12px;">${icon}</span><span>${cleanName}</span>${freeTag}`;
+
+      pill.addEventListener("click", () => {
         const mid = pill.getAttribute("data-model");
         if (!mid) return;
-        arPills.forEach(p => p.classList.remove("active"));
+        pillsContainer.querySelectorAll(".ar-model-pill").forEach(p => p.classList.remove("active"));
         pill.classList.add("active");
 
-        // Ensure custom provider is active
-        if (currentConfig.active_provider !== "custom") {
-          await switchProvider("custom");
-        }
-
-        // Set model
         if (modelSelect) {
           modelSelect.value = mid;
         }
@@ -734,6 +938,8 @@
           syncUserProfileToCloud();
         }
       });
+
+      pillsContainer.appendChild(pill);
     });
   }
 
@@ -746,6 +952,43 @@
         p.classList.remove("active");
       }
     });
+  }
+
+  // Interactive Reasoning Effort Bar Controller
+  function initEffortBar() {
+    const effortButtons = document.querySelectorAll(".effort-btn");
+    const saved = localStorage.getItem("agentchat_active_effort") || (effortSelect ? effortSelect.value : "medium");
+
+    window.setReasoningEffort = function(val) {
+      if (!val) return;
+      effortButtons.forEach(btn => {
+        if (btn.getAttribute("data-effort") === val) {
+          btn.classList.add("active");
+        } else {
+          btn.classList.remove("active");
+        }
+      });
+      if (effortSelect) effortSelect.value = val;
+      if (accountDefaultEffort) accountDefaultEffort.value = val;
+      localStorage.setItem("agentchat_active_effort", val);
+    };
+
+    effortButtons.forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const val = btn.getAttribute("data-effort");
+        window.setReasoningEffort(val);
+      });
+    });
+
+    if (effortSelect) {
+      effortSelect.addEventListener("change", () => {
+        window.setReasoningEffort(effortSelect.value);
+      });
+    }
+
+    window.setReasoningEffort(saved);
   }
 
   // Rail Tab Switching
@@ -1451,8 +1694,19 @@
 
   // Message Sending
   async function sendMessage() {
-    const text = userInput.value.trim();
-    if ((!text && !currentAttachments.length) || isGenerating) return;
+    const text = (userInput?.value || "").trim();
+    if (!text && !currentAttachments.length) {
+      if (userInput) userInput.focus();
+      const inputBox = document.querySelector(".chat-input-box");
+      if (inputBox) {
+        inputBox.classList.remove("input-empty-attention");
+        void inputBox.offsetWidth; // Trigger reflow for animation replay
+        inputBox.classList.add("input-empty-attention");
+        setTimeout(() => inputBox.classList.remove("input-empty-attention"), 600);
+      }
+      return;
+    }
+    if (isGenerating) return;
 
     let session = getCurrentSession();
     if (!session) {
@@ -1506,6 +1760,10 @@
         content: m.content
       }));
 
+      // Estimate input tokens
+      const estPromptTokens = isLeanMode ? Math.max(6, Math.ceil(finalPrompt.length / 4)) : Math.max(15, Math.ceil(JSON.stringify(historyToSend).length / 4));
+      updateTokenMeter(estPromptTokens, 0);
+
       const response = await apiFetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1515,12 +1773,13 @@
           reasoning_effort: selectedEffort,
           web_search: webSearchEnabled,
           auto_compress: currentConfig.auto_compress !== false,
-          messages: historyToSend,
+          lean_mode: isLeanMode,
+          messages: isLeanMode ? historyToSend.slice(-2) : historyToSend,
           temperature: parseFloat(settingTemp.value) || 0.7,
           system_prompt: settingSystemPrompt.value.trim(),
-          skills_context: getActiveSkillsContext(),
-          project_context: getActiveProjectContext(),
-          persona_directives: localStorage.getItem("agentchat_developer_persona") || ""
+          skills_context: isLeanMode ? "" : getActiveSkillsContext(),
+          project_context: isLeanMode ? "" : getActiveProjectContext(),
+          persona_directives: isLeanMode ? "" : (localStorage.getItem("agentchat_developer_persona") || "")
         })
       });
 
@@ -1535,6 +1794,7 @@
       const reader = response.body.getReader();
       const decoder = new TextDecoder("utf-8");
       let buffer = "";
+      let generatedOutTokens = 0;
 
       streamLoop: while (true) {
         const { done, value } = await reader.read();
@@ -1548,6 +1808,8 @@
                 if (delta.content) {
                   assistantMsg.content += delta.content;
                   textDiv.innerHTML = renderMarkdown(assistantMsg.content);
+                  generatedOutTokens += Math.max(1, Math.ceil(delta.content.length / 4));
+                  updateTokenMeter(0, Math.max(1, Math.ceil(delta.content.length / 4)));
                 }
               } catch (_) {}
             }
@@ -1571,6 +1833,13 @@
           if (trimmed.startsWith("data: ")) {
             try {
               const data = JSON.parse(trimmed.slice(6));
+              if (data.usage) {
+                if (data.usage.completion_tokens) {
+                  const diff = data.usage.completion_tokens - generatedOutTokens;
+                  if (diff > 0) updateTokenMeter(0, diff);
+                  generatedOutTokens = data.usage.completion_tokens;
+                }
+              }
               if (data.error) {
                 bubble.classList.add("error-bubble");
                 let errMsg = typeof data.error === "string" ? data.error : (data.error.message || JSON.stringify(data.error));
@@ -2391,19 +2660,218 @@
     updateBannerStatus();
   }
 
+  // ==================== MULTI-PROXY PROFILE & PROVIDER SWITCHER ====================
+  function getCustomProxies() {
+    try {
+      const raw = localStorage.getItem("agentchat_custom_proxies");
+      return raw ? JSON.parse(raw) : [];
+    } catch (_) { return []; }
+  }
+
+  function saveCustomProxies(list) {
+    localStorage.setItem("agentchat_custom_proxies", JSON.stringify(list));
+  }
+
+  function updateProxyNameGroupVisibility(provKey) {
+    const isCustom = provKey && provKey.startsWith("custom_");
+    if (proxyCustomNameGroup) {
+      if (isCustom) proxyCustomNameGroup.classList.remove("hidden");
+      else proxyCustomNameGroup.classList.add("hidden");
+    }
+    if (btnDeleteCustomProxy) {
+      if (isCustom) btnDeleteCustomProxy.classList.remove("hidden");
+      else btnDeleteCustomProxy.classList.add("hidden");
+    }
+  }
+
+  function populateProviderDropdowns() {
+    const customProxies = getCustomProxies();
+    const active = currentConfig.active_provider || "justdowork";
+
+    const freePresets = [
+      { id: "puter", label: "🚀 Puter.ai (100% Free Claude Opus 5 & Frontier)" },
+      { id: "google", label: "🌐 Google AI Studio (Free Gemini 2.0 Tier)" },
+      { id: "groq", label: "⚡ Groq Cloud (Free Ultra-Fast Inference)" },
+      { id: "openrouter", label: "🔀 OpenRouter (Free Tier Models)" }
+    ];
+
+    const premiumPresets = [
+      { id: "justdowork", label: "💼 JustDoWork (api.justwoker.icu - Claude Opus 5)" },
+      { id: "agentrouter", label: "🛡️ AgentRouter (agentrouter.org - Stealth Vault)" },
+      { id: "deepseek", label: "🐳 DeepSeek Official (deepseek.com)" },
+      { id: "openai", label: "✨ OpenAI Official (api.openai.com)" },
+      { id: "custom", label: "⚙️ Custom Stealth Proxy" }
+    ];
+
+    [providerSelect, settingProviderChoice].forEach(selectEl => {
+      if (!selectEl) return;
+      const isHeaderSelect = (selectEl === providerSelect);
+      selectEl.innerHTML = "";
+
+      const optGroupFree = document.createElement("optgroup");
+      optGroupFree.label = "🎁 Free Tier / Zero-Cost Gateways";
+      freePresets.forEach(p => {
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        opt.textContent = p.label;
+        if (p.id === active) opt.selected = true;
+        optGroupFree.appendChild(opt);
+      });
+      selectEl.appendChild(optGroupFree);
+
+      const optGroupPremium = document.createElement("optgroup");
+      optGroupPremium.label = "💼 Premium & Stealth Gateways";
+      premiumPresets.forEach(p => {
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        opt.textContent = p.label;
+        if (p.id === active) opt.selected = true;
+        optGroupPremium.appendChild(opt);
+      });
+      selectEl.appendChild(optGroupPremium);
+
+      if (customProxies.length > 0) {
+        const optGroupCustom = document.createElement("optgroup");
+        optGroupCustom.label = "🔗 Custom User Proxies";
+        customProxies.forEach(cp => {
+          const opt = document.createElement("option");
+          opt.value = cp.id;
+          opt.textContent = `🔗 ${cp.name || cp.id}`;
+          if (cp.id === active) opt.selected = true;
+          optGroupCustom.appendChild(opt);
+        });
+        selectEl.appendChild(optGroupCustom);
+      }
+
+      if (isHeaderSelect) {
+        const addOpt = document.createElement("option");
+        addOpt.value = "__add_proxy__";
+        addOpt.textContent = "➕ Add Custom Proxy...";
+        selectEl.appendChild(addOpt);
+      }
+    });
+
+    if (providerSelect) providerSelect.value = active;
+    if (settingProviderChoice) settingProviderChoice.value = active;
+    updateProxyNameGroupVisibility(active);
+  }
+
+  function addNewCustomProxyPrompt() {
+    const name = prompt("Enter a label for your new Custom Proxy profile:\n(e.g., 'My Secondary Gateway', 'Ollama Local', 'Team Reverse Proxy')");
+    if (!name || !name.trim()) {
+      populateProviderDropdowns();
+      return;
+    }
+    const customProxies = getCustomProxies();
+    const newId = "custom_" + Date.now();
+    const newProxy = {
+      id: newId,
+      name: name.trim(),
+      base_url: "https://"
+    };
+    customProxies.push(newProxy);
+    saveCustomProxies(customProxies);
+
+    if (!currentConfig.providers) currentConfig.providers = {};
+    currentConfig.providers[newId] = {
+      name: name.trim(),
+      base_url: "https://",
+      api_key: "",
+      has_key: false
+    };
+
+    switchProvider(newId);
+    if (settingsModal) {
+      syncSettingsModalWithConfig();
+      settingsModal.classList.remove("hidden");
+      if (settingBaseUrl) {
+        settingBaseUrl.value = "";
+        settingBaseUrl.focus();
+      }
+    }
+  }
+
+  function deleteCustomProxyProfile() {
+    const active = currentConfig.active_provider || "";
+    if (!active.startsWith("custom_")) return;
+    const customProxies = getCustomProxies();
+    const found = customProxies.find(cp => cp.id === active);
+    const name = found ? found.name : active;
+    if (!confirm(`Are you sure you want to delete custom proxy profile "${name}"?`)) return;
+
+    const remaining = customProxies.filter(cp => cp.id !== active);
+    saveCustomProxies(remaining);
+    if (currentConfig.providers && currentConfig.providers[active]) {
+      delete currentConfig.providers[active];
+    }
+    localStorage.removeItem("agentchat_client_key_" + active);
+    localStorage.removeItem("agentchat_client_url_" + active);
+
+    switchProvider("justdowork");
+  }
+
   // Provider Switching
   async function switchProvider(provKey) {
+    if (provKey === "__add_proxy__") {
+      addNewCustomProxyPrompt();
+      return;
+    }
     currentConfig.active_provider = provKey;
     localStorage.setItem("agentchat_active_provider", provKey);
-    providerSelect.value = provKey;
-    if (settingProviderChoice) settingProviderChoice.value = provKey;
+    populateProviderDropdowns();
     populateProviderFields(provKey);
+
+    // Provide immediate visual feedback that models are auto-discovering for the new proxy
+    if (modelSelect) {
+      modelSelect.innerHTML = `<option value="">⚡ Discovering models for ${provKey}...</option>`;
+    }
+    const pillsContainer = document.getElementById("agentrouter-pills");
+    if (pillsContainer) {
+      pillsContainer.innerHTML = `<span style="font-size:12px; color:var(--md-sys-color-outline); padding:4px 8px;">🔄 Connecting & auto-discovering models for ${provKey}...</span>`;
+    }
+
     await saveConfig(false);
     await fetchModels();
     updateBannerStatus();
     if (currentUser) {
       syncUserProfileToCloud();
     }
+  }
+
+  // Lean Mode & Token Meter State
+  function updateLeanModeUI() {
+    if (leanModeLabel) {
+      leanModeLabel.textContent = isLeanMode ? "Lean: ON" : "Lean: OFF";
+    }
+    if (leanModeToggleBtn) {
+      if (isLeanMode) {
+        leanModeToggleBtn.classList.add("active");
+        leanModeToggleBtn.style.backgroundColor = "rgba(16, 185, 129, 0.15)";
+        leanModeToggleBtn.style.borderColor = "#10b981";
+        leanModeToggleBtn.style.color = "#10b981";
+      } else {
+        leanModeToggleBtn.classList.remove("active");
+        leanModeToggleBtn.style.backgroundColor = "";
+        leanModeToggleBtn.style.borderColor = "";
+        leanModeToggleBtn.style.color = "";
+      }
+    }
+    if (settingLeanMode) {
+      settingLeanMode.checked = isLeanMode;
+    }
+  }
+
+  function toggleLeanMode() {
+    isLeanMode = !isLeanMode;
+    localStorage.setItem("agentchat_lean_mode", isLeanMode ? "true" : "false");
+    updateLeanModeUI();
+  }
+
+  function updateTokenMeter(deltaIn = 0, deltaOut = 0) {
+    sessionInTokens += deltaIn;
+    sessionOutTokens += deltaOut;
+    if (meterInTokens) meterInTokens.textContent = sessionInTokens;
+    if (meterOutTokens) meterOutTokens.textContent = sessionOutTokens;
   }
 
   // --- Client-Side Web Crypto API: AES-GCM Encrypted Vault ---
@@ -2644,15 +3112,27 @@
   function populateProviderFields(provKey) {
     const prov = currentConfig.providers?.[provKey] || {};
     const defaultUrl = PROVIDER_DEFAULTS[provKey]?.base_url || "";
-    settingBaseUrl.value = prov.base_url || defaultUrl;
+    const storedUrl = localStorage.getItem("agentchat_client_url_" + provKey) || "";
+    settingBaseUrl.value = storedUrl || prov.base_url || defaultUrl;
+
+    if (provKey && provKey.startsWith("custom_")) {
+      const customProxies = getCustomProxies();
+      const cp = customProxies.find(p => p.id === provKey);
+      if (settingProxyCustomName && cp) {
+        settingProxyCustomName.value = cp.name || "";
+      }
+    }
+    updateProxyNameGroupVisibility(provKey);
     renderKeyVaultOptions(provKey);
   }
 
   function syncSettingsModalWithConfig() {
-    const active = currentConfig.active_provider || "base";
-    settingProviderChoice.value = active;
+    populateProviderDropdowns();
+    const active = currentConfig.active_provider || "justdowork";
+    if (settingProviderChoice) settingProviderChoice.value = active;
     populateProviderFields(active);
     settingAutoCompress.checked = currentConfig.auto_compress !== false;
+    if (settingLeanMode) settingLeanMode.checked = isLeanMode;
     settingTemp.value = currentConfig.temperature || 0.7;
     tempDisplay.textContent = settingTemp.value;
     settingSystemPrompt.value = currentConfig.system_prompt || "";
@@ -2672,7 +3152,7 @@
       // If user is not logged in, restore persistent settings from localStorage
       if (!currentUser) {
         const savedProvider = localStorage.getItem("agentchat_active_provider");
-        if (savedProvider && (savedProvider in PROVIDER_DEFAULTS || savedProvider === "custom")) {
+        if (savedProvider) {
           currentConfig.active_provider = savedProvider;
         }
         const savedModel = localStorage.getItem("agentchat_active_model");
@@ -2681,8 +3161,23 @@
         }
       }
 
+      // Restore custom proxies into currentConfig.providers
+      const customProxies = getCustomProxies();
+      customProxies.forEach(cp => {
+        if (!currentConfig.providers) currentConfig.providers = {};
+        if (!currentConfig.providers[cp.id]) {
+          currentConfig.providers[cp.id] = {
+            name: cp.name,
+            base_url: cp.base_url,
+            api_key: "",
+            has_key: false
+          };
+        }
+      });
+
       // Restore client keys & URLs into currentConfig
-      Object.keys(PROVIDER_DEFAULTS).forEach(pKey => {
+      const allProviderKeys = [...Object.keys(PROVIDER_DEFAULTS), ...customProxies.map(cp => cp.id)];
+      allProviderKeys.forEach(pKey => {
         if (!currentConfig.providers) currentConfig.providers = {};
         if (!currentConfig.providers[pKey]) currentConfig.providers[pKey] = {};
         const storedKey = localStorage.getItem("agentchat_client_key_" + pKey);
@@ -2696,9 +3191,9 @@
         }
       });
 
-      if (currentConfig.active_provider) {
-        providerSelect.value = currentConfig.active_provider;
-      }
+      populateProviderDropdowns();
+      updateLeanModeUI();
+
       if (currentConfig.model) modelSelect.value = currentConfig.model;
       syncSettingsModalWithConfig();
       fetchModels();
@@ -2718,12 +3213,29 @@
     currentConfig.providers[activeP].base_url = enteredUrl;
     currentConfig.active_provider = activeP;
     currentConfig.auto_compress = settingAutoCompress.checked;
+    if (settingLeanMode) {
+      isLeanMode = settingLeanMode.checked;
+      localStorage.setItem("agentchat_lean_mode", isLeanMode ? "true" : "false");
+      updateLeanModeUI();
+    }
+    currentConfig.lean_mode = isLeanMode;
     currentConfig.temperature = parseFloat(settingTemp.value) || 0.7;
     currentConfig.system_prompt = settingSystemPrompt.value.trim();
     currentConfig.model = modelSelect.value;
     if (settingProtocolMode) {
       currentConfig.protocol_mode = settingProtocolMode.value;
       localStorage.setItem("agentchat_protocol_mode", settingProtocolMode.value);
+    }
+
+    if (activeP.startsWith("custom_") && settingProxyCustomName && settingProxyCustomName.value.trim()) {
+      const customProxies = getCustomProxies();
+      const cp = customProxies.find(p => p.id === activeP);
+      if (cp) {
+        cp.name = settingProxyCustomName.value.trim();
+        cp.base_url = enteredUrl;
+        saveCustomProxies(customProxies);
+      }
+      currentConfig.providers[activeP].name = settingProxyCustomName.value.trim();
     }
 
     localStorage.setItem("agentchat_active_provider", activeP);
@@ -2753,7 +3265,7 @@
         body: JSON.stringify(currentConfig)
       });
       if (closeModal) settingsModal.classList.add("hidden");
-      providerSelect.value = activeP;
+      populateProviderDropdowns();
       await fetchModels();
       if (currentUser) {
         syncUserProfileToCloud();
@@ -2784,16 +3296,74 @@
           }
         });
 
+        // Group models into Free, Flagship, Coding, and Available
+        const freeModels = [];
+        const flagshipModels = [];
+        const codingModels = [];
+        const otherModels = [];
+
         allModels.forEach(m => {
+          const idLower = (m.id || "").toLowerCase();
+          const nameLower = (m.name || "").toLowerCase();
+          if (m.is_free) {
+            freeModels.push(m);
+          } else if (
+            idLower.includes("opus") || idLower.includes("sonnet") ||
+            idLower.includes("gpt-5") || idLower.includes("gpt-6") ||
+            idLower.includes("gpt-4o") || idLower.includes("deepseek-r1") ||
+            nameLower.includes("flagship") || nameLower.includes("frontier")
+          ) {
+            flagshipModels.push(m);
+          } else if (
+            idLower.includes("code") || idLower.includes("coder") ||
+            idLower.includes("o1") || idLower.includes("o3") ||
+            idLower.includes("reasoning")
+          ) {
+            codingModels.push(m);
+          } else {
+            otherModels.push(m);
+          }
+        });
+
+        const appendOption = (parent, m) => {
           const opt = document.createElement("option");
           opt.value = m.id;
           const st = modelStatuses[m.id]?.status || m.status || "online";
           const displayName = MODEL_DISPLAY_NAMES[m.id] || m.name || m.id;
-          if (st === "online") opt.textContent = `🟢 ${displayName}`;
+          const freeBadge = m.is_free ? " 🎁 [Free]" : "";
+          if (st === "online") opt.textContent = `🟢 ${displayName}${freeBadge}`;
           else if (st === "exhausted") opt.textContent = `🔴 ${displayName} (Quota Limit)`;
-          else opt.textContent = `⚪ ${displayName}`;
-          modelSelect.appendChild(opt);
-        });
+          else opt.textContent = `⚪ ${displayName}${freeBadge}`;
+          parent.appendChild(opt);
+        };
+
+        if (freeModels.length > 0) {
+          const grp = document.createElement("optgroup");
+          grp.label = "🌟 Free Tier Models (Zero Cost)";
+          freeModels.forEach(m => appendOption(grp, m));
+          modelSelect.appendChild(grp);
+        }
+
+        if (flagshipModels.length > 0) {
+          const grp = document.createElement("optgroup");
+          grp.label = "⚡ Frontier & Flagship";
+          flagshipModels.forEach(m => appendOption(grp, m));
+          modelSelect.appendChild(grp);
+        }
+
+        if (codingModels.length > 0) {
+          const grp = document.createElement("optgroup");
+          grp.label = "💻 Coding & Deep Reasoning";
+          codingModels.forEach(m => appendOption(grp, m));
+          modelSelect.appendChild(grp);
+        }
+
+        if (otherModels.length > 0) {
+          const grp = document.createElement("optgroup");
+          grp.label = "🌐 Available Models";
+          otherModels.forEach(m => appendOption(grp, m));
+          modelSelect.appendChild(grp);
+        }
 
         const customPromptOpt = document.createElement("option");
         customPromptOpt.value = "__custom_entry__";
@@ -2803,9 +3373,13 @@
         if (cur && Array.from(modelSelect.options).some(o => o.value === cur)) {
           modelSelect.value = cur;
         } else {
-          modelSelect.value = allModels[0].id;
+          const preferred = flagshipModels[0] || freeModels[0] || allModels[0];
+          modelSelect.value = preferred.id;
         }
+
         localStorage.setItem("agentchat_active_model", modelSelect.value);
+        currentConfig.model = modelSelect.value;
+        renderModelPickerBar(allModels, modelSelect.value);
         updateAgentRouterBarActivePill(modelSelect.value);
       }
     } catch (e) {
