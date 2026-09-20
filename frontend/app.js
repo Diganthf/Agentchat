@@ -576,8 +576,6 @@
     }
     if (stopBtn) stopBtn.addEventListener("click", stopGeneration);
     if (newChatBtn) newChatBtn.addEventListener("click", createNewChat);
-    const mobileNewChatBtn = document.getElementById("mobile-new-chat-btn");
-    if (mobileNewChatBtn) mobileNewChatBtn.addEventListener("click", createNewChat);
 
     // Effort Bar Interactive Controls
     initEffortBar();
