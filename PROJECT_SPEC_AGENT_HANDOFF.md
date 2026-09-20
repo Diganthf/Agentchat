@@ -1,9 +1,10 @@
 # AgentChat: Comprehensive Project Architecture & Agent Hand-off Specification
 
-> **Target Audience**: AI Coding Agents & Full-Stack Developers Continuing Development.  
-> **Repository**: [https://github.com/Diganthf/AgentChat.git](https://github.com/Diganthf/AgentChat.git)  
-> **Live Production**: [https://agentchat-1jpo.onrender.com](https://agentchat-1jpo.onrender.com)  
-> **Version**: 2.2.0 (Production Stable)
+> **GitHub Repository**: [https://github.com/Diganthf/AgentChat.git](https://github.com/Diganthf/AgentChat.git)  
+> **Live Production Web App**: [https://agentchat-1jpo.onrender.com](https://agentchat-1jpo.onrender.com)  
+> **Git Clone Command**: `git clone https://github.com/Diganthf/AgentChat.git`  
+> **Target Audience**: AI Coding Assistants & Full-Stack Developers Continuing Development  
+> **Current Version**: 2.2.0 (Production Stable)
 
 ---
 
