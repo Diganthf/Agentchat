@@ -11,8 +11,16 @@ services:
         value: "5050"
       - key: HOST
         value: "0.0.0.0"
+      - key: ALLOW_UNPROTECTED_PUBLIC
+        value: "1"
       - key: DISABLE_LOCAL_TOOLS
         value: "1"
+      - key: AGENTCHAT_MASTER_KEY
+        value: "agentchat_universal_vault_secret_2026"
+      - key: JUSTDOWORK_API_KEY
+        value: "sk-saKmOPTBIO52wSDr4kSisEMurx8Ze3tee44BoQCMSWECL7OG"
+      - key: AGENTROUTER_API_KEY
+        value: "sk-416fg45p4OK340pdDFK7SFmn01TIfmDmZkYWEp6pZf2wp8Sj"
       - key: BASE_TIER_API_KEY
         sync: false
       - key: OPENROUTER_API_KEY

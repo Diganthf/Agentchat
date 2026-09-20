@@ -356,24 +356,29 @@
     return headers;
   }
 
+  let isPromptingAuth = false;
   async function apiFetch(url, options = {}) {
     if (!options.headers) options.headers = {};
     options.headers = getAuthHeaders(options.headers);
     const backendUrl = (localStorage.getItem("agentchat_backend_url") || "").trim().replace(/\/+$/, "");
     const fullUrl = (url.startsWith("/") && backendUrl) ? backendUrl + url : url;
     let res = await fetch(fullUrl, options);
-    if (res.status === 401) {
+    if (res.status === 401 && !isPromptingAuth) {
       try {
         const data = await res.clone().json();
         if (data.need_auth) {
+          isPromptingAuth = true;
           const entered = prompt("🔒 This AgentChat deployment is password-protected.\nPlease enter the Access Password:");
+          isPromptingAuth = false;
           if (entered) {
             localStorage.setItem("agentchat_access_password", entered.trim());
             options.headers["X-Access-Password"] = entered.trim();
             res = await fetch(fullUrl, options);
           }
         }
-      } catch (e) {}
+      } catch (e) {
+        isPromptingAuth = false;
+      }
     }
     return res;
   }
@@ -484,6 +489,38 @@
     if (sidebarBackdrop) {
       sidebarBackdrop.addEventListener("click", () => {
         document.body.classList.remove("sidebar-mobile-open");
+      });
+    }
+
+    const closeSidebarBtn = document.getElementById("close-sidebar-btn");
+    if (closeSidebarBtn) {
+      closeSidebarBtn.addEventListener("click", () => {
+        document.body.classList.remove("sidebar-mobile-open");
+      });
+    }
+
+    const mobileNewChatBtn = document.getElementById("mobile-new-chat-btn");
+    if (mobileNewChatBtn) {
+      mobileNewChatBtn.addEventListener("click", () => {
+        createNewChat();
+        document.body.classList.remove("sidebar-mobile-open");
+      });
+    }
+
+    // Mobile Drawer Navigation Tabs
+    const mobileDrawerTabs = document.getElementById("mobile-drawer-tabs");
+    if (mobileDrawerTabs) {
+      mobileDrawerTabs.querySelectorAll(".mobile-tab-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const tabKey = btn.getAttribute("data-tab");
+          if (!tabKey) return;
+          mobileDrawerTabs.querySelectorAll(".mobile-tab-btn").forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          switchToRailTab(tabKey);
+          if (tabKey === "settings") {
+            document.body.classList.remove("sidebar-mobile-open");
+          }
+        });
       });
     }
 
@@ -815,6 +852,7 @@
           openCustomModelModal();
           return;
         }
+        currentConfig.model = modelSelect.value;
         localStorage.setItem("agentchat_active_model", modelSelect.value);
         updateAgentRouterBarActivePill(modelSelect.value);
         if (currentUser) {
@@ -1031,17 +1069,30 @@
 
   // Rail Tab Switching
   window.switchToRailTab = function(tabName) {
+    if (tabName === "settings") {
+      syncSettingsModalWithConfig();
+      if (settingsModal) settingsModal.classList.remove("hidden");
+      return;
+    }
     currentRailTab = tabName;
     [railTabChats, railTabModels, railTabSkills, railTabProjects, railTabMcp].filter(Boolean).forEach(b => b.classList.remove("active"));
     [paneChats, paneModels, paneSkills, paneProjects, paneMcp].filter(Boolean).forEach(p => p.classList.add("hidden"));
 
+    const mobileDrawerTabs = document.getElementById("mobile-drawer-tabs");
+    if (mobileDrawerTabs) {
+      mobileDrawerTabs.querySelectorAll(".mobile-tab-btn").forEach(btn => {
+        if (btn.getAttribute("data-tab") === tabName) btn.classList.add("active");
+        else btn.classList.remove("active");
+      });
+    }
+
     if (tabName === "chats") {
-      railTabChats.classList.add("active");
-      paneChats.classList.remove("hidden");
+      if (railTabChats) railTabChats.classList.add("active");
+      if (paneChats) paneChats.classList.remove("hidden");
       renderSidebar();
     } else if (tabName === "models") {
-      railTabModels.classList.add("active");
-      paneModels.classList.remove("hidden");
+      if (railTabModels) railTabModels.classList.add("active");
+      if (paneModels) paneModels.classList.remove("hidden");
       renderModelsMiniList("all");
     } else if (tabName === "skills") {
       if (railTabSkills) railTabSkills.classList.add("active");
@@ -1052,12 +1103,12 @@
       if (paneProjects) paneProjects.classList.remove("hidden");
       renderProjectsPane();
     } else if (tabName === "mcp") {
-      railTabMcp.classList.add("active");
-      paneMcp.classList.remove("hidden");
+      if (railTabMcp) railTabMcp.classList.add("active");
+      if (paneMcp) paneMcp.classList.remove("hidden");
       renderMcpList();
     }
 
-    if (subSidebar.classList.contains("collapsed")) {
+    if (subSidebar && subSidebar.classList.contains("collapsed")) {
       subSidebar.classList.remove("collapsed");
     }
   };

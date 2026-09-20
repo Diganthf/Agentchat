@@ -2017,6 +2017,13 @@ textarea#user-input::placeholder {
   line-height: 1.4;
 }
 
+/* Mobile-only elements hidden on desktop */
+.mobile-drawer-header,
+.mobile-drawer-tabs,
+.mobile-only-btn {
+  display: none !important;
+}
+
 /* ==========================================================================
    Mobile Responsive Engine (Smartphones & Tablets <= 768px)
    Drawer Navigation • Touch Geometry • iOS Zoom Prevention • 100dvh Bounds
@@ -2034,10 +2041,10 @@ textarea#user-input::placeholder {
   .sidebar-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    z-index: 80;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    z-index: 90;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.25s cubic-bezier(0.2, 0, 0, 1);
@@ -2048,50 +2055,28 @@ textarea#user-input::placeholder {
     pointer-events: auto;
   }
 
-  /* --- Navigation Rail on Mobile (Drawer Left Strip) --- */
+  /* On mobile, leftmost rail is replaced by unified drawer tabs */
   .nav-rail {
-    position: fixed;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    width: 58px;
-    z-index: 100;
-    transform: translateX(-340px);
-    transition: transform 0.28s cubic-bezier(0.2, 0, 0, 1);
-    padding: 12px 0;
+    display: none !important;
   }
 
-  body.sidebar-mobile-open .nav-rail {
-    transform: translateX(0);
-    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.4);
-  }
-
-  .rail-btn {
-    width: 50px;
-  }
-
-  .rail-icon-wrapper {
-    width: 42px;
-    height: 28px;
-  }
-
-  .rail-label {
-    font-size: 10px;
-  }
-
-  /* --- Sub-Sidebar on Mobile (Drawer Content Pane) --- */
+  /* --- Sub-Sidebar on Mobile: Unified Left Navigation Drawer --- */
   .sub-sidebar {
     position: fixed;
     top: 0;
     bottom: 0;
-    left: 58px;
-    width: calc(100vw - 75px);
-    max-width: 290px;
-    z-index: 95;
-    transform: translateX(-360px);
+    left: 0;
+    width: min(85vw, 320px);
+    max-width: 85vw;
+    z-index: 100;
+    transform: translateX(-105%);
     transition: transform 0.28s cubic-bezier(0.2, 0, 0, 1);
     border-right: 1px solid var(--md-sys-color-outline-variant);
-    box-shadow: 8px 0 28px rgba(0, 0, 0, 0.55);
+    box-shadow: 12px 0 35px rgba(0, 0, 0, 0.65);
+    display: flex;
+    flex-direction: column;
+    background: var(--md-sys-color-surface-container-low);
+    overflow: hidden;
   }
 
   body.sidebar-mobile-open .sub-sidebar {
@@ -2099,8 +2084,88 @@ textarea#user-input::placeholder {
   }
 
   .sub-sidebar.collapsed {
-    width: calc(100vw - 75px);
+    width: min(85vw, 320px);
     margin-left: 0;
+  }
+
+  /* Mobile Drawer Header with Close Button */
+  .mobile-drawer-header {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface-container);
+    flex-shrink: 0;
+  }
+
+  .mobile-drawer-brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+
+  .mobile-drawer-logo {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+  }
+
+  .mobile-drawer-title {
+    font-family: var(--font-brand);
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--md-sys-color-on-surface);
+  }
+
+  .mobile-close-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--md-sys-color-surface-container-high);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    color: var(--md-sys-color-on-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  /* Mobile Drawer Segmented Navigation Tabs */
+  .mobile-drawer-tabs {
+    display: flex !important;
+    gap: 5px;
+    padding: 8px 10px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    background: var(--md-sys-color-surface-container-lowest);
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    flex-shrink: 0;
+  }
+
+  .mobile-drawer-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-tab-btn {
+    flex-shrink: 0;
+    padding: 6px 11px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .mobile-tab-btn.active {
+    background: var(--md-sys-color-secondary-container);
+    color: var(--md-sys-color-on-secondary-container);
+    border-color: var(--md-sys-color-outline-variant);
+    font-weight: 600;
   }
 
   /* --- Main Viewport on Mobile --- */
@@ -2114,14 +2179,20 @@ textarea#user-input::placeholder {
 
   .chat-topbar {
     height: 52px;
-    padding: 0 10px;
-    gap: 8px;
+    padding: 0 8px;
+    gap: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
   }
 
   .topbar-left-group {
+    display: flex;
+    align-items: center;
     gap: 6px;
     flex: 1;
     min-width: 0;
+    overflow: hidden;
   }
 
   .icon-toggle-btn {
@@ -2130,53 +2201,152 @@ textarea#user-input::placeholder {
     flex-shrink: 0;
   }
 
-  .select-pill-wrapper {
-    max-width: 175px;
-    min-width: 0;
-    flex-shrink: 1;
+  .mobile-only-btn {
+    display: inline-flex !important;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border: none;
+    cursor: pointer;
+    margin-left: auto;
   }
 
-  .select-pill.model-pill {
-    max-width: 175px;
-    font-size: 12px;
-    padding: 5px 22px 5px 8px;
+  .select-pill-wrapper.provider-pill-wrapper {
+    flex: 0 1 auto;
+    max-width: 135px;
+    min-width: 80px;
+  }
+
+  .select-pill-wrapper.model-pill-wrapper {
+    flex: 1 1 auto;
+    max-width: 165px;
+    min-width: 90px;
+  }
+
+  .select-pill-wrapper.effort-pill-wrapper {
+    display: none !important;
+  }
+
+  .select-pill.provider-pill {
+    display: block !important;
+    width: 100%;
+    font-size: 11.5px;
+    padding: 5px 20px 5px 7px;
     text-overflow: ellipsis;
     white-space: nowrap;
     overflow: hidden;
   }
 
+  .select-pill.model-pill {
+    display: block !important;
+    width: 100%;
+    font-size: 11.5px;
+    padding: 5px 20px 5px 7px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .header-refresh-btn {
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .lean-mode-pill {
+    display: none !important;
+  }
+
   /* Hide non-essential badges in mobile topbar */
   .effort-pill,
   #effort-select,
-  .provider-pill,
-  #provider-select,
   .topbar-right-group .tools-status-pill,
   .topbar-right-group .skills-status-pill,
   .topbar-right-group .project-status-pill,
-  .topbar-right-group .token-badge {
+  .topbar-right-group .token-badge,
+  .topbar-right-group #token-meter-pill {
     display: none !important;
   }
 
   /* Mobile AgentRouter bar & Effort Bar */
-  .agentrouter-bar-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
+  .agentrouter-bar {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    overflow: hidden;
   }
+
+  .agentrouter-bar-header {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+
+  .agentrouter-tabs {
+    display: flex;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 4px;
+    padding-bottom: 2px;
+  }
+
+  .agentrouter-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .ar-tab {
+    flex-shrink: 0;
+    padding: 4px 8px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .agentrouter-pills {
+    display: flex;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 5px;
+    padding: 2px 0 4px 0;
+  }
+
+  .agentrouter-pills::-webkit-scrollbar {
+    display: none;
+  }
+
+  .ar-model-pill {
+    flex-shrink: 0;
+    padding: 5px 10px;
+    font-size: 11.5px;
+    white-space: nowrap;
+  }
+
   .ar-effort-group {
     width: 100%;
     justify-content: space-between;
     margin-left: 0;
   }
+
   .effort-bar {
     width: 100%;
     display: flex;
   }
+
   .effort-btn {
     flex: 1;
     text-align: center;
-    padding: 6px 3px;
-    font-size: 11px;
+    padding: 5px 2px;
+    font-size: 10.5px;
   }
 
   /* --- Messages Viewport --- */
