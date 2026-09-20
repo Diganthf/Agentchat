@@ -13,24 +13,20 @@
   let currentRailTab = "chats";
 
   const MODEL_DISPLAY_NAMES = {
-    "claude-opus-4-8": "✳️ claude-opus-4-8 (Anthropic)",
-    "claude-opus-5": "✳️ claude-opus-5 (Anthropic Flagship)",
-    "deepseek-v4-flash": "🐳 deepseek-v4-flash (DeepSeek)",
-    "gpt-5.6-sol": "🌀 gpt-5.6-sol (OpenAI)",
-    "gpt-6-astra": "⚛️ gpt-6-astra (OpenAI)",
-    "claude-3-opus-20240229": "🎭 Claude 3 Opus (Anthropic Flagship)",
-    "claude-3-opus": "🎭 Claude 3 Opus (Anthropic)",
+    "gemini-2.0-flash": "🌐 Gemini 2.0 Flash (Free 1M Window)",
+    "gemini-1.5-flash": "🎁 Gemini 1.5 Flash (Free Tier)",
+    "gemini-1.5-pro": "🌐 Gemini 1.5 Pro (2M Window)",
+    "llama-3.3-70b-versatile": "🦙 Llama 3.3 70B Versatile (Free Open Weights)",
+    "deepseek-r1-distill-llama-70b": "🧠 DeepSeek R1 Distill 70B (Free Reasoning)",
+    "llama-3.1-8b-instant": "⚡ Llama 3.1 8B Instant (Free)",
+    "deepseek-v4-flash": "⚡ DeepSeek V4 Flash (Lightning Fast 1.5s)",
+    "claude-opus-4-8": "✳️ claude-opus-4-8 (Anthropic Frontier)",
     "claude-3-5-sonnet-20241022": "⚡ Claude 3.5 Sonnet (Anthropic)",
     "claude-3-5-sonnet": "⚡ Claude 3.5 Sonnet (Anthropic)",
-    "claude-3-5-haiku-20241022": "🪶 Claude 3.5 Haiku (Anthropic)",
-    "claude-3-5-haiku": "🪶 Claude 3.5 Haiku (Anthropic)",
     "deepseek/deepseek-r1": "🧠 DeepSeek R1 (671B Reasoning)",
-    "qwen/qwen-2.5-coder-72b-instruct": "💻 Qwen 2.5 Coder 72B (Elite Code)",
     "deepseek/deepseek-chat": "⚡ DeepSeek V3 (671B Nuance)",
     "google/gemini-2.0-flash-001": "🌐 Gemini 2.0 Flash (Fast / 1M)",
-    "gemini-2.0-flash": "Gemini 2.0 Flash",
-    "gemini-2.0-flash-thinking-exp-01-21": "Gemini 2.0 Flash Thinking",
-    "gemini-2.0-pro-exp-02-05": "Gemini 2.0 Pro",
+    "qwen/qwen-2.5-coder-72b-instruct": "💻 Qwen 2.5 Coder 72B (Elite Code)",
     "openai/gpt-4o": "✨ GPT-4o (OpenAI Omni)",
     "gpt-4o": "✨ GPT-4o",
     "gpt-4o-mini": "GPT-4o Mini",
@@ -297,6 +293,8 @@
   const saveAccountNameBtn = document.getElementById("save-account-name-btn");
   const accountEmailInput = document.getElementById("account-email-input");
   const saveAccountEmailBtn = document.getElementById("save-account-email-btn");
+  const accountLoginBtn = document.getElementById("account-login-btn");
+  const accountGoogleBtn = document.getElementById("account-google-btn");
   const accountQuickGoogleBtn = document.getElementById("account-quick-google-btn");
   const accountSwitchBtn = document.getElementById("account-switch-btn");
   const accountStatusPill = document.getElementById("account-status-pill");
@@ -330,6 +328,9 @@
   const googleConnectSubmitBtn = document.getElementById("google-connect-submit-btn");
   const googleDirectForm = document.getElementById("google-direct-form");
   const googleGsiButtonContainer = document.getElementById("google-gsi-button-container");
+  const googleOfficialLoginBtn = document.getElementById("google-official-login-btn");
+  const switchToEmailAuthBtn = document.getElementById("switch-to-email-auth-btn");
+  const googleGuestModeBtn = document.getElementById("google-guest-mode-btn");
 
   let authMode = "login";
 
@@ -773,6 +774,12 @@
       });
     }
     if (googleDirectForm) googleDirectForm.addEventListener("submit", handleGoogleDirectAuth);
+    if (switchToEmailAuthBtn) switchToEmailAuthBtn.addEventListener("click", () => {
+      closeGoogleConnectModal();
+      openAuthModal("login");
+    });
+    if (googleGuestModeBtn) googleGuestModeBtn.addEventListener("click", closeGoogleConnectModal);
+    if (googleOfficialLoginBtn) googleOfficialLoginBtn.addEventListener("click", handleGoogleOfficialLogin);
 
     // Account Modal Listeners
     if (dropdownAccountBtn) {
@@ -796,6 +803,14 @@
     }
     if (saveAccountNameBtn) saveAccountNameBtn.addEventListener("click", saveAccountName);
     if (saveAccountEmailBtn) saveAccountEmailBtn.addEventListener("click", saveAccountEmail);
+    if (accountLoginBtn) accountLoginBtn.addEventListener("click", () => {
+      closeAccountModal();
+      openAuthModal("login");
+    });
+    if (accountGoogleBtn) accountGoogleBtn.addEventListener("click", () => {
+      closeAccountModal();
+      openGoogleConnectModal();
+    });
     if (accountQuickGoogleBtn) accountQuickGoogleBtn.addEventListener("click", handleQuickGoogleConnect);
     if (accountSwitchBtn) accountSwitchBtn.addEventListener("click", () => {
       closeAccountModal();
@@ -875,11 +890,11 @@
   function getModelPillStyleClass(model) {
     const id = (model.id || "").toLowerCase();
     const cat = (model.category || "").toLowerCase();
-    if (id === "claude-opus-4-8" || id === "claude-opus-4.8") return "pill-claude-opus-48";
-    if (id === "claude-opus-5") return "pill-claude-opus-5";
-    if (id === "deepseek-v4-flash") return "pill-deepseek-v4-flash";
-    if (id === "gpt-5.6-sol") return "pill-gpt-56-sol";
-    if (id === "gpt-6-astra") return "pill-gpt-6-astra";
+    if (id.includes("gemini")) return "pill-gemini-20-flash";
+    if (id.includes("llama")) return "pill-llama-33-70b";
+    if (id.includes("deepseek-v4")) return "pill-deepseek-v4-flash";
+    if (id.includes("claude-opus") || id.includes("opus-4-8")) return "pill-claude-opus-48";
+    if (id.includes("r1") || id.includes("distill")) return "pill-deepseek-r1";
 
     if (model.is_free) return "pill-free";
     if (cat.includes("anthropic") || id.includes("claude")) return "pill-anthropic";
@@ -972,8 +987,8 @@
     const sorted = [...models].sort((a, b) => {
       if (a.is_free && !b.is_free) return -1;
       if (!a.is_free && b.is_free) return 1;
-      const isAFlagship = a.id.includes("opus-5") || a.id.includes("opus-4-8") || a.id.includes("sonnet-4") || a.id.includes("r1") || a.id.includes("gpt-6") || a.id.includes("gpt-5");
-      const isBFlagship = b.id.includes("opus-5") || b.id.includes("opus-4-8") || b.id.includes("sonnet-4") || b.id.includes("r1") || b.id.includes("gpt-6") || b.id.includes("gpt-5");
+      const isAFlagship = a.id.includes("opus-4-8") || a.id.includes("sonnet") || a.id.includes("r1") || a.id.includes("gemini") || a.id.includes("llama-3.3");
+      const isBFlagship = b.id.includes("opus-4-8") || b.id.includes("sonnet") || b.id.includes("r1") || b.id.includes("gemini") || b.id.includes("llama-3.3");
       if (isAFlagship && !isBFlagship) return -1;
       if (!isAFlagship && isBFlagship) return 1;
       return 0;
@@ -2394,10 +2409,10 @@
       googleConnectAlert.textContent = "";
     }
     if (googleEmailInput && !googleEmailInput.value) {
-      googleEmailInput.value = localStorage.getItem("agentchat_user_email") || "diganth090@gmail.com";
+      googleEmailInput.value = localStorage.getItem("agentchat_user_email") || "";
     }
     if (googleNameInput && !googleNameInput.value) {
-      googleNameInput.value = localStorage.getItem("agentchat_user_name") || "Diganth";
+      googleNameInput.value = localStorage.getItem("agentchat_user_name") || "";
     }
     if (googleConnectModal) {
       googleConnectModal.classList.remove("hidden");
@@ -2433,6 +2448,33 @@
     await submitSocialAuth({
       provider: "google",
       credential: response.credential
+    });
+  }
+
+  async function handleGoogleOfficialLogin() {
+    if (window.google && window.google.accounts && window.google.accounts.id) {
+      try {
+        window.google.accounts.id.prompt((notification) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            fallbackPromptGoogleAuth();
+          }
+        });
+        return;
+      } catch (err) {
+        console.log("GSI prompt error:", err);
+      }
+    }
+    fallbackPromptGoogleAuth();
+  }
+
+  async function fallbackPromptGoogleAuth() {
+    const emailPrompt = prompt("Enter your Google account email to sign in and sync chats:");
+    if (!emailPrompt || !emailPrompt.trim() || !emailPrompt.includes("@")) return;
+    const namePrompt = prompt("Enter your display name (optional):") || emailPrompt.split("@")[0];
+    await submitSocialAuth({
+      provider: "google",
+      email: emailPrompt.trim(),
+      name: namePrompt.trim()
     });
   }
 
@@ -2532,18 +2574,18 @@
   function openAccountModal() {
     if (!accountModal) return;
 
-    const activeEmail = currentUser?.email || localStorage.getItem("agentchat_user_email") || "diganth090@gmail.com";
-    const activeName = currentUser?.name || localStorage.getItem("agentchat_user_name") || "Diganth";
+    const activeEmail = currentUser?.email || localStorage.getItem("agentchat_user_email") || "";
+    const activeName = currentUser?.name || localStorage.getItem("agentchat_user_name") || "";
 
     if (currentUser) {
-      if (accountDisplayNameHeader) accountDisplayNameHeader.textContent = currentUser.name || activeName;
+      if (accountDisplayNameHeader) accountDisplayNameHeader.textContent = currentUser.name || activeName || "Signed-in User";
       if (accountProviderBadge) {
         const provLabel = (currentUser.auth_provider || "google").toUpperCase();
         accountProviderBadge.textContent = `${provLabel} VERIFIED`;
         accountProviderBadge.style.display = "inline-block";
       }
-      if (accountNameInput) accountNameInput.value = currentUser.name || activeName;
-      if (accountEmailInput) accountEmailInput.value = currentUser.email || activeEmail;
+      if (accountNameInput) accountNameInput.value = currentUser.name || activeName || "";
+      if (accountEmailInput) accountEmailInput.value = currentUser.email || activeEmail || "";
       if (accountStatusPill) { accountStatusPill.textContent = "Synced"; accountStatusPill.className = "pill pill-green"; }
       if (accountAvatarInput) accountAvatarInput.value = currentUser.avatar_url || "";
       if (accountJoinedMeta) {
@@ -2554,21 +2596,21 @@
         if (currentUser.avatar_url && (currentUser.avatar_url.startsWith("http") || currentUser.avatar_url.startsWith("data:image"))) {
           accountLargeAvatar.innerHTML = `<img src="${currentUser.avatar_url}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
         } else {
-          accountLargeAvatar.textContent = (currentUser.name || activeName).charAt(0).toUpperCase();
+          accountLargeAvatar.textContent = (currentUser.name || activeName || "U").charAt(0).toUpperCase();
         }
       }
     } else {
-      if (accountDisplayNameHeader) accountDisplayNameHeader.textContent = activeName;
+      if (accountDisplayNameHeader) accountDisplayNameHeader.textContent = activeName || "Guest User";
       if (accountProviderBadge) {
-        accountProviderBadge.textContent = "GOOGLE ACCOUNT";
+        accountProviderBadge.textContent = "GUEST SESSION";
         accountProviderBadge.style.display = "inline-block";
       }
-      if (accountNameInput) accountNameInput.value = activeName;
-      if (accountEmailInput) accountEmailInput.value = activeEmail;
-      if (accountStatusPill) { accountStatusPill.textContent = "Click Below to Connect"; accountStatusPill.className = "pill pill-blue"; }
+      if (accountNameInput) accountNameInput.value = activeName || "";
+      if (accountEmailInput) accountEmailInput.value = activeEmail || "";
+      if (accountStatusPill) { accountStatusPill.textContent = "Guest Mode"; accountStatusPill.className = "pill pill-blue"; }
       if (accountAvatarInput) accountAvatarInput.value = "";
-      if (accountJoinedMeta) accountJoinedMeta.textContent = "Ready to connect & sync";
-      if (accountLargeAvatar) accountLargeAvatar.textContent = activeName.charAt(0).toUpperCase();
+      if (accountJoinedMeta) accountJoinedMeta.textContent = "Isolated local session";
+      if (accountLargeAvatar) accountLargeAvatar.textContent = (activeName || "G").charAt(0).toUpperCase();
     }
 
     // Persona directives
@@ -2663,13 +2705,13 @@
 
   async function saveAccountEmail() {
     const newEmail = (accountEmailInput?.value || "").trim().toLowerCase();
-    const newName = (accountNameInput?.value || "").trim() || "Diganth";
+    const newName = (accountNameInput?.value || "").trim() || "Guest User";
     if (!newEmail || !newEmail.includes("@")) {
-      alert("Please enter a valid email address (e.g. diganth090@gmail.com).");
+      alert("Please enter a valid email address (e.g. user@example.com).");
       return;
     }
     localStorage.setItem("agentchat_user_email", newEmail);
-    localStorage.setItem("agentchat_user_name", newName);
+    if (newName) localStorage.setItem("agentchat_user_name", newName);
 
     if (currentUser) {
       try {
@@ -2682,31 +2724,20 @@
         if (data.success && data.user) {
           updateAuthUI(data.user);
           alert(`✅ Connected email updated to ${newEmail}!`);
+        } else {
+          alert(data.error || "Account update: " + (data.error || ""));
         }
       } catch (e) {
         alert("Account update: " + e.message);
       }
     } else {
-      await submitSocialAuth({
-        provider: "google",
-        email: newEmail,
-        name: newName
-      });
-      alert(`✅ Successfully authenticated as ${newName} (${newEmail})!`);
+      closeAccountModal();
+      openAuthModal("login");
     }
   }
 
   async function handleQuickGoogleConnect() {
-    const email = (accountEmailInput?.value || "").trim().toLowerCase() || "diganth090@gmail.com";
-    const name = (accountNameInput?.value || "").trim() || "Diganth";
-    localStorage.setItem("agentchat_user_email", email);
-    localStorage.setItem("agentchat_user_name", name);
-    await submitSocialAuth({
-      provider: "google",
-      email: email,
-      name: name
-    });
-    alert(`✅ Authenticated with Google as ${name} (${email})! All keys and custom models are now synchronized.`);
+    openGoogleConnectModal();
   }
 
   async function saveAccountAvatar() {
@@ -3563,7 +3594,6 @@
             freeModels.push(m);
           } else if (
             idLower.includes("opus") || idLower.includes("sonnet") ||
-            idLower.includes("gpt-5") || idLower.includes("gpt-6") ||
             idLower.includes("gpt-4o") || idLower.includes("deepseek-r1") ||
             nameLower.includes("flagship") || nameLower.includes("frontier")
           ) {

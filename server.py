@@ -442,37 +442,10 @@ AGENTROUTER_MODELS = [
     {
         "id": "claude-opus-4-8",
         "name": "claude-opus-4-8",
-        "display_name": "✳️ claude-opus-4-8 (via JustDoWork Failover)",
+        "display_name": "✳️ claude-opus-4-8 (Anthropic via JustDoWork)",
         "category": "Anthropic",
         "provider": "anthropic",
-        "description": "Anthropic Claude Opus 4-8 routed via JustDoWork fallback",
-        "status": "online"
-    },
-    {
-        "id": "claude-opus-5",
-        "name": "claude-opus-5",
-        "display_name": "✳️ claude-opus-5",
-        "category": "Anthropic",
-        "provider": "anthropic",
-        "description": "Anthropic Claude Opus 5 flagship on AgentRouter",
-        "status": "online"
-    },
-    {
-        "id": "gpt-5.6-sol",
-        "name": "gpt-5.6-sol",
-        "display_name": "🌀 gpt-5.6-sol",
-        "category": "OpenAI",
-        "provider": "openai",
-        "description": "OpenAI GPT-5.6 Sol frontier model on AgentRouter",
-        "status": "online"
-    },
-    {
-        "id": "gpt-6-astra",
-        "name": "gpt-6-astra",
-        "display_name": "⚛️ gpt-6-astra",
-        "category": "OpenAI",
-        "provider": "openai",
-        "description": "OpenAI GPT-6 Astra next-generation frontier on AgentRouter",
+        "description": "Anthropic Claude Opus 4-8 routed via JustDoWork proxy",
         "status": "online"
     }
 ]
@@ -480,11 +453,10 @@ AGENTROUTER_MODELS = [
 # Curated Provider Model Catalogs (ensures clean, dedicated models per proxy)
 PROVIDER_CATALOGS = {
     "justdowork": [
-        {"id": "claude-opus-4-8", "name": "✳️ claude-opus-4-8 (Upstream Queued ~30s)", "provider": "anthropic", "category": "Anthropic", "status": "online"}
+        {"id": "claude-opus-4-8", "name": "✳️ claude-opus-4-8 (Anthropic Frontier)", "provider": "anthropic", "category": "Anthropic", "status": "online"}
     ],
     "agentrouter": AGENTROUTER_MODELS,
     "puter": [
-        {"id": "claude-opus-5", "name": "🎁 Claude Opus 5 (Free Puter)", "provider": "anthropic", "category": "Anthropic", "is_free": True, "status": "online"},
         {"id": "claude-3-5-sonnet", "name": "🎁 Claude 3.5 Sonnet (Free)", "provider": "anthropic", "category": "Anthropic", "is_free": True, "status": "online"},
         {"id": "deepseek/deepseek-r1", "name": "🎁 DeepSeek R1 671B (Free)", "provider": "deepseek", "category": "DeepSeek", "is_free": True, "status": "online"},
         {"id": "openai/gpt-4o", "name": "🎁 GPT-4o Omni (Free)", "provider": "openai", "category": "OpenAI", "is_free": True, "status": "online"},
@@ -614,7 +586,7 @@ DEFAULT_CONFIG = {
         "pdf_reader": {"name": "PDF & Document Parser", "description": "High-fidelity pypdf page extraction", "enabled": True},
         "math_eval": {"name": "Math & Code Calculator", "description": "Accurate math logic and python evaluation", "enabled": True}
     },
-    "model": "deepseek-v4-flash",
+    "model": "gemini-2.0-flash",
     "temperature": 0.7,
     "system_prompt": "",
     "auto_compress": True,
@@ -764,6 +736,89 @@ def resolve_provider_info(prov_key, cfg=None, override_key=None, override_url=No
         p["base_url"] = "https://openrouter.ai/api"
 
     return p, prov_key
+
+def smart_route_model_provider(requested_model, requested_prov=None, override_key=None, override_url=None, cfg=None):
+    """
+    Intelligently maps the requested model to the optimal available provider on the server.
+    Guarantees:
+    - Claude Opus 4.8 / Claude models route to JustDoWork / Anthropic proxy with Messages API.
+    - Gemini 2.0 Flash / Gemini models route to Google AI Studio with valid model ID.
+    - Llama 3.3 70B / Groq models route to Groq Cloud.
+    - DeepSeek V4 Flash routes to AgentRouter.
+    """
+    if cfg is None:
+        cfg = load_config()
+
+    m_lower = (requested_model or "").lower().strip()
+
+    # If caller explicitly gave custom override_url or override_key, respect requested_prov
+    if (override_key or override_url) and requested_prov and requested_prov not in ("", "base", "auto"):
+        p, k = resolve_provider_info(requested_prov, cfg=cfg, override_key=override_key, override_url=override_url)
+        return p, k, requested_model
+
+    # 1. Claude Opus / Anthropic Models -> JustDoWork / Anthropic
+    if "claude" in m_lower or "opus" in m_lower:
+        jdw_p, jdw_k = resolve_provider_info("justdowork", cfg=cfg, override_key=override_key, override_url=override_url)
+        if jdw_p.get("api_key"):
+            return jdw_p, "justdowork", "claude-opus-4-8"
+        ar_p, ar_k = resolve_provider_info("agentrouter", cfg=cfg)
+        if ar_p.get("api_key"):
+            return ar_p, "agentrouter", "claude-opus-4-8"
+
+    # 2. Gemini Models -> Google AI Studio or Puter
+    if "gemini" in m_lower or m_lower.startswith("google/"):
+        g_p, g_k = resolve_provider_info("google", cfg=cfg, override_key=override_key, override_url=override_url)
+        if g_p.get("api_key"):
+            target_model = "gemini-2.0-flash"
+            if "1.5-pro" in m_lower:
+                target_model = "gemini-1.5-pro"
+            elif "1.5-flash" in m_lower:
+                target_model = "gemini-1.5-flash"
+            elif "2.0-flash" in m_lower:
+                target_model = "gemini-2.0-flash"
+            return g_p, "google", target_model
+        puter_p, puter_k = resolve_provider_info("puter", cfg=cfg)
+        if puter_p.get("api_key"):
+            return puter_p, "puter", "google/gemini-2.0-flash-001"
+
+    # 3. Llama / Mixtral / Groq Open-Weights -> Groq Cloud or AgentRouter
+    if "llama" in m_lower or "mixtral" in m_lower or "distill" in m_lower:
+        groq_p, groq_k = resolve_provider_info("groq", cfg=cfg, override_key=override_key, override_url=override_url)
+        if groq_p.get("api_key"):
+            target_model = "llama-3.3-70b-versatile"
+            if "8b" in m_lower:
+                target_model = "llama-3.1-8b-instant"
+            elif "distill" in m_lower or "r1" in m_lower:
+                target_model = "deepseek-r1-distill-llama-70b"
+            elif "mixtral" in m_lower:
+                target_model = "mixtral-8x7b-32768"
+            return groq_p, "groq", target_model
+        ar_p, ar_k = resolve_provider_info("agentrouter", cfg=cfg)
+        if ar_p.get("api_key"):
+            return ar_p, "agentrouter", "deepseek-v4-flash"
+
+    # 4. DeepSeek V4 Flash -> AgentRouter
+    if "deepseek-v4" in m_lower or ("flash" in m_lower and "gemini" not in m_lower):
+        ar_p, ar_k = resolve_provider_info("agentrouter", cfg=cfg, override_key=override_key, override_url=override_url)
+        if ar_p.get("api_key"):
+            return ar_p, "agentrouter", "deepseek-v4-flash"
+
+    # 5. DeepSeek R1 / V3 Reasoning
+    if "deepseek" in m_lower:
+        groq_p, groq_k = resolve_provider_info("groq", cfg=cfg)
+        if groq_p.get("api_key"):
+            return groq_p, "groq", "deepseek-r1-distill-llama-70b"
+        ar_p, ar_k = resolve_provider_info("agentrouter", cfg=cfg)
+        if ar_p.get("api_key"):
+            return ar_p, "agentrouter", "deepseek-v4-flash"
+        ds_p, ds_k = resolve_provider_info("deepseek", cfg=cfg)
+        if ds_p.get("api_key"):
+            return ds_p, "deepseek", "deepseek-chat"
+
+    # 6. Fallback to active configured provider
+    active_k = (requested_prov or "").strip() or cfg.get("active_provider", "base")
+    p, k = resolve_provider_info(active_k, cfg=cfg, override_key=override_key, override_url=override_url)
+    return p, k, requested_model
 
 def get_active_provider_info(override_key=None, override_url=None, override_provider=None):
     cfg = load_config()
@@ -994,6 +1049,70 @@ def compress_conversation_messages(messages, max_recent=4):
 
     compressed = [first_msg, {"role": "system", "content": summary_content}] + recent_msgs
     return compressed
+
+def get_curated_working_models(cfg=None):
+    """
+    Returns the unified catalog of active, verified working models across providers.
+    Ensures free open-source models (Gemini 2.0 Flash, Llama 3.3 70B, DeepSeek V4 Flash)
+    are prioritized and displayed for all visitors on first entry.
+    """
+    if cfg is None:
+        cfg = load_config()
+
+    models = []
+    seen = set()
+
+    def add_model(mid, name, provider, category, is_free=False, status="online", desc=""):
+        if mid not in seen:
+            seen.add(mid)
+            models.append({
+                "id": mid,
+                "name": name,
+                "provider": provider,
+                "category": category,
+                "is_free": is_free,
+                "status": status,
+                "description": desc
+            })
+
+    # 1. Google Gemini (Free Tier / 1M Context Window)
+    g_prov, _ = resolve_provider_info("google", cfg=cfg)
+    if g_prov.get("api_key"):
+        add_model("gemini-2.0-flash", "🌐 Gemini 2.0 Flash (Free 1M Window)", "google", "Google", is_free=True, desc="Multimodal reasoning with 1M context")
+        add_model("gemini-1.5-flash", "🎁 Gemini 1.5 Flash (Free Tier)", "google", "Google", is_free=True, desc="High speed general reasoning")
+        add_model("gemini-1.5-pro", "🌐 Gemini 1.5 Pro (2M Window)", "google", "Google", is_free=False, desc="Deep frontier analysis with 2M context")
+
+    # 2. Groq Open-Source Weights (Zero Cost / 500+ Tokens/Sec)
+    groq_prov, _ = resolve_provider_info("groq", cfg=cfg)
+    if groq_prov.get("api_key"):
+        add_model("llama-3.3-70b-versatile", "🦙 Llama 3.3 70B Versatile (Free Open Weights)", "groq", "OpenAI", is_free=True, desc="Meta open-source flagship on Groq LPUs")
+        add_model("deepseek-r1-distill-llama-70b", "🧠 DeepSeek R1 Distill 70B (Free Reasoning)", "groq", "DeepSeek", is_free=True, desc="Deep reasoning open weights on Groq")
+        add_model("llama-3.1-8b-instant", "⚡ Llama 3.1 8B Instant (Free)", "groq", "OpenAI", is_free=True, desc="Instant lightweight inference")
+
+    # 3. AgentRouter (Sub-second Flash Model)
+    ar_prov, _ = resolve_provider_info("agentrouter", cfg=cfg)
+    if ar_prov.get("api_key"):
+        add_model("deepseek-v4-flash", "⚡ DeepSeek V4 Flash (Lightning Fast 1.5s)", "agentrouter", "DeepSeek", is_free=True, desc="DeepSeek V4 Flash on AgentRouter proxy")
+
+    # 4. JustDoWork (Claude Opus 4.8 Frontier)
+    jdw_prov, _ = resolve_provider_info("justdowork", cfg=cfg)
+    if jdw_prov.get("api_key"):
+        add_model("claude-opus-4-8", "✳️ claude-opus-4-8 (Anthropic Frontier)", "justdowork", "Anthropic", is_free=False, desc="Anthropic Opus 4.8 via JustDoWork")
+
+    # 5. Puter (if configured)
+    puter_prov, _ = resolve_provider_info("puter", cfg=cfg)
+    if puter_prov.get("api_key"):
+        for pm in PROVIDER_CATALOGS.get("puter", []):
+            add_model(pm["id"], pm["name"], "puter", pm.get("category", "General"), is_free=pm.get("is_free", True))
+
+    # Clean guaranteed fallback
+    if not models:
+        add_model("gemini-2.0-flash", "🌐 Gemini 2.0 Flash (Free 1M Window)", "google", "Google", is_free=True)
+        add_model("llama-3.3-70b-versatile", "🦙 Llama 3.3 70B Versatile (Free Open Weights)", "groq", "OpenAI", is_free=True)
+        add_model("deepseek-v4-flash", "⚡ DeepSeek V4 Flash (Lightning Fast 1.5s)", "agentrouter", "DeepSeek", is_free=True)
+        add_model("claude-opus-4-8", "✳️ claude-opus-4-8 (Anthropic Frontier)", "justdowork", "Anthropic", is_free=False)
+
+    return models
 
 class AgentChatHandler(BaseHTTPRequestHandler):
     def end_headers(self):
@@ -2059,15 +2178,30 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             self.send_json({"success": False, "error": str(e)}, status=400)
 
     def handle_get_models(self):
-        parsed_path = urlparse(self.path)
-        qs = urllib.parse.parse_qs(parsed_path.query)
-        override_prov = self.headers.get("X-Active-Provider", "").strip()
-        if not override_prov and "provider" in qs:
-            override_prov = qs["provider"][0].strip()
         override_key = self.headers.get("X-Custom-Api-Key", "").strip()
         override_url = self.headers.get("X-Custom-Base-Url", "").strip()
+        override_prov = self.headers.get("X-Active-Provider", "").strip()
+
+        parsed = urlparse(self.path)
+        qs = urllib.parse.parse_qs(parsed.query)
+        if "provider" in qs:
+            override_prov = qs["provider"][0].strip()
+
         if is_masked_key(override_key):
             override_key = ""
+
+        cfg = load_config()
+
+        # If requesting global/unified catalog (default on landing for all visitors)
+        if not override_prov or override_prov in ("base", "auto", "all"):
+            curated = get_curated_working_models(cfg=cfg)
+            self.send_json({
+                "success": True,
+                "provider": "unified",
+                "models": curated,
+                "source": "curated_working"
+            })
+            return
 
         user = self.get_authenticated_user()
         if user:
@@ -2233,7 +2367,13 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             if not override_url and profile.get("custom_base_url"):
                 override_url = profile.get("custom_base_url")
 
-        prov, prov_key = get_active_provider_info(override_key=override_key, override_url=override_url, override_provider=override_prov)
+        prov, prov_key, model = smart_route_model_provider(
+            model,
+            requested_prov=override_prov,
+            override_key=override_key,
+            override_url=override_url,
+            cfg=cfg
+        )
         api_key = (override_key or prov.get("api_key", "")).strip()
 
         if not api_key:
@@ -2324,18 +2464,22 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         # Smart Model Translation for Upstream Providers
         active_base_url = (override_url or prov.get("base_url", "")).rstrip("/")
         if "generativelanguage.googleapis.com" in active_base_url or api_key.startswith("AIza"):
-            if model in ("google/gemini-2.0-flash-001", "gemini-2.0-flash-001", "gemini-2.0-flash", "gemini-2.5-flash") or "/" in model or not model.startswith("gemini"):
-                model = "gemini-3.6-flash"
+            if model.startswith("google/"):
+                model = model[7:]
+            if not model.startswith("gemini"):
+                model = "gemini-2.0-flash"
         elif "api.groq.com" in active_base_url or api_key.startswith("gsk_"):
             if "deepseek-r1" in model or "reasoning" in model.lower():
                 model = "deepseek-r1-distill-llama-70b"
-            elif "/" in model:
+            elif "/" in model or not ("llama" in model.lower() or "mixtral" in model.lower() or "distill" in model.lower()):
                 model = "llama-3.3-70b-versatile"
         elif prov_key == "agentrouter" or "agentrouter.org" in active_base_url.lower():
             if model in ("deepseek/deepseek-r1", "deepseek-r1", "deepseek-chat", "deepseek", "deepseek-v3"):
                 model = "deepseek-v4-flash"
             elif model in ("claude-opus", "claude-opus-4", "opus-4-8"):
                 model = "claude-opus-4-8"
+        elif prov_key == "justdowork" or "justwoker" in active_base_url.lower():
+            model = "claude-opus-4-8"
 
         # Emit immediate live status event for high-latency queue models (Claude Opus / JustDoWork)
         if prov_key == "justdowork" or model == "claude-opus-4-8" or "justwoker" in active_base_url.lower():

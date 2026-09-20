@@ -217,20 +217,15 @@
           <!-- Active Model Dropdown -->
           <div class="select-pill-wrapper model-pill-wrapper">
             <select id="model-select" class="select-pill model-pill" title="Active Model">
-              <optgroup label="AgentRouter Models">
-                <option value="claude-opus-5" selected>✳️ claude-opus-5 (Anthropic)</option>
-                <option value="claude-opus-4-8">✳️ claude-opus-4-8 (Anthropic)</option>
-                <option value="deepseek-v4-flash">🐳 deepseek-v4-flash (DeepSeek)</option>
-                <option value="gpt-5.6-sol">🌀 gpt-5.6-sol (OpenAI)</option>
-                <option value="gpt-6-astra">⚛️ gpt-6-astra (OpenAI)</option>
+              <optgroup label="🌟 Free & Open Source (Zero Cost)">
+                <option value="gemini-2.0-flash" selected>🌐 Gemini 2.0 Flash (Free 1M Window)</option>
+                <option value="llama-3.3-70b-versatile">🦙 Llama 3.3 70B (Groq Open Weights)</option>
+                <option value="deepseek-v4-flash">⚡ DeepSeek V4 Flash (Lightning Fast 1.5s)</option>
+                <option value="deepseek-r1-distill-llama-70b">🧠 DeepSeek R1 Distill 70B (Free Reasoning)</option>
               </optgroup>
-              <optgroup label="Base Tier & Other Frontier">
-                <option value="claude-3-opus-20240229">🎭 Claude 3 Opus (Anthropic)</option>
-                <option value="claude-3-5-sonnet-20241022">⚡ Claude 3.5 Sonnet (Anthropic)</option>
-                <option value="deepseek/deepseek-r1">🧠 DeepSeek R1 (671B Reasoning)</option>
-                <option value="qwen/qwen-2.5-coder-72b-instruct">💻 Qwen 2.5 Coder 72B (Elite Code)</option>
-                <option value="openai/gpt-4o">✨ GPT-4o (OpenAI Omni)</option>
-                <option value="google/gemini-2.0-flash-001">🌐 Gemini 2.0 Flash</option>
+              <optgroup label="⚡ Frontier Flagship">
+                <option value="claude-opus-4-8">✳️ claude-opus-4-8 (Anthropic via JustDoWork)</option>
+                <option value="google/gemini-1.5-pro">🌐 Gemini 1.5 Pro (2M Window)</option>
               </optgroup>
               <option value="__custom_entry__">➕ Enter Custom Model ID...</option>
             </select>
@@ -375,25 +370,25 @@
         </div>
 
         <div class="agentrouter-pills" id="agentrouter-pills">
+          <button type="button" class="ar-model-pill pill-gemini-20-flash active" data-category="Google" data-model="gemini-2.0-flash" title="Google Gemini 2.0 Flash (Free 1M Window)">
+            <span style="font-size:13px;">🌐</span>
+            <span>gemini-2.0-flash</span>
+          </button>
+          <button type="button" class="ar-model-pill pill-llama-33-70b" data-category="Groq" data-model="llama-3.3-70b-versatile" title="Meta Llama 3.3 70B (Groq Open Weights)">
+            <span style="font-size:13px;">🦙</span>
+            <span>llama-3.3-70b</span>
+          </button>
+          <button type="button" class="ar-model-pill pill-deepseek-v4-flash" data-category="DeepSeek" data-model="deepseek-v4-flash" title="DeepSeek V4 Flash (1.5s Fast)">
+            <span style="font-size:13px;">⚡</span>
+            <span>deepseek-v4-flash</span>
+          </button>
           <button type="button" class="ar-model-pill pill-claude-opus-48" data-category="Anthropic" data-model="claude-opus-4-8" title="Anthropic Claude Opus 4-8">
             <span style="font-size:13px;">✳</span>
             <span>claude-opus-4-8</span>
           </button>
-          <button type="button" class="ar-model-pill pill-claude-opus-5 active" data-category="Anthropic" data-model="claude-opus-5" title="Anthropic Claude Opus 5">
-            <span style="font-size:13px;">✳</span>
-            <span>claude-opus-5</span>
-          </button>
-          <button type="button" class="ar-model-pill pill-deepseek-v4-flash" data-category="DeepSeek" data-model="deepseek-v4-flash" title="DeepSeek V4 Flash">
-            <span style="font-size:13px;">🐳</span>
-            <span>deepseek-v4-flash</span>
-          </button>
-          <button type="button" class="ar-model-pill pill-gpt-56-sol" data-category="OpenAI" data-model="gpt-5.6-sol" title="OpenAI GPT-5.6 Sol">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M22.28 9.37a5.55 5.55 0 0 0-.46-4.43 5.64 5.64 0 0 0-4.08-2.73 5.59 5.59 0 0 0-4.63.85A5.6 5.6 0 0 0 9 2.06a5.64 5.64 0 0 0-4.14 2.65 5.55 5.55 0 0 0-.46 4.43 5.62 5.62 0 0 0-2.4 3.73 5.65 5.65 0 0 0 1.05 4.77 5.55 5.55 0 0 0 .46 4.43 5.64 5.64 0 0 0 4.08 2.73 5.58 5.58 0 0 0 4.63-.85 5.6 5.6 0 0 0 4.08 1.02 5.64 5.64 0 0 0 4.14-2.65 5.55 5.55 0 0 0 .46-4.43 5.62 5.62 0 0 0 2.4-3.73 5.65 5.65 0 0 0-1.05-4.77z"/></svg>
-            <span>gpt-5.6-sol</span>
-          </button>
-          <button type="button" class="ar-model-pill pill-gpt-6-astra" data-category="OpenAI" data-model="gpt-6-astra" title="OpenAI GPT-6 Astra">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M22.28 9.37a5.55 5.55 0 0 0-.46-4.43 5.64 5.64 0 0 0-4.08-2.73 5.59 5.59 0 0 0-4.63.85A5.6 5.6 0 0 0 9 2.06a5.64 5.64 0 0 0-4.14 2.65 5.55 5.55 0 0 0-.46 4.43 5.62 5.62 0 0 0 2.4-3.73 5.65 5.65 0 0 0 1.05 4.77 5.55 5.55 0 0 0 .46 4.43 5.64 5.64 0 0 0 4.08 2.73 5.58 5.58 0 0 0 4.63-.85 5.6 5.6 0 0 0 4.08 1.02 5.64 5.64 0 0 0 4.14-2.65 5.55 5.55 0 0 0 .46-4.43 5.62 5.62 0 0 0 2.4-3.73 5.65 5.65 0 0 0-1.05-4.77z"/></svg>
-            <span>gpt-6-astra</span>
+          <button type="button" class="ar-model-pill pill-deepseek-r1" data-category="DeepSeek" data-model="deepseek-r1-distill-llama-70b" title="DeepSeek R1 Distill 70B Reasoning">
+            <span style="font-size:13px;">🧠</span>
+            <span>deepseek-r1</span>
           </button>
         </div>
       </div>
@@ -823,14 +818,14 @@
             <div class="form-group">
               <label for="account-name-input">Display Name</label>
               <div style="display: flex; gap: 8px;">
-                <input type="text" id="account-name-input" class="form-input" placeholder="e.g. Diganth" />
+                <input type="text" id="account-name-input" class="form-input" placeholder="e.g. Guest User" />
                 <button type="button" id="save-account-name-btn" class="btn btn-primary btn-xs">Save</button>
               </div>
             </div>
             <div class="form-group">
               <label for="account-email-input">Connected Email Address</label>
               <div style="display: flex; gap: 8px;">
-                <input type="email" id="account-email-input" class="form-input" placeholder="diganth090@gmail.com" />
+                <input type="email" id="account-email-input" class="form-input" placeholder="user@example.com" />
                 <button type="button" id="save-account-email-btn" class="btn btn-primary btn-xs">Save</button>
               </div>
             </div>
@@ -848,17 +843,20 @@
           </div>
 
           <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
-            <button type="button" id="account-quick-google-btn" class="btn btn-tonal-tertiary btn-xs">
+            <button type="button" id="account-login-btn" class="btn btn-primary btn-xs">
+              🔐 Sign In / Register
+            </button>
+            <button type="button" id="account-google-btn" class="btn btn-tonal btn-xs">
               <svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align: middle; margin-right: 4px;">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                 <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                 <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
               </svg>
-              Sign In as Diganth (diganth090@gmail.com)
+              Sign In with Google
             </button>
             <button type="button" id="account-switch-btn" class="btn btn-secondary btn-xs">
-              🔄 Switch / Sign in with Another Account
+              🔄 Switch Account
             </button>
           </div>
         </div>
@@ -964,13 +962,12 @@
         </div>
 
         <div style="margin-top: 10px;">
-          <label style="font-size: 12px; font-weight: 500; color: var(--md-sys-color-on-surface-variant);">AgentRouter Dashboard Models:</label>
+          <label style="font-size: 12px; font-weight: 500; color: var(--md-sys-color-on-surface-variant);">Verified Fast & Frontier Models:</label>
           <div class="preset-pills-row" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;">
+            <button type="button" class="pill-btn" onclick="document.getElementById('custom-model-input').value = 'gemini-2.0-flash'">🌐 gemini-2.0-flash</button>
+            <button type="button" class="pill-btn" onclick="document.getElementById('custom-model-input').value = 'llama-3.3-70b-versatile'">🦙 llama-3.3-70b</button>
+            <button type="button" class="pill-btn" onclick="document.getElementById('custom-model-input').value = 'deepseek-v4-flash'">⚡ deepseek-v4-flash</button>
             <button type="button" class="pill-btn" onclick="document.getElementById('custom-model-input').value = 'claude-opus-4-8'">✳️ claude-opus-4-8</button>
-            <button type="button" class="pill-btn" onclick="document.getElementById('custom-model-input').value = 'claude-opus-5'">✳️ claude-opus-5</button>
-            <button type="button" class="pill-btn" onclick="document.getElementById('custom-model-input').value = 'deepseek-v4-flash'">🐳 deepseek-v4-flash</button>
-            <button type="button" class="pill-btn" onclick="document.getElementById('custom-model-input').value = 'gpt-5.6-sol'">🌀 gpt-5.6-sol</button>
-            <button type="button" class="pill-btn" onclick="document.getElementById('custom-model-input').value = 'gpt-6-astra'">⚛️ gpt-6-astra</button>
           </div>
         </div>
       </div>
@@ -986,8 +983,8 @@
     <div class="modal-card auth-modal-card" style="max-width: 440px;">
       <div class="modal-header">
         <div class="auth-header-title">
-          <div style="width: 36px; height: 36px; border-radius: 50%; background: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
-            <svg viewBox="0 0 24 24" width="20" height="20">
+          <div style="width: 38px; height: 38px; border-radius: 50%; background: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+            <svg viewBox="0 0 24 24" width="22" height="22">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
               <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
@@ -995,34 +992,45 @@
             </svg>
           </div>
           <div>
-            <h3>Connect Google Account</h3>
-            <p class="auth-modal-subtitle">Sync your personal keys and preferences to your Google identity</p>
+            <h3>Sign in with Google</h3>
+            <p class="auth-modal-subtitle">Secure single sign-on across all your devices</p>
           </div>
         </div>
         <button class="icon-btn close-modal-btn" id="close-google-connect-modal-btn">✕</button>
       </div>
 
-      <div class="modal-body auth-modal-body">
-        <!-- Google One-Tap / GSI Container if initialized -->
-        <div id="google-gsi-button-container" style="display: flex; justify-content: center; margin-bottom: 12px;"></div>
+      <div class="modal-body auth-modal-body" style="text-align: center; padding: 24px 20px;">
+        <p style="font-size: 13.5px; color: var(--md-sys-color-on-surface-variant); line-height: 1.5; margin-bottom: 20px;">
+          Authenticate with your official Google account to sync your private chat history, model preferences, and custom API keys across your mobile and desktop devices.
+        </p>
 
-        <form id="google-direct-form" onsubmit="return false;">
-          <div class="form-group">
-            <label for="google-email-input">Your Google Email Address</label>
-            <input type="email" id="google-email-input" placeholder="e.g. yourname@gmail.com" class="text-input" required autocomplete="email" />
-          </div>
-
-          <div class="form-group">
-            <label for="google-name-input">Your Full Name or Handle</label>
-            <input type="text" id="google-name-input" placeholder="e.g. Diganth" class="text-input" autocomplete="name" />
-          </div>
-
-          <div class="auth-alert hidden" id="google-connect-alert"></div>
-
-          <button type="submit" class="btn btn-primary btn-block auth-submit-btn" id="google-connect-submit-btn" style="background: #4285F4; color: #fff;">
-            Authenticate with Google
+        <!-- Official Google Identity Services Container -->
+        <div id="google-gsi-button-container" style="display: flex; justify-content: center; margin-bottom: 16px; min-height: 44px;">
+          <!-- Rendered dynamically by Google Identity Services or fallback button -->
+          <button type="button" class="btn btn-block" id="google-official-login-btn" style="background: #ffffff; color: #3c4043; border: 1px solid #dadce0; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 500; padding: 10px 16px; border-radius: 6px; box-shadow: 0 1px 3px rgba(60,64,67,.08); cursor: pointer;">
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+            <span>Continue with Google</span>
           </button>
-        </form>
+        </div>
+
+        <div class="auth-alert hidden" id="google-connect-alert" style="margin-bottom: 16px;"></div>
+
+        <div class="auth-divider" style="margin: 18px 0;">
+          <span>or sign in with password</span>
+        </div>
+
+        <button type="button" class="btn btn-secondary btn-block" id="switch-to-email-auth-btn" style="margin-bottom: 12px;">
+          ✉️ Sign In with Email & Password
+        </button>
+
+        <button type="button" class="link-btn" id="google-guest-mode-btn" style="font-size: 12.5px; color: var(--md-sys-color-primary);">
+          Continue as Guest (No Account Required)
+        </button>
       </div>
     </div>
   </div>

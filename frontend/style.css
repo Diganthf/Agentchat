@@ -3335,28 +3335,22 @@ textarea#user-input::placeholder {
   border-color: #f7cb8d;
 }
 
-.pill-claude-opus-5 {
-  background: #ede8ff;
-  color: #5539ab;
-  border-color: #cbbeff;
+.pill-gemini-20-flash {
+  background: #e8f0fe;
+  color: #1a73e8;
+  border-color: #aecbfa;
 }
 
-.pill-deepseek-v4-flash {
-  background: #e2f1ff;
-  color: #14599e;
-  border-color: #a7d3fc;
+.pill-llama-33-70b {
+  background: #fdf2e9;
+  color: #c05621;
+  border-color: #fbd38d;
 }
 
-.pill-gpt-56-sol {
-  background: #fef0e3;
-  color: #a44f15;
-  border-color: #f5c49b;
-}
-
-.pill-gpt-6-astra {
-  background: #fde8f1;
-  color: #ae225e;
-  border-color: #f6abc9;
+.pill-deepseek-r1 {
+  background: #ede9fe;
+  color: #6b21a8;
+  border-color: #c4b5fd;
 }
 
 /* Dynamic Provider Model Pills styling */
@@ -3444,25 +3438,20 @@ textarea#user-input::placeholder {
     color: #f6b450;
     border-color: #593e1b;
   }
-  .pill-claude-opus-5 {
-    background: #211b3b;
-    color: #b9a5fd;
-    border-color: #493b77;
+  .pill-gemini-20-flash {
+    background: #172b4d;
+    color: #8ab4f8;
+    border-color: #2c4a7f;
   }
-  .pill-deepseek-v4-flash {
-    background: #102236;
-    color: #6dbafc;
-    border-color: #1f456c;
+  .pill-llama-33-70b {
+    background: #362415;
+    color: #f6ad55;
+    border-color: #6b411d;
   }
-  .pill-gpt-56-sol {
-    background: #2d1c10;
-    color: #f7a465;
-    border-color: #5c371d;
-  }
-  .pill-gpt-6-astra {
-    background: #331323;
-    color: #f982b0;
-    border-color: #692247;
+  .pill-deepseek-r1 {
+    background: #271b3d;
+    color: #c4b5fd;
+    border-color: #553c7b;
   }
 }
 
