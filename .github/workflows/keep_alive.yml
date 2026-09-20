@@ -1,0 +1,15 @@
+name: Keep Render Alive 24/7
+
+on:
+  schedule:
+    # Ping every 10 minutes to prevent Render from sleeping
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping AgentChat Render Health Endpoint
+        run: |
+          curl -s -f -m 30 "https://agentchat-1jpo.onrender.com/api/health" || echo "Ping completed"
