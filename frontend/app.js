@@ -284,6 +284,7 @@
   const authToggleModeBtn = document.getElementById("auth-toggle-mode-btn");
   const authToggleText = document.getElementById("auth-toggle-text");
   const settingProtocolMode = document.getElementById("setting-protocol-mode");
+  const settingBackendUrl = document.getElementById("setting-backend-url");
 
   // Account Modal Elements
   const accountModal = document.getElementById("account-modal");
@@ -358,7 +359,9 @@
   async function apiFetch(url, options = {}) {
     if (!options.headers) options.headers = {};
     options.headers = getAuthHeaders(options.headers);
-    let res = await fetch(url, options);
+    const backendUrl = (localStorage.getItem("agentchat_backend_url") || "").trim().replace(/\/+$/, "");
+    const fullUrl = (url.startsWith("/") && backendUrl) ? backendUrl + url : url;
+    let res = await fetch(fullUrl, options);
     if (res.status === 401) {
       try {
         const data = await res.clone().json();
@@ -367,7 +370,7 @@
           if (entered) {
             localStorage.setItem("agentchat_access_password", entered.trim());
             options.headers["X-Access-Password"] = entered.trim();
-            res = await fetch(url, options);
+            res = await fetch(fullUrl, options);
           }
         }
       } catch (e) {}
@@ -3139,6 +3142,9 @@
     if (settingProtocolMode) {
       settingProtocolMode.value = currentConfig.protocol_mode || "stealth_auto";
     }
+    if (settingBackendUrl) {
+      settingBackendUrl.value = localStorage.getItem("agentchat_backend_url") || "";
+    }
   }
 
   async function fetchConfig() {
@@ -3225,6 +3231,14 @@
     if (settingProtocolMode) {
       currentConfig.protocol_mode = settingProtocolMode.value;
       localStorage.setItem("agentchat_protocol_mode", settingProtocolMode.value);
+    }
+    if (settingBackendUrl) {
+      const bVal = settingBackendUrl.value.trim().replace(/\/+$/, "");
+      if (bVal) {
+        localStorage.setItem("agentchat_backend_url", bVal);
+      } else {
+        localStorage.removeItem("agentchat_backend_url");
+      }
     }
 
     if (activeP.startsWith("custom_") && settingProxyCustomName && settingProxyCustomName.value.trim()) {

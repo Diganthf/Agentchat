@@ -575,6 +575,12 @@
         </div>
 
         <div class="form-group">
+          <label for="setting-backend-url">Backend Server URL (Optional)</label>
+          <input type="text" id="setting-backend-url" placeholder="e.g. https://your-app.onrender.com or http://127.0.0.1:5050" />
+          <small class="hint">Leave empty if running locally. Fill this in when using Hugging Face Static Space to connect to your Render backend.</small>
+        </div>
+
+        <div class="form-group">
           <label class="checkbox-container">
             <input type="checkbox" id="setting-lean-mode" />
             <span class="checkmark"></span>
