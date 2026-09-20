@@ -193,24 +193,25 @@
     <main class="main-viewport">
       <!-- Clean Minimal Topbar -->
       <header class="chat-topbar">
-        <div class="topbar-left-group">
-          <button id="toggle-sidebar-btn" class="icon-toggle-btn" title="Toggle Drawer">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
-          </button>
+        <button id="toggle-sidebar-btn" class="icon-toggle-btn" title="Toggle Drawer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
 
+        <!-- Horizontally Scrollable Middle Track for All Controls -->
+        <div class="topbar-scroll-track" id="topbar-scroll-track">
           <!-- Provider Pill -->
           <div class="select-pill-wrapper provider-pill-wrapper">
             <select id="provider-select" class="select-pill provider-pill" title="Active AI Provider / Proxy">
-              <option value="justdowork" selected>💼 JustDoWork (api.justwoker.icu)</option>
-              <option value="agentrouter">🛡️ AgentRouter (agentrouter.org)</option>
-              <option value="puter">🚀 Puter.ai (Free Allowance & Frontier)</option>
-              <option value="google">🌐 Google AI Studio (Gemini)</option>
+              <option value="justdowork" selected>💼 JustDoWork</option>
+              <option value="agentrouter">🛡️ AgentRouter</option>
+              <option value="puter">🚀 Puter.ai</option>
+              <option value="google">🌐 Google AI Studio</option>
               <option value="openrouter">🔀 OpenRouter</option>
               <option value="groq">⚡ Groq Cloud</option>
-              <option value="deepseek">🐳 DeepSeek Official</option>
-              <option value="openai">✨ OpenAI Official</option>
-              <option value="custom">⚙️ Custom Stealth Proxy</option>
-              <option value="__add_proxy__">➕ Add Custom Proxy...</option>
+              <option value="deepseek">🐳 DeepSeek</option>
+              <option value="openai">✨ OpenAI</option>
+              <option value="custom">⚙️ Custom Proxy</option>
+              <option value="__add_proxy__">➕ Add Custom...</option>
             </select>
           </div>
 
@@ -258,9 +259,7 @@
           <button id="mobile-new-chat-btn" class="icon-toggle-btn mobile-only-btn" title="New Chat Session">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
           </button>
-        </div>
 
-        <div class="topbar-right-group">
           <!-- Live Token Usage Meter -->
           <div class="tools-status-pill" id="token-meter-pill" title="Real-time Session Tokens & Prompt Overhead">
             <span style="color: #10b981; font-weight: 600;">⚡ <span id="meter-in-tokens">0</span> in</span>
@@ -271,7 +270,7 @@
           <!-- Active Tools Indicator Pill -->
           <div class="tools-status-pill" id="tools-status-pill" title="Active Tools & MCP Servers">
             <span class="tools-dot"></span>
-            <span id="tools-status-text">Web Search & PDF Active</span>
+            <span id="tools-status-text">Web & PDF</span>
           </div>
 
           <!-- Active Skills Pill -->
@@ -288,10 +287,12 @@
 
           <!-- Token Savings Badge -->
           <div class="token-badge" title="Reasoning Tokens Pruned Before Forwarding">
-            <span>-75% Prompt Tokens</span>
+            <span>-75% Pruned</span>
           </div>
+        </div>
 
-          <!-- User Profile & Sync Chip -->
+        <!-- Pinned Right: User Profile & Account Portal (Never Cut Off) -->
+        <div class="topbar-auth-fixed">
           <div class="user-auth-wrapper" id="user-auth-wrapper">
             <button id="auth-portal-btn" class="user-profile-chip" title="Account & Cross-Device Cloud Sync">
               <span class="user-avatar-icon" id="user-avatar-display">

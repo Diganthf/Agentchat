@@ -576,9 +576,22 @@
     }
     if (stopBtn) stopBtn.addEventListener("click", stopGeneration);
     if (newChatBtn) newChatBtn.addEventListener("click", createNewChat);
+    const mobileNewChatBtn = document.getElementById("mobile-new-chat-btn");
+    if (mobileNewChatBtn) mobileNewChatBtn.addEventListener("click", createNewChat);
 
     // Effort Bar Interactive Controls
     initEffortBar();
+
+    // Topbar Scroll Track: Smooth Horizontal Mousewheel Scrolling
+    const topbarScrollTrack = document.getElementById("topbar-scroll-track");
+    if (topbarScrollTrack) {
+      topbarScrollTrack.addEventListener("wheel", (e) => {
+        if (e.deltaY !== 0) {
+          e.preventDefault();
+          topbarScrollTrack.scrollLeft += e.deltaY;
+        }
+      }, { passive: false });
+    }
 
     // Web Search
     if (websearchToggleBtn) {

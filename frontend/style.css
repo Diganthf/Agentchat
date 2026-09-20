@@ -520,21 +520,50 @@ input:checked + .slider:before {
 }
 
 .chat-topbar {
-  height: 58px;
+  height: 56px;
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 18px;
+  padding: 0 12px;
   background-color: var(--md-sys-color-surface-container-low);
   flex-shrink: 0;
-  z-index: 10;
+  z-index: 50;
+  position: relative;
+  overflow: visible;
+  gap: 8px;
 }
 
-.topbar-left-group, .topbar-right-group {
+.topbar-scroll-track {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  padding: 4px 2px;
+}
+
+.topbar-scroll-track::-webkit-scrollbar {
+  display: none;
+}
+
+.topbar-scroll-track > * {
+  flex-shrink: 0;
+}
+
+.topbar-auth-fixed {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 4px;
+  position: relative;
+  z-index: 100;
 }
 
 .icon-toggle-btn {
@@ -589,12 +618,30 @@ input:checked + .slider:before {
   border-color: transparent;
 }
 
+.provider-pill {
+  max-width: 160px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
 .model-pill {
   font-weight: 600;
   color: #ffb4a2 !important;
   background-color: #2b1710 !important;
   border: 1px solid #6b3425 !important;
-  min-width: 190px;
+  min-width: 160px;
+  max-width: 230px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.effort-pill {
+  max-width: 130px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .model-pill option,
@@ -2110,6 +2157,14 @@ textarea#user-input::placeholder {
   display: none !important;
 }
 
+/* Medium screens & compact laptop viewports */
+@media (max-width: 1180px) {
+  .effort-pill-wrapper,
+  .token-badge {
+    display: none !important;
+  }
+}
+
 /* ==========================================================================
    Mobile Responsive Engine (Smartphones & Tablets <= 768px)
    Drawer Navigation • Touch Geometry • iOS Zoom Prevention • 100dvh Bounds
@@ -2270,15 +2325,29 @@ textarea#user-input::placeholder {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    overflow: visible;
+    position: relative;
+    z-index: 50;
   }
 
-  .topbar-left-group {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  .topbar-scroll-track {
     flex: 1;
     min-width: 0;
-    overflow: hidden;
+    gap: 6px;
+    padding: 2px 0;
+  }
+
+  .topbar-auth-fixed {
+    margin-left: 4px;
+  }
+
+  #user-name-display {
+    display: none !important;
+  }
+
+  .user-profile-chip {
+    padding: 5px 7px !important;
+    gap: 0 !important;
   }
 
   .icon-toggle-btn {
@@ -2299,28 +2368,28 @@ textarea#user-input::placeholder {
     flex-shrink: 0;
     border: none;
     cursor: pointer;
-    margin-left: auto;
   }
 
   .select-pill-wrapper.provider-pill-wrapper {
-    flex: 0 1 auto;
-    max-width: 135px;
-    min-width: 80px;
+    flex: 0 0 auto;
+    max-width: 125px;
   }
 
   .select-pill-wrapper.model-pill-wrapper {
-    flex: 1 1 auto;
-    max-width: 165px;
-    min-width: 90px;
+    flex: 0 0 auto;
+    max-width: 155px;
   }
 
-  .select-pill-wrapper.effort-pill-wrapper {
+  .select-pill-wrapper.effort-pill-wrapper,
+  .effort-pill-wrapper,
+  #effort-select,
+  .token-badge {
     display: none !important;
   }
 
   .select-pill.provider-pill {
     display: block !important;
-    width: 100%;
+    max-width: 125px;
     font-size: 11.5px;
     padding: 5px 20px 5px 7px;
     text-overflow: ellipsis;
@@ -2330,7 +2399,8 @@ textarea#user-input::placeholder {
 
   .select-pill.model-pill {
     display: block !important;
-    width: 100%;
+    min-width: 110px;
+    max-width: 155px;
     font-size: 11.5px;
     padding: 5px 20px 5px 7px;
     text-overflow: ellipsis;
@@ -2349,17 +2419,6 @@ textarea#user-input::placeholder {
   }
 
   .lean-mode-pill {
-    display: none !important;
-  }
-
-  /* Hide non-essential badges in mobile topbar */
-  .effort-pill,
-  #effort-select,
-  .topbar-right-group .tools-status-pill,
-  .topbar-right-group .skills-status-pill,
-  .topbar-right-group .project-status-pill,
-  .topbar-right-group .token-badge,
-  .topbar-right-group #token-meter-pill {
     display: none !important;
   }
 
