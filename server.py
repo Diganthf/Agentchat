@@ -586,7 +586,7 @@ DEFAULT_CONFIG = {
         "pdf_reader": {"name": "PDF & Document Parser", "description": "High-fidelity pypdf page extraction", "enabled": True},
         "math_eval": {"name": "Math & Code Calculator", "description": "Accurate math logic and python evaluation", "enabled": True}
     },
-    "model": "gemini-2.0-flash",
+    "model": "gemini-2.5-flash",
     "temperature": 0.7,
     "system_prompt": "",
     "auto_compress": True,
@@ -769,13 +769,13 @@ def smart_route_model_provider(requested_model, requested_prov=None, override_ke
     if "gemini" in m_lower or m_lower.startswith("google/"):
         g_p, g_k = resolve_provider_info("google", cfg=cfg, override_key=override_key, override_url=override_url)
         if g_p.get("api_key"):
-            target_model = "gemini-2.0-flash"
-            if "1.5-pro" in m_lower:
-                target_model = "gemini-1.5-pro"
-            elif "1.5-flash" in m_lower:
-                target_model = "gemini-1.5-flash"
-            elif "2.0-flash" in m_lower:
-                target_model = "gemini-2.0-flash"
+            target_model = "gemini-2.5-flash"
+            if "pro" in m_lower:
+                target_model = "gemini-2.5-pro"
+            elif "3.6" in m_lower:
+                target_model = "gemini-3.6-flash"
+            elif "flash-latest" in m_lower:
+                target_model = "gemini-flash-latest"
             return g_p, "google", target_model
         puter_p, puter_k = resolve_provider_info("puter", cfg=cfg)
         if puter_p.get("api_key"):
@@ -1078,9 +1078,8 @@ def get_curated_working_models(cfg=None):
     # 1. Google Gemini (Free Tier / 1M Context Window)
     g_prov, _ = resolve_provider_info("google", cfg=cfg)
     if g_prov.get("api_key"):
-        add_model("gemini-2.0-flash", "🌐 Gemini 2.0 Flash (Free 1M Window)", "google", "Google", is_free=True, desc="Multimodal reasoning with 1M context")
-        add_model("gemini-1.5-flash", "🎁 Gemini 1.5 Flash (Free Tier)", "google", "Google", is_free=True, desc="High speed general reasoning")
-        add_model("gemini-1.5-pro", "🌐 Gemini 1.5 Pro (2M Window)", "google", "Google", is_free=False, desc="Deep frontier analysis with 2M context")
+        add_model("gemini-2.5-flash", "🌐 Gemini 2.5 Flash (Free 1M Window)", "google", "Google", is_free=True, desc="Multimodal reasoning with 1M context")
+        add_model("gemini-2.5-pro", "🌐 Gemini 2.5 Pro (2M Window)", "google", "Google", is_free=False, desc="Deep frontier analysis with 2M context")
 
     # 2. Groq Open-Source Weights (Zero Cost / 500+ Tokens/Sec)
     groq_prov, _ = resolve_provider_info("groq", cfg=cfg)
@@ -1107,7 +1106,7 @@ def get_curated_working_models(cfg=None):
 
     # Clean guaranteed fallback
     if not models:
-        add_model("gemini-2.0-flash", "🌐 Gemini 2.0 Flash (Free 1M Window)", "google", "Google", is_free=True)
+        add_model("gemini-2.5-flash", "🌐 Gemini 2.5 Flash (Free 1M Window)", "google", "Google", is_free=True)
         add_model("llama-3.3-70b-versatile", "🦙 Llama 3.3 70B Versatile (Free Open Weights)", "groq", "OpenAI", is_free=True)
         add_model("deepseek-v4-flash", "⚡ DeepSeek V4 Flash (Lightning Fast 1.5s)", "agentrouter", "DeepSeek", is_free=True)
         add_model("claude-opus-4-8", "✳️ claude-opus-4-8 (Anthropic Frontier)", "justdowork", "Anthropic", is_free=False)

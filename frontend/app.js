@@ -13,7 +13,9 @@
   let currentRailTab = "chats";
 
   const MODEL_DISPLAY_NAMES = {
-    "gemini-2.0-flash": "🌐 Gemini 2.0 Flash (Free 1M Window)",
+    "gemini-2.5-flash": "🌐 Gemini 2.5 Flash (Free 1M Window)",
+    "gemini-2.5-pro": "🌐 Gemini 2.5 Pro (2M Window)",
+    "gemini-2.0-flash": "🌐 Gemini 2.5 Flash (Free 1M Window)",
     "gemini-1.5-flash": "🎁 Gemini 1.5 Flash (Free Tier)",
     "gemini-1.5-pro": "🌐 Gemini 1.5 Pro (2M Window)",
     "llama-3.3-70b-versatile": "🦙 Llama 3.3 70B Versatile (Free Open Weights)",
