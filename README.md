@@ -1,3 +1,13 @@
+---
+title: AgentChat
+emoji: ⚡
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_port: 5050
+pinned: false
+---
+
 # AgentChat ⚡
 
 A lightweight, local-first AI workbench designed with the **Material You Expressive (M3 Expressive)** design system. Built for developers and power users who demand direct gateway connectivity, multi-model flexibility, automatic reasoning compression, local document ingestion, and Model Context Protocol (MCP) tool execution without the bloat of Electron.
