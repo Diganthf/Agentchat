@@ -11,16 +11,20 @@ services:
         value: "5050"
       - key: HOST
         value: "0.0.0.0"
+      # Set to "1" ONLY if you intentionally want the site open to the whole
+      # internet with no password. Leave unset/"0" and set ACCESS_PASSWORD instead.
       - key: ALLOW_UNPROTECTED_PUBLIC
-        value: "1"
+        value: "0"
       - key: DISABLE_LOCAL_TOOLS
         value: "1"
+      # SECRETS: never hardcode values here. sync:false means you set the value
+      # in the Render Dashboard (Environment tab), so it stays out of git.
       - key: AGENTCHAT_MASTER_KEY
-        value: "agentchat_universal_vault_secret_2026"
+        sync: false
       - key: JUSTDOWORK_API_KEY
-        value: "sk-saKmOPTBIO52wSDr4kSisEMurx8Ze3tee44BoQCMSWECL7OG"
+        sync: false
       - key: AGENTROUTER_API_KEY
-        value: "sk-416fg45p4OK340pdDFK7SFmn01TIfmDmZkYWEp6pZf2wp8Sj"
+        sync: false
       - key: BASE_TIER_API_KEY
         sync: false
       - key: OPENROUTER_API_KEY

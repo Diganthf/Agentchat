@@ -66,6 +66,17 @@ DISABLE_LOCAL_TOOLS = os.environ.get("DISABLE_LOCAL_TOOLS", "").strip() in ("1",
 ACCESS_PASSWORD = os.environ.get("ACCESS_PASSWORD", "").strip()
 ALLOW_UNPROTECTED_PUBLIC = os.environ.get("ALLOW_UNPROTECTED_PUBLIC", "").strip() in ("1", "true", "yes")
 
+# Comma-separated list of origins allowed to make credentialed cross-origin
+# (CORS) calls. Empty by default -> no cross-origin site is trusted, which is
+# the safe default. Same-origin (the app's own page) does not need this.
+ALLOWED_ORIGINS = set(
+    o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()
+)
+
+# Simple in-memory rate limiter state: { "ip:bucket": [timestamps] }
+_RATE_LIMIT_HITS = {}
+_RATE_LIMIT_LOCK = threading.Lock()
+
 AUTO_GENERATED_TOKEN = None
 
 # --- Security: Fernet Encryption at Rest ---
@@ -73,7 +84,17 @@ def get_master_fernet():
     if not FERNET_AVAILABLE:
         return None
     salt = b"agentchat_vault_v3_salt"
-    master_seed = os.environ.get("AGENTCHAT_MASTER_KEY", "agentchat_universal_vault_secret_2026").encode("utf-8")
+    seed_str = os.environ.get("AGENTCHAT_MASTER_KEY", "").strip()
+    if not seed_str:
+        # Fail safe: no shared/public default. Without a real master key we
+        # refuse to encrypt rather than pretend to (a public default gives no
+        # protection at all). Set AGENTCHAT_MASTER_KEY in your host's env.
+        if HOST not in ("127.0.0.1", "localhost"):
+            print("[SECURITY] AGENTCHAT_MASTER_KEY is not set. Refusing to use a default key in a networked deployment.", file=sys.stderr)
+            return None
+        # Local dev only: derive a machine-local ephemeral key so dev still works.
+        seed_str = "local-dev-" + str(uuid.getnode())
+    master_seed = seed_str.encode("utf-8")
     try:
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
@@ -163,6 +184,35 @@ def init_auth_db():
         conn.commit()
 
 init_auth_db()
+
+def build_session_cookie(token: str, max_age: int = 2592000) -> str:
+    """Session cookie with HttpOnly (blocks JS/XSS theft) and Secure (HTTPS-only)
+    when deployed. Secure is omitted on local dev so http://localhost still works."""
+    secure = "; Secure" if HOST not in ("127.0.0.1", "localhost") else ""
+    val = token if token else ""
+    return f"agentchat_session={val}; Path=/; Max-Age={max_age}; HttpOnly; SameSite=Lax{secure}"
+
+
+def rate_limit_ok(ip: str, bucket: str, max_hits: int, window_secs: int) -> bool:
+    """Simple sliding-window rate limiter. Returns False if the caller has
+    exceeded max_hits within window_secs. In-memory only (resets on restart),
+    which is fine as a first line of defense against brute-force / spam."""
+    now = time.time()
+    key = f"{ip}:{bucket}"
+    with _RATE_LIMIT_LOCK:
+        hits = [t for t in _RATE_LIMIT_HITS.get(key, []) if now - t < window_secs]
+        if len(hits) >= max_hits:
+            _RATE_LIMIT_HITS[key] = hits
+            return False
+        hits.append(now)
+        _RATE_LIMIT_HITS[key] = hits
+        # Opportunistic cleanup so the dict doesn't grow unbounded.
+        if len(_RATE_LIMIT_HITS) > 5000:
+            for k in list(_RATE_LIMIT_HITS.keys()):
+                if all(now - t > window_secs for t in _RATE_LIMIT_HITS[k]):
+                    _RATE_LIMIT_HITS.pop(k, None)
+    return True
+
 
 def hash_password(password: str, salt: str = None):
     if salt is None:
@@ -679,9 +729,10 @@ def get_env_api_key_for(provider_key):
             find_env_fuzzy("openai")
         )
     elif provider_key == "justdowork":
-        return get_clean_env("JUSTDOWORK_API_KEY", "JUSTDOWORK_KEY") or find_env_fuzzy("justdowork") or find_env_fuzzy("justwoker") or "sk-saKmOPTBIO52wSDr4kSisEMurx8Ze3tee44BoQCMSWECL7OG"
+        # Key must come from env (JUSTDOWORK_API_KEY) or config — no hardcoded default.
+        return get_clean_env("JUSTDOWORK_API_KEY", "JUSTDOWORK_KEY") or find_env_fuzzy("justdowork") or find_env_fuzzy("justwoker")
     elif provider_key == "agentrouter":
-        return get_clean_env("AGENTROUTER_API_KEY", "AGENTROUTER_KEY") or find_env_fuzzy("agentrouter") or "sk-416fg45p4OK340pdDFK7SFmn01TIfmDmZkYWEp6pZf2wp8Sj"
+        return get_clean_env("AGENTROUTER_API_KEY", "AGENTROUTER_KEY") or find_env_fuzzy("agentrouter")
     elif provider_key == "puter":
         return get_clean_env("PUTER_API_KEY", "PUTER_AUTH_TOKEN", "PUTER_KEY") or find_env_fuzzy("puter")
     elif provider_key == "google":
@@ -1112,12 +1163,20 @@ def get_curated_working_models(cfg=None):
 class AgentChatHandler(BaseHTTPRequestHandler):
     def end_headers(self):
         req_origin = self.headers.get("Origin", "")
-        if req_origin:
+        # Only reflect (and allow credentials for) origins on the allowlist.
+        # ALLOWED_ORIGINS is a comma-separated env var, e.g.
+        #   "https://agentchat-1jpo.onrender.com,http://localhost:5050"
+        # Same-origin requests (browser tab served by this server) send no Origin
+        # header at all, so the app itself keeps working with the allowlist empty.
+        if req_origin and req_origin in ALLOWED_ORIGINS:
             self.send_header("Access-Control-Allow-Origin", req_origin)
             self.send_header("Access-Control-Allow-Credentials", "true")
             self.send_header("Vary", "Origin")
-        else:
-            self.send_header("Access-Control-Allow-Origin", "*")
+        elif not req_origin:
+            # No cross-origin request; nothing to grant.
+            pass
+        # else: cross-origin request from a non-allowlisted site -> no CORS header,
+        # browser blocks it. (Server still processes same-origin/no-Origin calls.)
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Access-Password, X-Custom-Api-Key, X-Custom-Base-Url, X-User-Session")
         super().end_headers()
@@ -1170,7 +1229,7 @@ class AgentChatHandler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
+        # Origin/credentials headers are added by end_headers() using the allowlist.
         self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Access-Password, X-Custom-Api-Key, X-Custom-Base-Url, X-User-Session")
         self.send_header("Access-Control-Max-Age", "86400")
@@ -1185,7 +1244,6 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             self.send_response(405)
             self.send_header("Allow", "POST, OPTIONS")
             self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(b'{"error": "Method Not Allowed. Use POST for /api/chat", "code": 405}')
             return
@@ -1362,7 +1420,7 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
+        # CORS headers (with allowlist) are added centrally by end_headers().
         self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Access-Password, X-Custom-Api-Key, X-Custom-Base-Url, X-User-Session")
         self.end_headers()
@@ -1409,6 +1467,9 @@ class AgentChatHandler(BaseHTTPRequestHandler):
     def handle_auth_register(self):
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length).decode("utf-8")
+        if not rate_limit_ok(self.client_address[0], "register", max_hits=5, window_secs=3600):
+            self.send_json({"success": False, "error": "Too many sign-up attempts. Please try again later."}, status=429)
+            return
         try:
             data = json.loads(body)
             email = data.get("email", "").strip().lower()
@@ -1418,8 +1479,8 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             if not email or "@" not in email:
                 self.send_json({"success": False, "error": "Valid email address is required"}, status=400)
                 return
-            if len(password) < 6:
-                self.send_json({"success": False, "error": "Password must be at least 6 characters"}, status=400)
+            if len(password) < 8:
+                self.send_json({"success": False, "error": "Password must be at least 8 characters"}, status=400)
                 return
 
             with get_auth_db() as conn:
@@ -1445,7 +1506,7 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             profile = get_user_profile(user_id)
 
             self.send_response(200)
-            self.send_header("Set-Cookie", f"agentchat_session={session_token}; Path=/; Max-Age=2592000; SameSite=Lax")
+            self.send_header("Set-Cookie", build_session_cookie(session_token))
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps({"success": True, "token": session_token, "user": user_data, "profile": profile}).encode("utf-8"))
@@ -1455,6 +1516,9 @@ class AgentChatHandler(BaseHTTPRequestHandler):
     def handle_auth_login(self):
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length).decode("utf-8")
+        if not rate_limit_ok(self.client_address[0], "login", max_hits=10, window_secs=300):
+            self.send_json({"success": False, "error": "Too many login attempts. Please wait a few minutes and try again."}, status=429)
+            return
         try:
             data = json.loads(body)
             email = data.get("email", "").strip().lower()
@@ -1486,7 +1550,7 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             profile = get_user_profile(u["id"])
 
             self.send_response(200)
-            self.send_header("Set-Cookie", f"agentchat_session={session_token}; Path=/; Max-Age=2592000; SameSite=Lax")
+            self.send_header("Set-Cookie", build_session_cookie(session_token))
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps({"success": True, "token": session_token, "user": user_data, "profile": profile}).encode("utf-8"))
@@ -1555,7 +1619,7 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             profile = get_user_profile(user_id)
 
             self.send_response(200)
-            self.send_header("Set-Cookie", f"agentchat_session={session_token}; Path=/; Max-Age=2592000; SameSite=Lax")
+            self.send_header("Set-Cookie", build_session_cookie(session_token))
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps({"success": True, "token": session_token, "user": user_data, "profile": profile}).encode("utf-8"))
@@ -2140,10 +2204,13 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             self.send_json({"success": False, "error": "Project not found"}, status=404)
             return
 
-        proj_root = os.path.abspath(active_proj.get("path", ""))
-        target_file = os.path.abspath(os.path.join(proj_root, rel_path))
+        proj_root = os.path.realpath(active_proj.get("path", ""))
+        # realpath resolves symlinks and "..", closing traversal tricks.
+        target_file = os.path.realpath(os.path.join(proj_root, rel_path))
 
-        if not target_file.startswith(proj_root):
+        # Robust containment check: target must be proj_root itself or strictly
+        # inside it. Plain startswith() is unsafe (e.g. /app/proj vs /app/proj_x).
+        if os.path.commonpath([proj_root, target_file]) != proj_root:
             self.send_json({"success": False, "error": "Access denied"}, status=403)
             return
 
@@ -2857,11 +2924,9 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-cache")
             self.send_header("Connection", "keep-alive")
-            self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
         else:
             self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
 
         cfg = load_config()
@@ -2874,13 +2939,35 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             override_provider=prov_key
         )
         if hasattr(upstream_res, 'iter_lines'):
-            for line in upstream_res.iter_lines():
-                if line:
-                    self.wfile.write(line + b"\n\n")
-                    self.wfile.flush()
+            block_counter = -1
+            curr_idx = 0
+            try:
+                for line in upstream_res.iter_lines():
+                    if line:
+                        if line.startswith(b"data: ") and not line.endswith(b"[DONE]"):
+                            try:
+                                d = json.loads(line[6:].decode("utf-8"))
+                                t = d.get("type")
+                                if t == "content_block_start":
+                                    block_counter += 1
+                                    curr_idx = block_counter
+                                    d["index"] = curr_idx
+                                    line = b"data: " + json.dumps(d).encode("utf-8")
+                                elif t in ("content_block_delta", "content_block_stop"):
+                                    d["index"] = curr_idx
+                                    line = b"data: " + json.dumps(d).encode("utf-8")
+                            except Exception:
+                                pass
+                        self.wfile.write(line + b"\n\n")
+                        self.wfile.flush()
+            except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+                pass
         elif hasattr(upstream_res, 'read'):
-            self.wfile.write(upstream_res.read())
-            self.wfile.flush()
+            try:
+                self.wfile.write(upstream_res.read())
+                self.wfile.flush()
+            except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+                pass
         self.close_connection = True
 
 def run_server():
