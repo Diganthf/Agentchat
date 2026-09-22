@@ -77,6 +77,12 @@ ALLOW_UNPROTECTED_PUBLIC = os.environ.get("ALLOW_UNPROTECTED_PUBLIC", "").strip(
 # Without it, Google sign-in is disabled (fail-safe) rather than insecure.
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
 
+# GitHub OAuth (authorization-code flow). Free, no billing/credit card required.
+# Register an OAuth App at github.com/settings/developers with callback URL
+# "<your-site>/api/auth/github/callback", then set both as env vars.
+GITHUB_CLIENT_ID = os.environ.get("GITHUB_CLIENT_ID", "").strip()
+GITHUB_CLIENT_SECRET = os.environ.get("GITHUB_CLIENT_SECRET", "").strip()
+
 # Comma-separated list of origins allowed to make credentialed cross-origin
 # (CORS) calls. Empty by default -> no cross-origin site is trusted, which is
 # the safe default. Same-origin (the app's own page) does not need this.
@@ -292,6 +298,34 @@ except Exception as _db_ex:
     # Don't hard-crash on boot if an external DB is briefly unreachable (e.g. Neon
     # cold start). Tables are created IF NOT EXISTS, so a later request retries fine.
     print(f"[DB] init_auth_db() failed at startup ({_db_ex}); will rely on existing tables.", file=sys.stderr)
+
+def upsert_oauth_user(email, name, avatar_url, provider):
+    """Create or update a user identified by verified email from an OAuth
+    provider (Google, GitHub, ...). Returns (user_id, user_data dict).
+    Shared by all social-login paths so account handling stays consistent."""
+    email = (email or "").strip().lower()
+    name = (name or "").strip() or (email.split("@")[0] if email else provider + "_user")
+    avatar_url = (avatar_url or "").strip()
+    with get_auth_db() as conn:
+        row = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+        if row:
+            user_id = row["id"]
+            conn.execute(
+                "UPDATE users SET last_login = ?, name = COALESCE(NULLIF(?, ''), name), avatar_url = COALESCE(NULLIF(?, ''), avatar_url), auth_provider = ? WHERE id = ?",
+                (time.time(), name, avatar_url, provider, user_id)
+            )
+            conn.commit()
+            user_data = dict(conn.execute("SELECT id, email, name, avatar_url, auth_provider, created_at FROM users WHERE id = ?", (user_id,)).fetchone())
+        else:
+            user_id = "usr_" + str(uuid.uuid4()).replace("-", "")[:16]
+            now = time.time()
+            conn.execute(
+                "INSERT INTO users (id, email, name, avatar_url, auth_provider, created_at, last_login) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (user_id, email, name, avatar_url, provider, now, now)
+            )
+            conn.commit()
+            user_data = {"id": user_id, "email": email, "name": name, "avatar_url": avatar_url, "auth_provider": provider, "created_at": now}
+    return user_id, user_data
 
 def verify_google_id_token(credential: str):
     """Verify a Google Sign-In (GSI) ID token properly.
@@ -1581,7 +1615,9 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 "key_type": key_detected_type,
                 "base_url": prov.get("base_url", ""),
                 # Public (non-secret) client id so the frontend can init Google Sign-In.
-                "google_client_id": GOOGLE_CLIENT_ID
+                "google_client_id": GOOGLE_CLIENT_ID,
+                # Whether GitHub sign-in is configured (client id + secret present).
+                "github_enabled": bool(GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET)
             })
             return
 
@@ -1592,6 +1628,10 @@ class AgentChatHandler(BaseHTTPRequestHandler):
 
         if path == "/api/auth/me":
             self.handle_auth_me()
+        elif path == "/api/auth/github/start":
+            self.handle_github_start()
+        elif path == "/api/auth/github/callback":
+            self.handle_github_callback()
         elif path == "/api/user/sync":
             self.handle_user_sync_get()
         elif path == "/api/config":
@@ -1935,6 +1975,165 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"success": True, "token": session_token, "user": user_data, "profile": profile}).encode("utf-8"))
         except Exception as e:
             self.send_json({"success": False, "error": str(e)}, status=500)
+
+    def _forwarded_base_url(self):
+        """Reconstruct the externally-visible origin (scheme://host) of this
+        request. On Render the app sits behind a TLS-terminating proxy, so the
+        real scheme/host arrive in X-Forwarded-* headers; fall back to the Host
+        header and the local scheme for direct/local requests."""
+        proto = (self.headers.get("X-Forwarded-Proto", "") or "").split(",")[0].strip()
+        if not proto:
+            proto = "http" if HOST in ("127.0.0.1", "localhost") else "https"
+        host = (self.headers.get("X-Forwarded-Host", "") or "").split(",")[0].strip()
+        if not host:
+            host = (self.headers.get("Host", "") or "").strip()
+        if not host:
+            host = f"{HOST}:{PORT}"
+        return f"{proto}://{host}"
+
+    def _get_cookie(self, name):
+        cookie_header = self.headers.get("Cookie", "") or ""
+        for c in cookie_header.split(";"):
+            k, _, v = c.strip().partition("=")
+            if k == name:
+                return v
+        return ""
+
+    def send_redirect(self, location, extra_cookies=None):
+        self.send_response(302)
+        self.send_header("Location", location)
+        for ck in (extra_cookies or []):
+            self.send_header("Set-Cookie", ck)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def handle_github_start(self):
+        """Begin GitHub's OAuth authorization-code flow: stash a random state in
+        an HttpOnly cookie (CSRF defense) and redirect the browser to GitHub."""
+        if not (GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET):
+            self.send_redirect("/#auth_error=github_not_configured")
+            return
+        state = secrets.token_urlsafe(24)
+        redirect_uri = self._forwarded_base_url() + "/api/auth/github/callback"
+        secure = "; Secure" if HOST not in ("127.0.0.1", "localhost") else ""
+        # Short-lived, HttpOnly. SameSite=Lax so it survives GitHub's top-level
+        # GET redirect back to us but isn't sent on cross-site subrequests.
+        state_cookie = f"gh_oauth_state={state}; Path=/; Max-Age=600; HttpOnly; SameSite=Lax{secure}"
+        params = urllib.parse.urlencode({
+            "client_id": GITHUB_CLIENT_ID,
+            "redirect_uri": redirect_uri,
+            "scope": "read:user user:email",
+            "state": state,
+            "allow_signup": "true",
+        })
+        self.send_redirect("https://github.com/login/oauth/authorize?" + params, extra_cookies=[state_cookie])
+
+    def handle_github_callback(self):
+        """Handle GitHub's redirect back: verify state, swap the code for an
+        access token, look up the verified primary email, upsert the user, mint
+        a session, and hand the token to the SPA via a URL fragment."""
+        if not (GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET):
+            self.send_redirect("/#auth_error=github_not_configured")
+            return
+        parsed = urlparse(self.path)
+        qs = urllib.parse.parse_qs(parsed.query)
+        code = (qs.get("code", [""])[0] or "").strip()
+        state = (qs.get("state", [""])[0] or "").strip()
+        expected_state = self._get_cookie("gh_oauth_state")
+        # Clear the state cookie regardless of outcome (single-use).
+        clear_state = "gh_oauth_state=; Path=/; Max-Age=0; SameSite=Lax"
+
+        if qs.get("error"):
+            self.send_redirect("/#auth_error=github_denied", extra_cookies=[clear_state])
+            return
+        if not code:
+            self.send_redirect("/#auth_error=github_no_code", extra_cookies=[clear_state])
+            return
+        if not state or not expected_state or not secrets.compare_digest(state, expected_state):
+            self.send_redirect("/#auth_error=github_state_mismatch", extra_cookies=[clear_state])
+            return
+
+        redirect_uri = self._forwarded_base_url() + "/api/auth/github/callback"
+        try:
+            token = self._github_exchange_code(code, redirect_uri)
+            if not token:
+                self.send_redirect("/#auth_error=github_token", extra_cookies=[clear_state])
+                return
+            gh_user = self._github_api_get("https://api.github.com/user", token) or {}
+            email = self._github_primary_email(token, gh_user)
+            if not email:
+                self.send_redirect("/#auth_error=github_no_email", extra_cookies=[clear_state])
+                return
+            name = (gh_user.get("name") or gh_user.get("login") or "").strip()
+            avatar_url = (gh_user.get("avatar_url") or "").strip()
+            user_id, _ = upsert_oauth_user(email, name, avatar_url, "github")
+            session_token = create_user_session(user_id, duration_days=30)
+        except Exception as ex:
+            print("[AUTH] GitHub OAuth callback failed:", ex, file=sys.stderr)
+            self.send_redirect("/#auth_error=github_failed", extra_cookies=[clear_state])
+            return
+
+        # Set the HttpOnly session cookie AND pass the token in the fragment so
+        # the SPA (which also uses a Bearer token in localStorage) can pick it up.
+        self.send_redirect(
+            "/#auth_token=" + urllib.parse.quote(session_token),
+            extra_cookies=[clear_state, build_session_cookie(session_token)]
+        )
+
+    def _github_exchange_code(self, code, redirect_uri):
+        """POST the authorization code to GitHub and return the access token."""
+        body = json.dumps({
+            "client_id": GITHUB_CLIENT_ID,
+            "client_secret": GITHUB_CLIENT_SECRET,
+            "code": code,
+            "redirect_uri": redirect_uri,
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            "https://github.com/login/oauth/access_token",
+            data=body,
+            method="POST",
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "User-Agent": "AgentChat-OAuth",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            payload = json.loads(r.read().decode("utf-8"))
+        return (payload.get("access_token") or "").strip()
+
+    def _github_api_get(self, url, token):
+        req = urllib.request.Request(url, headers={
+            "Authorization": "Bearer " + token,
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "AgentChat-OAuth",
+        })
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read().decode("utf-8"))
+
+    def _github_primary_email(self, token, gh_user):
+        """Return the verified primary email from /user/emails, falling back to
+        the account's public email, then GitHub's no-reply address."""
+        try:
+            emails = self._github_api_get("https://api.github.com/user/emails", token)
+            if isinstance(emails, list):
+                verified = [e for e in emails if isinstance(e, dict) and e.get("verified")]
+                for e in verified:
+                    if e.get("primary") and e.get("email"):
+                        return e["email"].strip().lower()
+                for e in verified:
+                    if e.get("email"):
+                        return e["email"].strip().lower()
+        except Exception as ex:
+            print("[AUTH] GitHub /user/emails lookup failed:", ex, file=sys.stderr)
+        # Fallbacks: public profile email, then the stable no-reply address.
+        if gh_user.get("email"):
+            return gh_user["email"].strip().lower()
+        login = (gh_user.get("login") or "").strip()
+        uid = gh_user.get("id")
+        if login and uid is not None:
+            return f"{uid}+{login}@users.noreply.github.com".lower()
+        return ""
 
     def handle_auth_me(self):
         user = self.get_authenticated_user()

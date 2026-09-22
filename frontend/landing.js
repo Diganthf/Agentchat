@@ -17,6 +17,30 @@
   var ENTERED_KEY = "agentchat_entered";
   var prefersReduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  // ---------- consume OAuth redirect fragment (#auth_token=… / #auth_error=…) ----------
+  // GitHub sign-in bounces the browser back to "/#auth_token=<session>". Capture
+  // it into localStorage (same slot app.js reads), mark the visitor as entered,
+  // then scrub the fragment so the token never lingers in the URL/history.
+  var pendingAuthError = "";
+  (function consumeAuthFragment() {
+    var hash = window.location.hash || "";
+    if (hash.indexOf("auth_token=") === -1 && hash.indexOf("auth_error=") === -1) return;
+    var frag = hash.charAt(0) === "#" ? hash.slice(1) : hash;
+    var params = {};
+    frag.split("&").forEach(function (kv) {
+      var i = kv.indexOf("=");
+      if (i > -1) { try { params[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1)); } catch (e) {} }
+    });
+    if (params.auth_token) {
+      localStorage.setItem(TOKEN_KEY, params.auth_token);
+      localStorage.setItem(ENTERED_KEY, "1");
+    }
+    if (params.auth_error) pendingAuthError = params.auth_error;
+    try {
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    } catch (e) { window.location.hash = ""; }
+  })();
+
   // ---------- tiny fetch helper (mirrors app.js auth/back-end headers) ----------
   function backendBase() {
     return (localStorage.getItem("agentchat_backend_url") || "").trim().replace(/\/+$/, "");
@@ -171,11 +195,15 @@
   var googleBtn = document.getElementById("lp-google-btn");
   var googleNote = document.getElementById("lp-google-note");
   var _clientId = null;
+  var _healthPromise = null;
+  function getHealth() {
+    if (_healthPromise) return _healthPromise;
+    _healthPromise = api("/api/health").then(function (r) { return r.json(); }).catch(function () { return {}; });
+    return _healthPromise;
+  }
   function getClientId() {
     if (_clientId !== null) return Promise.resolve(_clientId);
-    return api("/api/health").then(function (r) { return r.json(); })
-      .then(function (d) { _clientId = (d && d.google_client_id) || ""; return _clientId; })
-      .catch(function () { _clientId = ""; return ""; });
+    return getHealth().then(function (d) { _clientId = (d && d.google_client_id) || ""; return _clientId; });
   }
   function submitGoogle(credential) {
     api("/api/auth/social-login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider: "google", credential: credential }) })
@@ -204,6 +232,38 @@
   if (googleBtn) googleBtn.addEventListener("click", function () {
     if (window.google && window.google.accounts && window.google.accounts.id) { try { window.google.accounts.id.prompt(); } catch (e) {} }
   });
+
+  // ---------- GitHub sign-in ----------
+  // Server-side authorization-code flow: the button is just a top-level
+  // navigation to /api/auth/github/start, which 302s to GitHub. It stays hidden
+  // unless the server reports github_enabled (client id + secret configured).
+  var githubBtn = document.getElementById("lp-github-btn");
+  if (githubBtn) {
+    githubBtn.addEventListener("click", function () {
+      window.location.href = (backendBase() || "") + "/api/auth/github/start";
+    });
+    getHealth().then(function (d) {
+      if (d && d.github_enabled) githubBtn.classList.remove("hidden");
+      else githubBtn.classList.add("hidden");
+    });
+  }
+
+  // Surface an OAuth error carried back in the URL fragment (e.g. the user
+  // denied access, or state didn't verify) once the panel machinery exists.
+  if (pendingAuthError) {
+    var _ghErrors = {
+      github_denied: "GitHub sign-in was cancelled.",
+      github_state_mismatch: "GitHub sign-in expired or could not be verified. Please try again.",
+      github_no_email: "Your GitHub account has no verified email we can use.",
+      github_not_configured: "GitHub sign-in isn't set up on this server.",
+      github_no_code: "GitHub sign-in was interrupted. Please try again.",
+      github_token: "Could not complete GitHub sign-in. Please try again.",
+      github_failed: "Could not complete GitHub sign-in. Please try again."
+    };
+    openAuth("login");
+    showAlert(_ghErrors[pendingAuthError] || "Sign-in could not be completed. Please try again.");
+    pendingAuthError = "";
+  }
 
   // =====================================================================
   //  SCROLL: nav opacity + reveal-on-scroll + drive background
