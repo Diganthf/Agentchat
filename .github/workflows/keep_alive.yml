@@ -2,8 +2,10 @@ name: Keep Render Alive 24/7
 
 on:
   schedule:
-    # Ping every 10 minutes to prevent Render from sleeping
-    - cron: '*/10 * * * *'
+    # Backup pinger. GitHub cron is best-effort and often delayed several minutes,
+    # so treat an external monitor (UptimeRobot / cron-job.org) as the primary
+    # 5-minute keep-alive and this as redundancy.
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 jobs:

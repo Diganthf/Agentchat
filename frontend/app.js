@@ -1470,7 +1470,54 @@
         }
       };
 
-      if (isDoc) {
+      const isPdf = ext === "pdf";
+      if (isPdf) {
+        // PDFs → render pages to images so a vision model can SEE them.
+        const reader = new FileReader();
+        reader.onload = async () => {
+          const base64 = (reader.result || "").split(",")[1] || "";
+          try {
+            const res = await apiFetch("/api/pdf_to_images", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ filename: file.name, content_base64: base64, base64: base64 })
+            });
+            const data = await res.json();
+            removeTempChip();
+            if (data.success && data.images && data.images.length) {
+              currentAttachments.push({
+                filename: file.name,
+                text: data.text || `[PDF: ${file.name}]`,
+                isImage: false,
+                isVisual: true,
+                images: data.images,
+                type: ext,
+                pages: data.page_count || data.images.length
+              });
+              if (data.note) console.info(`[${file.name}] ${data.note}`);
+              renderAttachmentTray();
+            } else if (data.text) {
+              // Rendering unavailable (e.g. PyMuPDF not installed) — fall back to text.
+              currentAttachments.push({
+                filename: file.name,
+                text: data.text,
+                isImage: false,
+                isVisual: false,
+                type: ext,
+                pages: null
+              });
+              if (data.error) console.warn(`[${file.name}] image render failed, using text: ${data.error}`);
+              renderAttachmentTray();
+            } else {
+              alert(`Error reading ${file.name}: ` + (data.error || "Could not render or extract the PDF"));
+            }
+          } catch (err) {
+            removeTempChip();
+            alert(`Error reading ${file.name}: ` + err.message);
+          }
+        };
+        reader.readAsDataURL(file);
+      } else if (isDoc) {
         const reader = new FileReader();
         reader.onload = async () => {
           const base64 = (reader.result || "").split(",")[1] || "";
@@ -1487,6 +1534,7 @@
                 filename: file.name,
                 text: data.text,
                 isImage: false,
+                isVisual: false,
                 type: ext,
                 pages: data.pages || data.slides || null
               });
@@ -1508,6 +1556,7 @@
             filename: file.name,
             text: `[Image Attached: ${file.name}]`,
             isImage: true,
+            isVisual: true,
             type: ext,
             dataUrl: reader.result
           });
@@ -1599,8 +1648,38 @@
     }
   }
 
+  // Replace image blocks in a multimodal content array with a light text marker.
+  // Used both to avoid re-sending images on follow-up turns and to keep base64
+  // out of localStorage (25 page-images would blow the ~5MB quota instantly).
+  function stripImagesFromContent(content) {
+    if (!Array.isArray(content)) return content;
+    const imgCount = content.filter(b => b && b.type === "image_url").length;
+    const textParts = content.filter(b => b && b.type === "text").map(b => b.text);
+    let merged = textParts.join("\n\n");
+    if (imgCount) merged += (merged ? "\n\n" : "") + `[${imgCount} image${imgCount > 1 ? "s" : ""} sent earlier in this turn]`;
+    return merged;
+  }
+
   function saveSessions() {
-    localStorage.setItem("agentchat_sessions", JSON.stringify(sessions));
+    // Deep-sanitize: never persist base64 image payloads to localStorage.
+    const lean = sessions.map(s => ({
+      ...s,
+      messages: (s.messages || []).map(m => {
+        const copy = { ...m };
+        if (Array.isArray(copy.content)) copy.content = stripImagesFromContent(copy.content);
+        if (copy.attachments) {
+          copy.attachments = copy.attachments.map(a => ({ ...a, dataUrl: null }));
+        }
+        return copy;
+      })
+    }));
+    try {
+      localStorage.setItem("agentchat_sessions", JSON.stringify(lean));
+    } catch (e) {
+      console.warn("saveSessions: localStorage write failed (quota?), retrying without attachments", e);
+      const barer = lean.map(s => ({ ...s, messages: (s.messages || []).map(m => ({ ...m, attachments: null })) }));
+      try { localStorage.setItem("agentchat_sessions", JSON.stringify(barer)); } catch (_) {}
+    }
     renderSidebar();
   }
 
@@ -1676,7 +1755,10 @@
       if (m.reasoning) {
         md += `> **Thinking Process:**\n> ${m.reasoning.replace(/\n/g, "\n> ")}\n\n`;
       }
-      md += `${m.content}\n\n---\n\n`;
+      // content may be a multimodal array — export the user's typed text if present.
+      let bodyText = (m.role === "user" && typeof m.displayContent === "string") ? m.displayContent : m.content;
+      if (Array.isArray(bodyText)) bodyText = stripImagesFromContent(bodyText);
+      md += `${bodyText}\n\n---\n\n`;
     });
 
     const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
@@ -1719,7 +1801,11 @@
     const filtered = sessions.filter(s => {
       if (!query) return true;
       if ((s.title || "").toLowerCase().includes(query)) return true;
-      return (s.messages || []).some(m => (m.content || "").toLowerCase().includes(query));
+      return (s.messages || []).some(m => {
+        const c = Array.isArray(m.content) ? stripImagesFromContent(m.content) : (m.content || "");
+        const dc = typeof m.displayContent === "string" ? m.displayContent : "";
+        return (c + " " + dc).toLowerCase().includes(query);
+      });
     });
 
     if (!filtered.length) {
@@ -1768,7 +1854,12 @@
           const snippet = document.createElement("span");
           snippet.className = "chat-item-snippet";
           const prefix = lastMsg.role === "user" ? "You: " : "AI: ";
-          snippet.textContent = prefix + lastMsg.content.slice(0, 46).replace(/\n/g, " ") + (lastMsg.content.length > 46 ? "..." : "");
+          // content may be a multimodal array — prefer the plain display text.
+          const snippetSrc = (lastMsg.role === "user" && typeof lastMsg.displayContent === "string")
+            ? lastMsg.displayContent
+            : (Array.isArray(lastMsg.content) ? stripImagesFromContent(lastMsg.content) : lastMsg.content);
+          const snippetText = typeof snippetSrc === "string" ? snippetSrc : "";
+          snippet.textContent = prefix + snippetText.slice(0, 46).replace(/\n/g, " ") + (snippetText.length > 46 ? "..." : "");
           body.appendChild(snippet);
         }
 
@@ -1824,17 +1915,49 @@
     }
     welcomeScreen.classList.add("hidden");
     session.messages.forEach(msg => {
-      appendMessageToDOM(msg.role, msg.content, msg.reasoning, false);
+      // For user messages with attachments, show the typed text + file chips,
+      // never the extracted document text (which stays in msg.content for the model).
+      let displayText = (msg.role === "user" && msg.displayContent !== undefined) ? msg.displayContent : msg.content;
+      if (Array.isArray(displayText)) displayText = stripImagesFromContent(displayText);
+      appendMessageToDOM(msg.role, displayText, msg.reasoning, false, msg.attachments || null);
     });
     scrollToBottom();
   }
 
-  function appendMessageToDOM(role, content, reasoning, isStreaming = false) {
+  function appendMessageToDOM(role, content, reasoning, isStreaming = false, attachments = null) {
     welcomeScreen.classList.add("hidden");
     const row = document.createElement("div");
     row.className = `message-row ${role} ${role}-row`;
     const bubble = document.createElement("div");
     bubble.className = `message-bubble ${role}-bubble`;
+
+    // Render attachments as compact chips (NOT the extracted text) on user messages
+    if (attachments && attachments.length) {
+      const tray = document.createElement("div");
+      tray.className = "msg-attachment-tray";
+      attachments.forEach(a => {
+        const chip = document.createElement("div");
+        chip.className = "attachment-chip msg-attachment-chip";
+        if (a.isImage && a.dataUrl) {
+          const img = document.createElement("img");
+          img.className = "attachment-thumb";
+          img.src = a.dataUrl;
+          chip.appendChild(img);
+        } else {
+          const icon = document.createElement("span");
+          const ext = (a.type || (a.filename || "").split(".").pop() || "").toLowerCase();
+          icon.textContent = ext === "pdf" ? "📄" : (ext === "pptx" || ext === "ppt") ? "📊"
+            : (ext === "docx" || ext === "doc") ? "📑" : (ext === "xlsx" || ext === "csv") ? "📈" : "📝";
+          chip.appendChild(icon);
+        }
+        const name = document.createElement("span");
+        name.className = "attachment-chip-name";
+        name.textContent = (a.filename || "file") + (a.pages ? ` (${a.pages} ${(a.type || "").includes("ppt") ? "slides" : "pages"})` : "");
+        chip.appendChild(name);
+        tray.appendChild(chip);
+      });
+      bubble.appendChild(tray);
+    }
 
     if (reasoning) {
       const details = document.createElement("details");
@@ -1856,7 +1979,10 @@
     const textDiv = document.createElement("div");
     textDiv.className = "message-text";
     textDiv.innerHTML = renderMarkdown(content);
-    bubble.appendChild(textDiv);
+    // Skip an empty text block on user messages that carry only attachments
+    if ((content && content.length) || role !== "user") {
+      bubble.appendChild(textDiv);
+    }
 
     row.appendChild(bubble);
     messagesList.appendChild(row);
@@ -1891,22 +2017,58 @@
     }
     if (!session) return;
 
+    // Build model-facing content. If any attachment is visual (an image, or a PDF
+    // rendered to page images), send an OpenAI-style multimodal array so a vision
+    // model can actually SEE it; otherwise keep content a plain string.
     let finalPrompt = text;
+    const hasVisual = currentAttachments.some(a => a.isVisual);
     if (currentAttachments.length) {
-      const docsContext = currentAttachments
-        .map(a => `[Attached ${a.isImage ? "Image" : "Document"}: ${a.filename}]\n${a.text}\n[End of ${a.filename}]`)
-        .join("\n\n");
-      finalPrompt = docsContext + (text ? "\n\n" + text : "");
+      if (hasVisual) {
+        const blocks = [];
+        const textDocs = currentAttachments
+          .filter(a => !a.isVisual)
+          .map(a => `[Attached Document: ${a.filename}]\n${a.text}\n[End of ${a.filename}]`)
+          .join("\n\n");
+        const leadText = [textDocs, text].filter(Boolean).join("\n\n");
+        if (leadText) blocks.push({ type: "text", text: leadText });
+        currentAttachments.forEach(a => {
+          if (!a.isVisual) return;
+          if (a.isImage && a.dataUrl) {
+            blocks.push({ type: "image_url", image_url: { url: a.dataUrl } });
+          } else if (a.images && a.images.length) {
+            a.images.forEach(url => blocks.push({ type: "image_url", image_url: { url } }));
+          }
+        });
+        finalPrompt = blocks.length ? blocks : text;
+      } else {
+        const docsContext = currentAttachments
+          .map(a => `[Attached Document: ${a.filename}]\n${a.text}\n[End of ${a.filename}]`)
+          .join("\n\n");
+        finalPrompt = docsContext + (text ? "\n\n" + text : "");
+      }
     }
 
-    session.messages.push({ role: "user", content: finalPrompt });
+    // Lightweight attachment metadata for display. Image thumbnails keep their
+    // dataUrl; PDF page images are NOT stored here (they'd bloat localStorage).
+    const attMeta = currentAttachments.map(a => ({
+      filename: a.filename,
+      type: a.type,
+      isImage: !!a.isImage,
+      isVisual: !!a.isVisual,
+      pages: a.pages || null,
+      dataUrl: a.isImage ? a.dataUrl : null
+    }));
+
+    // content = full prompt (with extracted text) for the model;
+    // displayContent = only what the user typed; attachments = chips to show.
+    session.messages.push({ role: "user", content: finalPrompt, displayContent: text, attachments: attMeta });
     if (session.messages.length === 1) {
       const displayTitle = text || currentAttachments[0]?.filename || "Document Analysis";
       session.title = displayTitle.slice(0, 28) + (displayTitle.length > 28 ? "..." : "");
     }
     saveSessions();
 
-    appendMessageToDOM("user", finalPrompt);
+    appendMessageToDOM("user", text, "", false, attMeta);
     userInput.value = "";
     currentAttachments = [];
     renderAttachmentTray();
@@ -1963,14 +2125,19 @@
         selectedEffort = "high";
       }
 
-      // Prune previous reasoning to save 75% tokens
-      const historyToSend = session.messages.slice(0, -1).map(m => ({
+      // Prune previous reasoning to save 75% tokens. Also strip images from ALL
+      // but the current (last) turn: re-sending page images every follow-up would
+      // multiply vision cost and latency for no benefit.
+      const rawHistory = session.messages.slice(0, -1);
+      const lastIdx = rawHistory.length - 1;
+      const historyToSend = rawHistory.map((m, idx) => ({
         role: m.role,
-        content: m.content
+        content: idx === lastIdx ? m.content : stripImagesFromContent(m.content)
       }));
 
-      // Estimate input tokens
-      const estPromptTokens = isLeanMode ? Math.max(6, Math.ceil(finalPrompt.length / 4)) : Math.max(15, Math.ceil(JSON.stringify(historyToSend).length / 4));
+      // Estimate input tokens (content may be a multimodal array now).
+      const promptLen = typeof finalPrompt === "string" ? finalPrompt.length : JSON.stringify(finalPrompt).length;
+      const estPromptTokens = isLeanMode ? Math.max(6, Math.ceil(promptLen / 4)) : Math.max(15, Math.ceil(JSON.stringify(historyToSend).length / 4));
       updateTokenMeter(estPromptTokens, 0);
 
       const response = await apiFetch("/api/chat", {
@@ -2443,21 +2610,42 @@
     if (googleConnectModal) googleConnectModal.classList.add("hidden");
   }
 
-  function initGoogleGsi() {
-    if (window.google && window.google.accounts && window.google.accounts.id && googleGsiButtonContainer) {
-      try {
-        googleGsiButtonContainer.innerHTML = "";
-        window.google.accounts.id.initialize({
-          client_id: "agentchat-identity-service",
-          callback: handleGoogleGsiResponse
-        });
-        window.google.accounts.id.renderButton(
-          googleGsiButtonContainer,
-          { theme: "outline", size: "large", width: 280, text: "continue_with" }
-        );
-      } catch (err) {
-        console.log("Google GSI render:", err);
-      }
+  let _googleClientId = null;
+  async function getGoogleClientId() {
+    if (_googleClientId !== null) return _googleClientId;
+    try {
+      const res = await fetch("/api/health");
+      const data = await res.json();
+      _googleClientId = data.google_client_id || "";
+    } catch (err) {
+      _googleClientId = "";
+    }
+    return _googleClientId;
+  }
+
+  async function initGoogleGsi() {
+    if (!(window.google && window.google.accounts && window.google.accounts.id && googleGsiButtonContainer)) return;
+    // Fetch the REAL client id from the server. The old hardcoded placeholder
+    // ("agentchat-identity-service") is not a valid Google client id, which is
+    // why sign-in failed. If the server has none configured, hide the button.
+    const clientId = await getGoogleClientId();
+    if (!clientId) {
+      googleGsiButtonContainer.style.display = "none";
+      return;
+    }
+    try {
+      googleGsiButtonContainer.style.display = "flex";
+      googleGsiButtonContainer.innerHTML = "";
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: handleGoogleGsiResponse
+      });
+      window.google.accounts.id.renderButton(
+        googleGsiButtonContainer,
+        { theme: "outline", size: "large", width: 280, text: "continue_with" }
+      );
+    } catch (err) {
+      console.log("Google GSI render:", err);
     }
   }
 

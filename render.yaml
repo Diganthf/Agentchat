@@ -19,6 +19,11 @@ services:
         value: "1"
       # SECRETS: never hardcode values here. sync:false means you set the value
       # in the Render Dashboard (Environment tab), so it stays out of git.
+      # External Postgres (e.g. Neon) so user accounts/profiles survive the free
+      # tier's ephemeral disk. Format: postgresql://user:pass@host/db?sslmode=require
+      # If unset, the app falls back to local SQLite (wiped on every restart).
+      - key: DATABASE_URL
+        sync: false
       - key: AGENTCHAT_MASTER_KEY
         sync: false
       - key: JUSTDOWORK_API_KEY
@@ -38,4 +43,21 @@ services:
       - key: OPENAI_API_KEY
         sync: false
       - key: ACCESS_PASSWORD
+        sync: false
+      # Google Sign-In: the OAuth Web Client ID from Google Cloud Console. Public
+      # (not a secret), but set in the dashboard so it stays out of git. Required
+      # for "Continue with Google" to work; add your Render URL to the OAuth
+      # client's Authorized JavaScript origins too.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      # Server defaults that survive the ephemeral-disk reset (all optional).
+      - key: AGENTCHAT_ACTIVE_PROVIDER
+        value: "justdowork"
+      - key: AGENTCHAT_DEFAULT_MODEL
+        value: "claude-opus-4-8"
+      - key: AGENTCHAT_TEMPERATURE
+        value: "0.7"
+      - key: AGENTCHAT_AUTO_COMPRESS
+        value: "false"
+      - key: AGENTCHAT_SYSTEM_PROMPT
         sync: false

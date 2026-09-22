@@ -1,0 +1,676 @@
+/* ==========================================================================
+   AgentChat — Claude desktop look (dark)
+   Loaded AFTER style.css so it wins the cascade. Rebuilds the visual layer to
+   match the Claude desktop app: warm charcoal surfaces, serif reading text,
+   one clay accent, minimal chrome. Elements are kept in the DOM (app.js wires
+   them by id); clutter is hidden, not removed. Delete the <link> to revert.
+   ========================================================================== */
+
+:root {
+  color-scheme: dark;
+
+  /* Clay accent (Claude send button / logo) */
+  --md-sys-color-primary: #d97757;
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-primary-container: #3a2a22;
+  --md-sys-color-on-primary-container: #f0c9b8;
+
+  --md-sys-color-secondary: #a8a49b;
+  --md-sys-color-on-secondary: #1f1e1d;
+  --md-sys-color-secondary-container: #302f2c;
+  --md-sys-color-on-secondary-container: #e8e6e0;
+
+  --md-sys-color-tertiary: #c9a15f;
+  --md-sys-color-on-tertiary: #1f1e1d;
+  --md-sys-color-tertiary-container: #38301f;
+  --md-sys-color-on-tertiary-container: #f0dcb0;
+
+  --md-sys-color-error: #f2b8b5;
+  --md-sys-color-error-container: #3a1512;
+  --md-sys-color-on-error-container: #f9dedc;
+
+  /* AMOLED true-black surface hierarchy (subtle warm lift on elevated layers) */
+  --md-sys-color-surface: #000000;              /* main canvas */
+  --md-sys-color-surface-dim: #000000;
+  --md-sys-color-surface-bright: #17140f;       /* elevated (modals) */
+  --md-sys-color-surface-container-lowest: #050505;
+  --md-sys-color-surface-container-low: #050504; /* sidebar */
+  --md-sys-color-surface-container: #100f0d;
+  --md-sys-color-surface-container-high: #191714;
+  --md-sys-color-surface-container-highest: #221f1b;
+
+  --md-sys-color-on-surface: #f2f0ea;
+  --md-sys-color-on-surface-variant: #9a968d;
+  --md-sys-color-outline: #35332f;
+  --md-sys-color-outline-variant: #1c1b19;
+
+  --status-online: #5fb37e;
+  --status-exhausted: #e0736a;
+  --status-checking: #c9a15f;
+
+  --shape-corner-lg: 12px;
+  --shape-corner-xl: 14px;
+  --shape-corner-xxl: 18px;
+
+  --font-brand: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, sans-serif;
+  --font-serif: "Source Serif 4", "Tiempos Text", Georgia, "Times New Roman", serif;
+  --font-mono: "Fira Code", "IBM Plex Mono", "Cascadia Code", Consolas, monospace;
+
+  --text-muted: var(--md-sys-color-on-surface-variant);
+  --surface-container-high: var(--md-sys-color-surface-container-high);
+
+  /* hairline border color for AMOLED */
+  --line: #242220;
+}
+
+body, .app-layout {
+  background-color: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-family: var(--font-brand);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ==========================================================================
+   DECLUTTER — hide telemetry / duplicate controls (kept in DOM for app.js)
+   ========================================================================== */
+#token-meter-pill,
+#tools-status-pill,
+#skills-status-pill,
+#project-status-pill,
+.token-badge,
+#lean-mode-toggle-btn,
+.effort-pill-wrapper,
+#refresh-models-btn,
+.rail-status-pill,
+.header-action-group #export-all-chats-btn,
+.header-action-group #clear-all-chats-btn,
+.stealth-shield-banner {
+  display: none !important;
+}
+
+/* Reasoning-effort bar: keep the effort control, drop the duplicate model
+   category tabs and model pills so it reads as a clean "effort" strip. */
+.agentrouter-tabs,
+.agentrouter-pills { display: none !important; }
+.agentrouter-bar {
+  background: var(--md-sys-color-surface);
+  border-bottom: 1px solid var(--line);
+  padding: 8px 16px;
+}
+.agentrouter-bar-header { justify-content: flex-start; }
+.ar-effort-group { display: flex; align-items: center; gap: 10px; }
+.ar-effort-label { color: var(--md-sys-color-on-surface-variant); font-size: 13px; font-weight: 500; }
+.effort-bar { display: inline-flex; gap: 4px; background: var(--md-sys-color-surface-container); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+.effort-btn {
+  background: transparent; color: var(--md-sys-color-on-surface-variant);
+  border: none; border-radius: 7px; padding: 5px 12px; font-size: 13px;
+  font-family: var(--font-brand); cursor: pointer;
+}
+.effort-btn:hover { color: var(--md-sys-color-on-surface); background: var(--md-sys-color-surface-container-high); }
+.effort-btn.active { background: var(--md-sys-color-primary); color: #fff; }
+
+/* ==================== Navigation rail (minimal, dark) ==================== */
+.nav-rail {
+  width: 58px;
+  background: var(--md-sys-color-surface-dim);
+  border-right: 1px solid var(--line);
+  padding-top: 12px;
+}
+.rail-logo { border-radius: 8px; }
+.rail-btn { color: var(--md-sys-color-on-surface-variant); background: transparent; border-radius: 10px; }
+.rail-btn:hover { background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); }
+.rail-btn.active { color: var(--md-sys-color-on-surface); }
+.rail-btn.active .rail-icon-wrapper { background: var(--md-sys-color-surface-container-high); border-radius: 10px; }
+.rail-label { font-size: 10px; }
+
+/* ==================== Sidebar ==================== */
+.sub-sidebar { background: var(--md-sys-color-surface-dim); border-right: 1px solid var(--line); }
+.pane-header h2 { color: var(--md-sys-color-on-surface); font-family: var(--font-brand); font-weight: 600; font-size: 14px; }
+#new-chat-btn { background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); border: 1px solid var(--line); border-radius: 10px; }
+#new-chat-btn:hover { background: var(--md-sys-color-surface-container-highest); }
+.search-box { background: var(--md-sys-color-surface-container); border: 1px solid var(--line); border-radius: 10px; color: var(--md-sys-color-on-surface); }
+.search-box input { color: var(--md-sys-color-on-surface); background: transparent; }
+.search-box svg { color: var(--md-sys-color-on-surface-variant); }
+.conversation-list .chat-item, .conversation-item { color: var(--md-sys-color-on-surface); border-radius: 8px; }
+.conversation-list .chat-item:hover, .conversation-item:hover { background: var(--md-sys-color-surface-container); }
+.conversation-list .chat-item.active, .conversation-item.active { background: var(--md-sys-color-surface-container-high); }
+.pane-info-banner { background: var(--md-sys-color-surface-container); color: var(--md-sys-color-on-surface-variant); border: 1px solid var(--line); border-radius: 10px; }
+
+/* ==================== Main viewport & topbar ==================== */
+.main-viewport { background: var(--md-sys-color-surface); display: flex; flex-direction: column; }
+.chat-topbar { background: var(--md-sys-color-surface); border-bottom: 1px solid transparent; min-height: 54px; }
+.topbar-scroll-track { gap: 6px; }
+.select-pill, .provider-pill, .model-pill {
+  background: transparent; color: var(--md-sys-color-on-surface);
+  border: 1px solid transparent; border-radius: 9px; font-weight: 500;
+}
+.select-pill:hover { background: var(--md-sys-color-surface-container-high); }
+.select-pill:focus { background: var(--md-sys-color-surface-container); border-color: var(--line); }
+.icon-toggle-btn { background: transparent; color: var(--md-sys-color-on-surface-variant); border: none; }
+.icon-toggle-btn:hover { background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); }
+
+/* ==================== Messages (real class names: .message-row / .message-bubble) ==================== */
+.messages-viewport { background: var(--md-sys-color-surface); flex: 1; }
+.messages-list { max-width: 720px; margin: 0 auto; width: 100%; padding: 28px 20px 40px; }
+
+.message-row { margin: 0 0 26px; display: flex; flex-direction: column; }
+.message-row.user, .message-row.user-row { align-items: flex-end; }
+.message-row.assistant, .message-row.assistant-row { align-items: stretch; }
+
+/* Assistant: plain serif reading text, no card */
+.message-bubble.assistant-bubble {
+  background: transparent; border: none; padding: 0;
+  max-width: 100%; box-shadow: none;
+}
+.assistant-bubble .message-text {
+  font-family: var(--font-serif);
+  font-size: 15px; line-height: 1.62; letter-spacing: 0;
+  color: #faf9f5;   /* answer text: maximum contrast */
+}
+.assistant-bubble .message-text p { margin: 0 0 12px; }
+.assistant-bubble .message-text h1,
+.assistant-bubble .message-text h2,
+.assistant-bubble .message-text h3 { font-family: var(--font-brand); line-height: 1.3; }
+.assistant-bubble .message-text li { margin: 3px 0; }
+
+/* User: compact rounded pill, slightly-lighter-than-black so it reads as a pill */
+.message-bubble.user-bubble {
+  background: #1e1c19;
+  border: none; border-radius: 16px; padding: 11px 16px;
+  max-width: 78%; box-shadow: none;
+}
+.user-bubble .message-text {
+  font-family: var(--font-brand);
+  font-size: 15.5px; line-height: 1.6; color: var(--md-sys-color-on-surface);
+}
+
+/* Reasoning / thinking accordion */
+.reasoning-title { color: var(--md-sys-color-on-surface-variant); font-weight: 500; }
+.reasoning-badge {
+  font-size: 11px; padding: 1px 7px; border-radius: 6px;
+  background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface-variant);
+}
+.reasoning-badge.streaming-pulse { background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }
+
+/* Message action buttons: subtle, brighten on row hover */
+.chat-actions-group { display: flex; gap: 2px; margin-top: 6px; opacity: 0; transition: opacity .15s ease; }
+.message-row:hover .chat-actions-group { opacity: 1; }
+.chat-action-btn {
+  background: transparent; color: var(--md-sys-color-on-surface-variant);
+  border: none; border-radius: 8px; padding: 5px 8px; cursor: pointer;
+  font-size: 12.5px; transition: background .12s ease, color .12s ease;
+}
+.chat-action-btn:hover { background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); }
+.chat-action-btn.delete-btn:hover { color: var(--md-sys-color-error); }
+
+/* Typing / generating indicator */
+.typing-dots { display: inline-flex; gap: 4px; align-items: center; padding: 4px 0; }
+.typing-dots span {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--md-sys-color-on-surface-variant);
+  animation: agc-typing 1.2s infinite ease-in-out;
+}
+.typing-dots span:nth-child(2) { animation-delay: .18s; }
+.typing-dots span:nth-child(3) { animation-delay: .36s; }
+@keyframes agc-typing { 0%, 60%, 100% { opacity: .25; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
+
+/* Code blocks + copy header */
+.code-header {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #14130f; color: var(--md-sys-color-on-surface-variant);
+  border: 1px solid var(--line); border-bottom: none;
+  border-radius: 12px 12px 0 0; padding: 7px 12px; font-family: var(--font-mono); font-size: 12px;
+}
+.code-header + code, pre > code { display: block; }
+.code-copy-btn {
+  background: transparent; color: var(--md-sys-color-on-surface-variant);
+  border: 1px solid var(--line); border-radius: 7px; padding: 3px 10px; cursor: pointer; font-size: 12px;
+}
+.code-copy-btn:hover { background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); }
+
+pre, code, .code-block { font-family: var(--font-mono); }
+pre, .code-block {
+  background: #1a1917 !important; color: #e6e4de !important;
+  border: 1px solid var(--line); border-radius: 12px;
+}
+/* Inline code = file names, paths, tech/lang terms → Claude-style orange */
+:not(pre) > code {
+  background: rgba(217, 119, 87, 0.10) !important;
+  color: #e0875f !important; padding: 1px 5px; border-radius: 5px;
+  font-size: 0.9em; font-family: var(--font-mono);
+}
+
+/* ==================== Welcome greeting (Claude new-chat) ==================== */
+.welcome-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 26px; padding: 24px; }
+.claude-greeting { display: flex; align-items: center; gap: 14px; }
+.claude-greeting-star { color: var(--md-sys-color-primary); font-size: 30px; line-height: 1; }
+.claude-greeting-text {
+  font-family: var(--font-serif); font-weight: 400;
+  font-size: clamp(28px, 4vw, 40px); letter-spacing: -0.01em;
+  color: var(--md-sys-color-on-surface); margin: 0;
+}
+.claude-suggestion-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 560px; }
+.claude-suggestion {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--md-sys-color-surface-container); color: var(--md-sys-color-on-surface);
+  border: 1px solid var(--line); border-radius: 11px; padding: 9px 15px;
+  font-size: 14px; font-family: var(--font-brand); cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+.claude-suggestion:hover { border-color: var(--md-sys-color-primary); background: var(--md-sys-color-surface-container-high); }
+.claude-suggestion-icon { font-size: 15px; }
+
+/* ==================== Composer (rounded dark, orange send) ==================== */
+.chat-input-wrapper { background: transparent; padding-bottom: 14px; }
+.chat-input-box {
+  max-width: 720px; margin: 0 auto; width: 100%;
+  background: var(--md-sys-color-surface-container); border: 1px solid var(--line);
+  border-radius: 20px; box-shadow: 0 2px 16px rgba(0,0,0,0.22);
+}
+.chat-input-box:focus-within { border-color: #55524d; }
+#user-input { background: transparent; color: var(--md-sys-color-on-surface); font-family: var(--font-brand); font-size: 15.5px; }
+#user-input::placeholder { color: var(--md-sys-color-on-surface-variant); }
+.action-circle-btn, .action-pill-btn {
+  background: transparent; color: var(--md-sys-color-on-surface-variant);
+  border: 1px solid var(--line); border-radius: 10px;
+}
+.action-circle-btn:hover, .action-pill-btn:hover { background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); }
+/* Think toggle active = clay glow */
+.think-toggle-btn { display: inline-flex; align-items: center; gap: 6px; }
+.think-toggle-btn.active {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  border-color: var(--md-sys-color-primary);
+}
+.think-toggle-btn.active svg { color: var(--md-sys-color-primary); }
+.send-circle-btn { background: var(--md-sys-color-primary); color: #fff; border: none; border-radius: 9px; }
+.send-circle-btn:hover { background: #c46545; }
+.send-circle-btn:disabled { background: var(--md-sys-color-surface-container-highest); color: var(--md-sys-color-on-surface-variant); }
+.stop-circle-btn { background: var(--md-sys-color-on-surface); color: var(--md-sys-color-surface); }
+.input-hint-row { color: var(--md-sys-color-on-surface-variant); text-align: center; font-size: 12px; display: block !important; }
+
+/* ==================== Buttons ==================== */
+.btn-primary { background: var(--md-sys-color-primary); color: #fff; border: none; }
+.btn-primary:hover { background: #c46545; }
+.btn-tonal, .btn-tonal-tertiary { background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); border: 1px solid var(--line); }
+.btn-secondary { background: transparent; color: var(--md-sys-color-on-surface); border: 1px solid var(--md-sys-color-outline); }
+.btn-ghost { background: transparent; color: var(--md-sys-color-on-surface-variant); }
+.link-btn { color: var(--md-sys-color-primary); }
+.pill-btn { background: var(--md-sys-color-surface-container); color: var(--md-sys-color-on-surface-variant); border: 1px solid var(--line); }
+.pill-btn.active { background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); border-color: var(--md-sys-color-outline); }
+
+/* ==================== Modals ==================== */
+.modal-overlay { background: rgba(0,0,0,0.55); backdrop-filter: blur(3px); }
+.modal-card { background: var(--md-sys-color-surface-bright); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 16px 56px rgba(0,0,0,0.5); color: var(--md-sys-color-on-surface); }
+.modal-header { border-bottom: 1px solid var(--line); }
+.modal-header h3 { color: var(--md-sys-color-on-surface); font-family: var(--font-brand); }
+.modal-footer { border-top: 1px solid var(--line); }
+.close-btn, .icon-btn { color: var(--md-sys-color-on-surface-variant); background: transparent; }
+.form-group label { color: var(--md-sys-color-on-surface); }
+.form-input, .form-select, .form-select-sm, .text-input,
+input[type="text"], input[type="email"], input[type="password"], textarea, select {
+  background: var(--md-sys-color-surface-container); color: var(--md-sys-color-on-surface);
+  border: 1px solid var(--line); border-radius: 10px;
+}
+.form-input:focus, .text-input:focus, textarea:focus, select:focus { border-color: var(--md-sys-color-primary); outline: none; }
+.hint, small.hint { color: var(--md-sys-color-on-surface-variant); }
+.social-login-btn { background: var(--md-sys-color-surface-container); color: var(--md-sys-color-on-surface); border: 1px solid var(--md-sys-color-outline); }
+.social-login-btn:hover { background: var(--md-sys-color-surface-container-high); }
+.auth-divider { color: var(--md-sys-color-on-surface-variant); }
+.auth-divider::before, .auth-divider::after { background: var(--line); }
+.account-section { border-bottom: 1px solid var(--line); }
+.persona-chip, .stat-card { background: var(--md-sys-color-surface-container); color: var(--md-sys-color-on-surface); border: 1px solid var(--line); }
+.persona-chip.active { background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); border-color: var(--md-sys-color-primary); }
+
+/* User profile chip + dropdown */
+.user-profile-chip { background: transparent; color: var(--md-sys-color-on-surface); border: 1px solid var(--line); border-radius: 10px; }
+.user-profile-chip:hover { background: var(--md-sys-color-surface-container-high); }
+.user-dropdown-menu { background: var(--md-sys-color-surface-bright); border: 1px solid var(--line); box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+.user-dropdown-item { color: var(--md-sys-color-on-surface); }
+.user-dropdown-item:hover { background: var(--md-sys-color-surface-container-high); }
+
+/* ==================== Scrollbars ==================== */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2b2926; border-radius: 8px; border: 2px solid var(--md-sys-color-surface); }
+::-webkit-scrollbar-thumb:hover { background: #3a3733; }
+
+/* ==========================================================================
+   Attachment / PDF preview above the composer (slide-up + fade)
+   ========================================================================== */
+.attachment-tray {
+  max-width: 720px; margin: 0 auto 10px; width: 100%;
+  display: flex; flex-wrap: wrap; gap: 10px;
+}
+.attachment-chip {
+  display: inline-flex; align-items: center; gap: 10px;
+  background: var(--md-sys-color-surface-container);
+  border: 1px solid var(--line); border-radius: 14px;
+  padding: 10px 12px; max-width: 260px;
+  animation: agc-attach-in .22s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes agc-attach-in {
+  from { opacity: 0; transform: translateY(8px) scale(.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.attachment-chip .attachment-thumb {
+  width: 44px; height: 44px; object-fit: cover; border-radius: 10px;
+  border: 1px solid var(--line);
+}
+/* Emoji file icon → framed square that reads like a document preview */
+.attachment-chip > span:first-child:not(.attachment-chip-name) {
+  display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; font-size: 22px; border-radius: 10px;
+  background: var(--md-sys-color-surface-container-high);
+  border: 1px solid var(--line);
+}
+.attachment-chip-name {
+  font-size: 13px; color: var(--md-sys-color-on-surface);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.attachment-chip-remove {
+  margin-left: 2px; width: 22px; height: 22px; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; color: var(--md-sys-color-on-surface-variant);
+  border: none; border-radius: 7px; cursor: pointer; font-size: 16px; line-height: 1;
+}
+.attachment-chip-remove:hover { background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); }
+
+/* ==========================================================================
+   Thinking / generating state + chain-of-thought accordion
+   ========================================================================== */
+.model-connecting-state { padding: 4px 0; }
+.connecting-header { display: inline-flex; align-items: center; gap: 10px; }
+.connecting-text { color: var(--md-sys-color-on-surface-variant); font-size: 14px; }
+.connecting-timer { opacity: .6; }
+.fast-switch-hint {
+  margin-top: 8px; font-size: 12.5px; color: var(--md-sys-color-primary);
+  cursor: pointer; opacity: .9;
+}
+.fast-switch-hint:hover { text-decoration: underline; }
+
+/* Reasoning / chain-of-thought — NO filled pill. Integrated into the message,
+   set apart only by a subtle left rule and lower-contrast text. */
+.reasoning-box, .assistant-bubble details {
+  background: transparent !important;
+  border: none !important;
+  border-left: 2px solid var(--line) !important;
+  border-radius: 0 !important;
+  padding: 2px 0 2px 14px !important;
+  margin: 0 0 14px !important;
+}
+.reasoning-box > summary,
+.assistant-bubble details > summary {
+  list-style: none; cursor: pointer; user-select: none;
+  display: flex; align-items: center; gap: 8px;
+  padding: 2px 0; font-size: 13px; color: var(--md-sys-color-on-surface-variant);
+}
+.reasoning-box > summary::-webkit-details-marker,
+.assistant-bubble details > summary::-webkit-details-marker { display: none; }
+.reasoning-box[open] > summary,
+.assistant-bubble details[open] > summary { margin-bottom: 6px; }
+.reasoning-title { color: var(--md-sys-color-on-surface-variant); font-weight: 500; }
+.reasoning-badge {
+  font-size: 10.5px; padding: 1px 7px; border-radius: 6px;
+  background: transparent; border: 1px solid var(--line); color: var(--md-sys-color-on-surface-variant);
+}
+/* Thinking text: deliberately lower contrast, quieter than the answer */
+.reasoning-content, .reasoning-text {
+  padding: 0; font-family: var(--font-serif); font-size: 13.5px;
+  line-height: 1.65; color: #7d7a72;   /* dim grey — clearly secondary */
+  white-space: pre-wrap; word-break: break-word;
+}
+/* "Live" pulse while streaming reasoning */
+.reasoning-badge.streaming-pulse { position: relative; animation: agc-pulse 1.4s infinite; }
+@keyframes agc-pulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+
+/* ==========================================================================
+   Artifact preview panel (right-side, slides in)
+   ========================================================================== */
+.artifact-open-btn {
+  margin-left: 8px; background: var(--md-sys-color-primary); color: #fff;
+  border: none; border-radius: 7px; padding: 3px 10px; cursor: pointer; font-size: 12px;
+}
+.artifact-open-btn:hover { background: #c46545; }
+.artifact-open-btn.floating { position: absolute; top: 8px; right: 8px; }
+
+.artifact-panel {
+  position: fixed; top: 0; right: 0; height: 100vh; width: min(46vw, 720px);
+  background: var(--md-sys-color-surface-bright); border-left: 1px solid var(--line);
+  box-shadow: -12px 0 40px rgba(0,0,0,0.45); z-index: 900;
+  display: flex; flex-direction: column;
+  transform: translateX(0); transition: transform .26s cubic-bezier(.2,.8,.2,1);
+}
+.artifact-panel.hidden { transform: translateX(102%); }
+.artifact-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; border-bottom: 1px solid var(--line);
+}
+.artifact-title { font-size: 14px; font-weight: 600; color: var(--md-sys-color-on-surface); font-family: var(--font-brand); }
+.artifact-toolbar { display: flex; align-items: center; gap: 8px; }
+.artifact-tabs { display: inline-flex; background: var(--md-sys-color-surface-container); border: 1px solid var(--line); border-radius: 9px; padding: 3px; }
+.artifact-tab {
+  background: transparent; color: var(--md-sys-color-on-surface-variant);
+  border: none; border-radius: 6px; padding: 4px 12px; font-size: 12.5px; cursor: pointer; font-family: var(--font-brand);
+}
+.artifact-tab.active { background: var(--md-sys-color-primary); color: #fff; }
+.artifact-icon-btn {
+  background: transparent; color: var(--md-sys-color-on-surface-variant);
+  border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 13px;
+}
+.artifact-icon-btn:hover { background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); }
+.artifact-body { flex: 1; position: relative; overflow: hidden; }
+.artifact-frame { width: 100%; height: 100%; border: none; background: #fff; }
+.artifact-code {
+  position: absolute; inset: 0; margin: 0; overflow: auto;
+  background: #14130f !important; color: #e6e4de !important;
+  border: none !important; border-radius: 0 !important;
+  padding: 16px; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6;
+}
+.artifact-code.hidden, .artifact-frame.hidden { display: none; }
+
+/* Push the workspace left a touch when an artifact is open (desktop only) */
+@media (min-width: 1100px) {
+  body.artifact-open .messages-list,
+  body.artifact-open .chat-input-box,
+  body.artifact-open .attachment-tray { max-width: 620px; margin-right: 0; transition: max-width .26s ease; }
+}
+@media (max-width: 900px) {
+  .artifact-panel { width: 100vw; }
+}
+
+/* ==========================================================================
+   Hover tooltip pill + per-response copy button
+   ========================================================================== */
+.agc-tooltip {
+  position: fixed; z-index: 2000; pointer-events: none;
+  background: #2b2825; color: #f2f0ea; border: 1px solid var(--line);
+  padding: 5px 10px; border-radius: 8px; font-size: 12px; font-family: var(--font-brand);
+  white-space: nowrap; box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+  transition: opacity .12s ease; opacity: 0;
+}
+.msg-copy-group { margin-top: 8px; }
+.chat-action-btn.copied { color: var(--md-sys-color-primary); }
+
+/* Attachment chips shown inside a sent user message (file, not its text) */
+.msg-attachment-tray { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.message-bubble.user-bubble:has(.msg-attachment-tray) { background: #1e1c19; }
+.msg-attachment-chip {
+  padding: 7px 10px; border-radius: 12px;
+  background: var(--md-sys-color-surface-container-high);
+  border: 1px solid var(--line);
+}
+.msg-attachment-chip .attachment-thumb { width: 34px; height: 34px; }
+.msg-attachment-chip > span:first-child:not(.attachment-chip-name) {
+  width: 34px; height: 34px; font-size: 18px;
+}
+.msg-attachment-chip .attachment-chip-name { font-size: 12.5px; }
+
+/* ==========================================================================
+   More clay in assistant replies (+~50% clay-colored text)
+   Previously only inline code was clay. Now bold, headings, links and list
+   markers pick up the clay accent so answers read with more warmth/orange.
+   ========================================================================== */
+.assistant-bubble .message-text strong,
+.assistant-bubble .message-text b {
+  color: #e0875f;          /* clay for emphasised text */
+  font-weight: 600;
+}
+.assistant-bubble .message-text h1,
+.assistant-bubble .message-text h2,
+.assistant-bubble .message-text h3,
+.assistant-bubble .message-text h4 {
+  color: #e08a63;          /* clay-tinted headings */
+}
+.assistant-bubble .message-text a {
+  color: #e0875f;
+  text-decoration-color: rgba(217, 119, 87, 0.5);
+}
+.assistant-bubble .message-text a:hover { color: #ef9a72; }
+/* Clay bullet / number markers */
+.assistant-bubble .message-text ul li::marker,
+.assistant-bubble .message-text ol li::marker {
+  color: #d97757;
+}
+/* Blockquote accent rule in clay */
+.assistant-bubble .message-text blockquote {
+  border-left: 3px solid rgba(217, 119, 87, 0.6);
+  padding-left: 14px;
+  color: #cbb6ac;
+}
+
+/* ==========================================================================
+   Full-screen landing / auth gate — 3D dynamic, black + clay orange
+   ========================================================================== */
+.landing-screen {
+  position: fixed; inset: 0; z-index: 6000;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: radial-gradient(1200px 800px at 50% -10%, #1a120d 0%, #000 60%);
+  overflow: hidden;
+  opacity: 1; transition: opacity .45s ease;
+}
+.landing-screen.landing-hidden { opacity: 0; pointer-events: none; }
+
+.landing-canvas { position: absolute; inset: 0; z-index: 0; display: block; }
+
+/* Soft floating clay glows for depth behind the card */
+.landing-glow {
+  position: absolute; z-index: 1; border-radius: 50%;
+  filter: blur(90px); opacity: 0.45; pointer-events: none;
+}
+.landing-glow-1 {
+  width: 460px; height: 460px; left: -80px; top: -60px;
+  background: radial-gradient(circle, rgba(217,119,87,0.55), transparent 70%);
+  animation: lp-float-1 14s ease-in-out infinite;
+}
+.landing-glow-2 {
+  width: 520px; height: 520px; right: -120px; bottom: -100px;
+  background: radial-gradient(circle, rgba(201,110,72,0.4), transparent 70%);
+  animation: lp-float-2 18s ease-in-out infinite;
+}
+@keyframes lp-float-1 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(40px, 30px); } }
+@keyframes lp-float-2 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-50px, -30px); } }
+
+.landing-card {
+  position: relative; z-index: 2; width: min(92vw, 420px);
+  padding: 34px 32px 26px;
+  background: rgba(14, 12, 10, 0.72);
+  border: 1px solid rgba(217, 119, 87, 0.28);
+  border-radius: 22px;
+  backdrop-filter: blur(18px) saturate(1.1);
+  box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.02) inset,
+              0 0 60px rgba(217,119,87,0.12);
+  animation: lp-card-in .6s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes lp-card-in {
+  from { opacity: 0; transform: translateY(22px) scale(.97) perspective(800px) rotateX(6deg); }
+  to   { opacity: 1; transform: translateY(0) scale(1) perspective(800px) rotateX(0); }
+}
+
+.landing-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+.landing-brand-star { color: #d97757; font-size: 24px; line-height: 1; text-shadow: 0 0 18px rgba(217,119,87,0.6); }
+.landing-brand-name { font-family: var(--font-brand); font-weight: 600; font-size: 18px; color: #f2f0ea; letter-spacing: -0.01em; }
+
+.landing-headline {
+  font-family: var(--font-serif); font-weight: 400;
+  font-size: 27px; letter-spacing: -0.01em; color: #faf9f5; margin: 0 0 6px;
+}
+.landing-sub { color: #9a968d; font-size: 13.5px; line-height: 1.5; margin: 0 0 20px; }
+
+.landing-tabs {
+  display: flex; gap: 4px; background: rgba(255,255,255,0.04);
+  border: 1px solid var(--line); border-radius: 12px; padding: 4px; margin-bottom: 18px;
+}
+.landing-tab {
+  flex: 1; background: transparent; border: none; cursor: pointer;
+  color: #9a968d; font-family: var(--font-brand); font-size: 13.5px; font-weight: 500;
+  padding: 8px 10px; border-radius: 9px; transition: background .15s ease, color .15s ease;
+}
+.landing-tab:hover { color: #f2f0ea; }
+.landing-tab.active { background: var(--md-sys-color-primary); color: #fff; }
+
+.lp-google-btn, .lp-gsi-holder {
+  width: 100%; display: flex; align-items: center; justify-content: center; margin-bottom: 12px;
+}
+.lp-google-btn {
+  gap: 10px; padding: 11px 16px; cursor: pointer;
+  background: rgba(255,255,255,0.95); color: #2b2825;
+  border: none; border-radius: 999px; font-family: var(--font-brand);
+  font-size: 14px; font-weight: 500; transition: transform .12s ease, box-shadow .2s ease;
+}
+.lp-google-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+.lp-gsi-holder:empty { display: none; margin: 0; }
+.lp-note { font-size: 12px; color: #9a968d; text-align: center; margin: -2px 0 12px; line-height: 1.45; }
+
+.landing-divider { display: flex; align-items: center; gap: 12px; color: #6f6c65; font-size: 12px; margin: 8px 0 16px; }
+.landing-divider::before, .landing-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+.lp-field { margin-bottom: 13px; }
+.lp-field label { display: block; font-size: 12.5px; color: #b8b4ab; margin-bottom: 6px; }
+.lp-field input {
+  width: 100%; box-sizing: border-box; padding: 11px 13px;
+  background: rgba(255,255,255,0.03); color: #f2f0ea;
+  border: 1px solid var(--line); border-radius: 11px;
+  font-family: var(--font-brand); font-size: 14.5px; transition: border-color .15s ease, box-shadow .15s ease;
+}
+.lp-field input:focus {
+  outline: none; border-color: var(--md-sys-color-primary);
+  box-shadow: 0 0 0 3px rgba(217,119,87,0.15);
+}
+.lp-field input::placeholder { color: #6f6c65; }
+
+.lp-alert {
+  font-size: 12.5px; color: #f2b8b5; background: rgba(242,184,181,0.08);
+  border: 1px solid rgba(242,184,181,0.25); border-radius: 10px;
+  padding: 8px 11px; margin-bottom: 12px;
+}
+.lp-alert.lp-alert-ok { color: #9be0b0; background: rgba(95,179,126,0.1); border-color: rgba(95,179,126,0.3); }
+
+.lp-submit {
+  width: 100%; padding: 12px; cursor: pointer; margin-top: 2px;
+  background: var(--md-sys-color-primary); color: #fff; border: none; border-radius: 12px;
+  font-family: var(--font-brand); font-size: 14.5px; font-weight: 600;
+  transition: background .15s ease, transform .1s ease, box-shadow .2s ease;
+  box-shadow: 0 6px 20px rgba(217,119,87,0.28);
+}
+.lp-submit:hover { background: #c46545; transform: translateY(-1px); }
+.lp-submit:disabled { opacity: 0.6; cursor: default; transform: none; }
+
+.lp-guest {
+  display: block; width: 100%; margin-top: 16px; padding: 6px;
+  background: transparent; border: none; cursor: pointer;
+  color: #9a968d; font-family: var(--font-brand); font-size: 13px; transition: color .15s ease;
+}
+.lp-guest:hover { color: var(--md-sys-color-primary); }
+
+.landing-footer-note {
+  position: relative; z-index: 2; margin-top: 22px;
+  color: #6f6c65; font-size: 11.5px; font-family: var(--font-brand); letter-spacing: .01em;
+}
+
+.hidden { display: none !important; }
+
+@media (max-width: 480px) {
+  .landing-card { padding: 26px 22px 22px; }
+  .landing-headline { font-size: 23px; }
+}

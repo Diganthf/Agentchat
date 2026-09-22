@@ -42,6 +42,12 @@ except ImportError:
     PYPDF_AVAILABLE = False
 
 try:
+    import fitz  # PyMuPDF — renders PDF pages to images for true vision input
+    PYMUPDF_AVAILABLE = True
+except ImportError:
+    PYMUPDF_AVAILABLE = False
+
+try:
     from cryptography.fernet import Fernet
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -65,6 +71,11 @@ DISABLE_LOCAL_TOOLS = os.environ.get("DISABLE_LOCAL_TOOLS", "").strip() in ("1",
 
 ACCESS_PASSWORD = os.environ.get("ACCESS_PASSWORD", "").strip()
 ALLOW_UNPROTECTED_PUBLIC = os.environ.get("ALLOW_UNPROTECTED_PUBLIC", "").strip() in ("1", "true", "yes")
+
+# Google OAuth: real Client ID from Google Cloud Console
+# (format: "<numbers>-<hash>.apps.googleusercontent.com"). Set as env var.
+# Without it, Google sign-in is disabled (fail-safe) rather than insecure.
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
 
 # Comma-separated list of origins allowed to make credentialed cross-origin
 # (CORS) calls. Empty by default -> no cross-origin site is trusted, which is
@@ -137,10 +148,101 @@ def decrypt_secret(val: str) -> str:
     except Exception:
         return ""
 
-# --- User Authentication & Cross-Device Profile Database (SQLite) ---
+# --- User Authentication & Cross-Device Profile Database ---
+# Local dev uses SQLite (a file next to server.py). In production the disk is
+# ephemeral (Render free tier wipes it on every restart/redeploy/sleep), so set
+# DATABASE_URL to an external Postgres (e.g. Neon) and the same code persists
+# there instead. The wrapper below keeps the existing sqlite3-style call sites
+# (conn.execute(sql, params).fetchone(), conn.commit(), `with` blocks, dict(row))
+# working unchanged against either backend.
 AUTH_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agentchat_users.db")
 
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+USE_POSTGRES = DATABASE_URL.startswith(("postgres://", "postgresql://"))
+if USE_POSTGRES:
+    try:
+        import ssl as _ssl
+        import pg8000.dbapi as _pg  # pure-Python Postgres driver, no build deps
+    except ImportError:
+        print("[DB] DATABASE_URL is set but pg8000 is not installed; falling back to SQLite. Run: pip install pg8000", file=sys.stderr)
+        USE_POSTGRES = False
+
+
+class _DictRow(dict):
+    """A row that supports both mapping (row['col']) and positional (row[0])
+    access, plus dict(row) — mirroring the parts of sqlite3.Row the app uses."""
+    __slots__ = ()
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return list(self.values())[key]
+        return dict.__getitem__(self, key)
+
+
+class _PgResult:
+    def __init__(self, cur):
+        self._cur = cur
+        self._cols = [c[0] for c in cur.description] if cur.description else []
+    def fetchone(self):
+        row = self._cur.fetchone()
+        return _DictRow(zip(self._cols, row)) if row is not None else None
+    def fetchall(self):
+        return [_DictRow(zip(self._cols, r)) for r in self._cur.fetchall()]
+
+
+class _PgConn:
+    """Thin sqlite3-compatible facade over a pg8000 connection."""
+    def __init__(self, conn):
+        self._conn = conn
+    def execute(self, sql, params=()):
+        # SQLite uses '?' placeholders; pg8000 uses '%s' (format paramstyle).
+        # This codebase has no literal '%' in its SQL, so a plain swap is safe.
+        pg_sql = sql.replace("?", "%s")
+        # SQLite REAL is 8-byte; Postgres REAL is 4-byte and would lose precision
+        # on epoch timestamps. Widen to DOUBLE PRECISION in DDL only.
+        if pg_sql.lstrip().upper().startswith("CREATE TABLE"):
+            pg_sql = pg_sql.replace(" REAL", " DOUBLE PRECISION")
+        cur = self._conn.cursor()
+        if params:
+            cur.execute(pg_sql, tuple(params))
+        else:
+            cur.execute(pg_sql)
+        return _PgResult(cur)
+    def commit(self):
+        self._conn.commit()
+    def close(self):
+        try:
+            self._conn.close()
+        except Exception:
+            pass
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc, tb):
+        if exc_type is None:
+            try:
+                self._conn.commit()
+            except Exception:
+                pass
+        self.close()
+        return False
+
+
+def _pg_connect():
+    u = urlparse(DATABASE_URL)
+    ctx = _ssl.create_default_context()  # Neon/managed PG present valid certs
+    conn = _pg.connect(
+        user=urllib.parse.unquote(u.username or ""),
+        password=urllib.parse.unquote(u.password or ""),
+        host=u.hostname,
+        port=u.port or 5432,
+        database=(u.path or "/").lstrip("/") or "postgres",
+        ssl_context=ctx,
+    )
+    return _PgConn(conn)
+
+
 def get_auth_db():
+    if USE_POSTGRES:
+        return _pg_connect()
     conn = sqlite3.connect(AUTH_DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
@@ -183,7 +285,55 @@ def init_auth_db():
         """)
         conn.commit()
 
-init_auth_db()
+try:
+    init_auth_db()
+    print(f"[DB] Auth store ready ({'Postgres' if USE_POSTGRES else 'SQLite'}).", file=sys.stderr)
+except Exception as _db_ex:
+    # Don't hard-crash on boot if an external DB is briefly unreachable (e.g. Neon
+    # cold start). Tables are created IF NOT EXISTS, so a later request retries fine.
+    print(f"[DB] init_auth_db() failed at startup ({_db_ex}); will rely on existing tables.", file=sys.stderr)
+
+def verify_google_id_token(credential: str):
+    """Verify a Google Sign-In (GSI) ID token properly.
+
+    Previously the code base64-decoded the JWT payload and TRUSTED it without
+    checking the signature -> anyone could forge a token for any email and log
+    in as them. This verifies the token with Google and checks the audience,
+    issuer, expiry and email_verified claims before we trust anything.
+
+    Returns a dict of verified claims on success, or None on any failure.
+    """
+    if not credential or not GOOGLE_CLIENT_ID:
+        return None
+    try:
+        # Google's tokeninfo endpoint validates the signature/expiry for us and
+        # returns the decoded claims. (Google is not behind the grey-market WAF,
+        # so a plain urllib call is fine and keeps this dependency-light.)
+        url = "https://oauth2.googleapis.com/tokeninfo?id_token=" + urllib.parse.quote(credential)
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=6) as r:
+            claims = json.loads(r.read().decode("utf-8"))
+    except Exception as ex:
+        print("[AUTH] Google token verification failed:", ex, file=sys.stderr)
+        return None
+
+    # Audience must match OUR client id (stops tokens minted for other apps).
+    if claims.get("aud") != GOOGLE_CLIENT_ID:
+        print("[AUTH] Google token audience mismatch", file=sys.stderr)
+        return None
+    if claims.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
+        return None
+    try:
+        if float(claims.get("exp", 0)) < time.time():
+            return None
+    except (TypeError, ValueError):
+        return None
+    if str(claims.get("email_verified", "")).lower() not in ("true", "1"):
+        return None
+    if not claims.get("email"):
+        return None
+    return claims
+
 
 def build_session_cookie(token: str, max_age: int = 2592000) -> str:
     """Session cookie with HttpOnly (blocks JS/XSS theft) and Secure (HTTPS-only)
@@ -581,13 +731,13 @@ DEFAULT_CONFIG = {
     "providers": {
         "justdowork": {
             "name": "JustDoWork (Claude Opus 4.8 / NewAPI)",
-            "base_url": "https://api.justwoker.icu/v1",
-            "api_key": ""
+            "base_url": os.environ.get("JUSTDOWORK_BASE_URL", "https://api.justwoker.icu/v1"),
+            "api_key": os.environ.get("JUSTDOWORK_API_KEY", "")
         },
         "agentrouter": {
             "name": "AgentRouter Stealth Proxy",
-            "base_url": "https://agentrouter.org/v1",
-            "api_key": ""
+            "base_url": os.environ.get("AGENTROUTER_BASE_URL", "https://agentrouter.org/v1"),
+            "api_key": os.environ.get("AGENTROUTER_API_KEY", "")
         },
         "puter": {
             "name": "Puter.ai (Free Allowance & Frontier)",
@@ -636,14 +786,65 @@ DEFAULT_CONFIG = {
         "pdf_reader": {"name": "PDF & Document Parser", "description": "High-fidelity pypdf page extraction", "enabled": True},
         "math_eval": {"name": "Math & Code Calculator", "description": "Accurate math logic and python evaluation", "enabled": True}
     },
-    "model": "gemini-3.6-flash",
+    "model": os.environ.get("AGENTCHAT_DEFAULT_MODEL", "gemini-3.6-flash"),
     "temperature": 0.7,
-    "system_prompt": "",
+    "system_prompt": os.environ.get("AGENTCHAT_SYSTEM_PROMPT", ""),
     "auto_compress": True,
     "skills": {},
     "projects": {},
     "active_project": ""
 }
+# active_provider default can also come from env (persists across ephemeral-disk resets)
+DEFAULT_CONFIG["active_provider"] = os.environ.get("AGENTCHAT_ACTIVE_PROVIDER", DEFAULT_CONFIG["active_provider"])
+
+# Map each provider key to the env var that supplies its API key on a host like
+# Render, where config.json is ephemeral. These are the source of truth in prod.
+PROVIDER_ENV_KEYS = {
+    "justdowork": "JUSTDOWORK_API_KEY",
+    "agentrouter": "AGENTROUTER_API_KEY",
+    "base": "BASE_TIER_API_KEY",
+    "google": "GEMINI_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
+    "groq": "GROQ_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
+    "openai": "OPENAI_API_KEY",
+}
+
+def _apply_env_overrides(cfg):
+    """Overlay server defaults from environment variables so they survive an
+    ephemeral-disk reset (Render regenerates config.json from config.deploy.json
+    on every restart). Env wins ONLY when the variable is actually set, so local
+    dev without these vars keeps using config.json as before."""
+    try:
+        prov_defaults = os.environ.get("AGENTCHAT_ACTIVE_PROVIDER", "")
+        if prov_defaults:
+            cfg["active_provider"] = prov_defaults
+        model_default = os.environ.get("AGENTCHAT_DEFAULT_MODEL", "")
+        if model_default:
+            cfg["model"] = model_default
+        sys_default = os.environ.get("AGENTCHAT_SYSTEM_PROMPT", "")
+        if sys_default:
+            cfg["system_prompt"] = sys_default
+        temp_default = os.environ.get("AGENTCHAT_TEMPERATURE", "")
+        if temp_default:
+            try:
+                cfg["temperature"] = float(temp_default)
+            except ValueError:
+                pass
+        ac = os.environ.get("AGENTCHAT_AUTO_COMPRESS", "")
+        if ac:
+            cfg["auto_compress"] = ac.strip().lower() in ("1", "true", "yes", "on")
+        # Inject provider API keys from env when the loaded config leaves them blank.
+        providers = cfg.setdefault("providers", {})
+        for pkey, env_name in PROVIDER_ENV_KEYS.items():
+            env_val = get_clean_env(env_name)
+            if env_val:
+                providers.setdefault(pkey, {})
+                if not providers[pkey].get("api_key"):
+                    providers[pkey]["api_key"] = env_val
+    except Exception as _ex:
+        print(f"[CONFIG] env override skipped: {_ex}", file=sys.stderr)
+    return cfg
 
 model_status_cache = {}
 DYNAMIC_MODELS_CACHE = {}
@@ -674,10 +875,10 @@ def load_config():
                     cfg["projects"] = {}
                 if "active_project" not in cfg:
                     cfg["active_project"] = ""
-                return cfg
+                return _apply_env_overrides(cfg)
         except Exception:
             pass
-    return DEFAULT_CONFIG
+    return _apply_env_overrides(json.loads(json.dumps(DEFAULT_CONFIG)))
 
 def mask_api_key(k):
     if not k:
@@ -1072,6 +1273,107 @@ def extract_text_from_pdf(data_bytes: bytes) -> str:
     except Exception as e:
         return f"[Error parsing PDF: {e}]"
 
+def rasterize_pdf_to_images(data_bytes: bytes, max_pages: int = 25, dpi: int = 130, jpeg_quality: int = 72):
+    """Render each PDF page to a JPEG data URL so vision-capable models can SEE the page.
+    Returns (list_of_data_urls, error_string_or_None). Caps pages/DPI/quality to keep the
+    request payload sane (a deck of image pages base64-encodes large very fast)."""
+    if not PYMUPDF_AVAILABLE:
+        return [], "PDF-to-image rendering requires PyMuPDF (pip install PyMuPDF). It is not installed on the server."
+    try:
+        doc = fitz.open(stream=data_bytes, filetype="pdf")
+    except Exception as e:
+        return [], f"Could not open PDF: {e}"
+
+    images = []
+    # 72 is the PDF's native point-per-inch; scale from that to the target DPI.
+    zoom = max(0.5, min(dpi, 200) / 72.0)
+    matrix = fitz.Matrix(zoom, zoom)
+    try:
+        page_count = doc.page_count
+        for i in range(min(page_count, max_pages)):
+            page = doc.load_page(i)
+            pix = page.get_pixmap(matrix=matrix, alpha=False)
+            jpeg_bytes = pix.tobytes("jpg", jpg_quality=jpeg_quality)
+            b64 = base64.b64encode(jpeg_bytes).decode("ascii")
+            images.append(f"data:image/jpeg;base64,{b64}")
+    except Exception as e:
+        doc.close()
+        return images, f"Error while rendering page {len(images)+1}: {e}"
+    finally:
+        try:
+            doc.close()
+        except Exception:
+            pass
+
+    truncated = page_count > max_pages
+    err = f"PDF has {page_count} pages; only the first {max_pages} were sent as images." if truncated else None
+    return images, err
+
+def append_text_to_content(content, extra_text):
+    """Append extra text to a message's content, preserving multimodal arrays.
+    If content is a list (multimodal), add a trailing text block; if it's a
+    string, concatenate."""
+    if not extra_text:
+        return content
+    if isinstance(content, list):
+        return content + [{"type": "text", "text": extra_text}]
+    return (content or "") + extra_text
+
+def openai_content_to_anthropic(content):
+    """Convert OpenAI-style message content to Anthropic's schema.
+    - Plain strings pass through unchanged (Anthropic accepts string content).
+    - Multimodal arrays: {type:text} stays; {type:image_url,image_url:{url:data:...}}
+      becomes {type:image, source:{type:base64, media_type, data}}. Non-data URLs
+      use Anthropic's url source form. Malformed blocks are skipped."""
+    if not isinstance(content, list):
+        return content
+    out = []
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        btype = block.get("type")
+        if btype == "text":
+            out.append({"type": "text", "text": block.get("text", "")})
+        elif btype == "image_url":
+            url = ""
+            iu = block.get("image_url")
+            if isinstance(iu, dict):
+                url = iu.get("url", "")
+            elif isinstance(iu, str):
+                url = iu
+            if url.startswith("data:"):
+                try:
+                    header, b64data = url.split(",", 1)
+                    media_type = header.split(":", 1)[1].split(";", 1)[0] or "image/jpeg"
+                    out.append({
+                        "type": "image",
+                        "source": {"type": "base64", "media_type": media_type, "data": b64data}
+                    })
+                except Exception:
+                    continue
+            elif url:
+                out.append({"type": "image", "source": {"type": "url", "url": url}})
+    return out if out else ""
+
+def content_to_text(content):
+    """Return the plain-text portion of a message's content, whether it's a plain
+    string or an OpenAI-style multimodal array of {type: text|image_url} blocks.
+    Non-text blocks (images) are represented by a short marker."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            btype = block.get("type")
+            if btype == "text":
+                parts.append(block.get("text", ""))
+            elif btype == "image_url":
+                parts.append("[image]")
+        return "\n".join(p for p in parts if p)
+    return ""
+
 def compress_conversation_messages(messages, max_recent=4):
     if len(messages) <= max_recent + 2:
         return messages
@@ -1082,7 +1384,7 @@ def compress_conversation_messages(messages, max_recent=4):
 
     topics = []
     for m in middle_msgs:
-        content = m.get("content", "").strip()
+        content = content_to_text(m.get("content", "")).strip()
         role = m.get("role", "user")
         if content:
             snippet = content[:80].replace("\n", " ") + ("..." if len(content) > 80 else "")
@@ -1277,7 +1579,9 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 "active_provider": prov.get("name", "Base Tier"),
                 "base_tier_has_key": bool(current_k),
                 "key_type": key_detected_type,
-                "base_url": prov.get("base_url", "")
+                "base_url": prov.get("base_url", ""),
+                # Public (non-secret) client id so the frontend can init Google Sign-In.
+                "google_client_id": GOOGLE_CLIENT_ID
             })
             return
 
@@ -1383,6 +1687,8 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             self.handle_get_credits()
         elif path == "/api/parse_file":
             self.handle_parse_file()
+        elif path == "/api/pdf_to_images":
+            self.handle_pdf_to_images()
         elif path == "/api/projects/scan":
             if DISABLE_LOCAL_TOOLS:
                 self.send_json({"error": "Project scanning is disabled in cloud deployment"}, status=403)
@@ -1568,25 +1874,29 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             name = data.get("name", "").strip()
             avatar_url = data.get("avatar_url", "").strip()
 
-            # If Google GSI credential JWT was sent, decode payload
-            if credential:
-                try:
-                    parts = credential.split(".")
-                    if len(parts) >= 2:
-                        payload_b64 = parts[1]
-                        payload_b64 += "=" * ((4 - len(payload_b64) % 4) % 4)
-                        claims = json.loads(base64.urlsafe_b64decode(payload_b64.encode("utf-8")).decode("utf-8"))
-                        if claims.get("email"):
-                            email = claims["email"].strip().lower()
-                        if claims.get("name"):
-                            name = claims["name"].strip()
-                        if claims.get("picture"):
-                            avatar_url = claims["picture"].strip()
-                except Exception as ex:
-                    print("Google credential decode error:", ex)
+            if not rate_limit_ok(self.client_address[0], "social_login", max_hits=15, window_secs=300):
+                self.send_json({"success": False, "error": "Too many attempts. Please wait a moment."}, status=429)
+                return
+
+            # Google Sign-In: verify the ID token with Google. We ONLY trust the
+            # email/name/picture from verified claims -- never from the request body.
+            if provider == "google":
+                if not GOOGLE_CLIENT_ID:
+                    self.send_json({"success": False, "error": "Google sign-in is not configured on this server (missing GOOGLE_CLIENT_ID)."}, status=503)
+                    return
+                verified = verify_google_id_token(credential)
+                if not verified:
+                    self.send_json({"success": False, "error": "Google sign-in could not be verified. Please try again."}, status=401)
+                    return
+                email = verified["email"].strip().lower()
+                name = (verified.get("name") or "").strip()
+                avatar_url = (verified.get("picture") or "").strip()
+            else:
+                self.send_json({"success": False, "error": f"Unsupported social provider '{provider}'."}, status=400)
+                return
 
             if not email:
-                self.send_json({"success": False, "error": f"A valid {provider.capitalize()} account email is required to authenticate."}, status=400)
+                self.send_json({"success": False, "error": "A valid Google account email is required to authenticate."}, status=400)
                 return
 
             if not name:
@@ -2037,6 +2347,48 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         except Exception as e:
             self.send_json({"success": False, "error": str(e)}, status=500)
 
+    def handle_pdf_to_images(self):
+        """Render an uploaded PDF into per-page JPEG data URLs so a vision-capable
+        model can actually SEE the pages. Also returns extracted text as a fallback
+        for text-only models. Body: {filename, content_base64|base64}."""
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8")
+        try:
+            req_data = json.loads(body)
+            filename = req_data.get("filename", "document.pdf")
+            b64_content = req_data.get("content_base64", "") or req_data.get("base64", "")
+            if not b64_content:
+                self.send_json({"success": False, "error": "No content provided"}, status=400)
+                return
+            raw_bytes = base64.b64decode(b64_content)
+
+            images, err = rasterize_pdf_to_images(raw_bytes)
+            # Text fallback so non-vision models still receive something usable.
+            text_fallback = extract_text_from_pdf(raw_bytes) if PYPDF_AVAILABLE else ""
+
+            if not images:
+                # Rendering failed (no PyMuPDF, or render error) — still return text so the
+                # frontend can degrade gracefully instead of the attachment silently vanishing.
+                self.send_json({
+                    "success": False,
+                    "filename": filename,
+                    "error": err or "Could not render PDF pages to images.",
+                    "text": text_fallback,
+                    "images": []
+                }, status=200)
+                return
+
+            self.send_json({
+                "success": True,
+                "filename": filename,
+                "images": images,
+                "page_count": len(images),
+                "text": text_fallback,
+                "note": err
+            })
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)}, status=500)
+
     def handle_scan_project(self):
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length).decode("utf-8")
@@ -2461,7 +2813,7 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             last_user_msg = ""
             for m in reversed(raw_messages):
                 if m.get("role") == "user":
-                    last_user_msg = m.get("content", "")
+                    last_user_msg = content_to_text(m.get("content", ""))
                     break
 
             if last_user_msg:
@@ -2490,14 +2842,14 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             for i, msg in enumerate(truncated_raw):
                 content = msg.get("content", "")
                 if i == len(truncated_raw) - 1 and msg.get("role") == "user" and search_context:
-                    content = content + search_context
+                    content = append_text_to_content(content, search_context)
                 clean_messages.append({"role": msg.get("role", "user"), "content": content})
             final_messages = clean_messages
         else:
             for i, msg in enumerate(raw_messages):
                 content = msg.get("content", "")
                 if i == len(raw_messages) - 1 and msg.get("role") == "user" and search_context:
-                    content = content + search_context
+                    content = append_text_to_content(content, search_context)
                 clean_messages.append({"role": msg.get("role", "user"), "content": content})
 
             if do_compress:
@@ -2631,9 +2983,13 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             sys_parts = []
             for m in final_messages:
                 if m.get("role") == "system":
-                    sys_parts.append(m.get("content", ""))
+                    # System content is text-only for Anthropic's top-level system field.
+                    sys_parts.append(content_to_text(m.get("content", "")))
                 else:
-                    anthropic_messages.append({"role": m.get("role", "user"), "content": m.get("content", "")})
+                    anthropic_messages.append({
+                        "role": m.get("role", "user"),
+                        "content": openai_content_to_anthropic(m.get("content", ""))
+                    })
             if not anthropic_messages:
                 anthropic_messages = [{"role": "user", "content": "hi"}]
 
@@ -2784,9 +3140,12 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                             sys_parts = []
                             for m in final_messages:
                                 if m.get("role") == "system":
-                                    sys_parts.append(m.get("content", ""))
+                                    sys_parts.append(content_to_text(m.get("content", "")))
                                 else:
-                                    anthropic_messages.append({"role": m.get("role", "user"), "content": m.get("content", "")})
+                                    anthropic_messages.append({
+                                        "role": m.get("role", "user"),
+                                        "content": openai_content_to_anthropic(m.get("content", ""))
+                                    })
                             jdw_payload = {
                                 "model": "claude-opus-4-8",
                                 "max_tokens": effort_config["max_tokens"],
