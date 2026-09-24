@@ -25,8 +25,12 @@ Personal, single-user tool. Deployed on Render; repo pushed to GitHub.
     `landing.css` → the landing/auth-panel experience (loads last);
     `workspace.css` → styles for the workspace panel tabs + Run buttons
   - `landing.js` — landing page: 3D particle field, scroll, and the auth panel
-  - additive modules: `artifacts.js`, `thinking-toggle.js`, `ui-extras.js`
-    (each loaded via its own `<script>`; remove the tag to disable)
+  - additive modules: `artifacts.js`, `thinking-toggle.js`, `ui-extras.js`,
+    `voice-input.js` (mic button → Web Speech API dictation into #user-input;
+    feature-detected, no key/server), `provider-simple.js` (hides the top-bar
+    proxy dropdown; adds one persistent "Custom Proxy" button + active-proxy
+    label; writes the same localStorage keys app.js reads, then reloads) —
+    each loaded via its own `<script>`; remove the tag to disable
   - workspace modules (all load AFTER `artifacts.js`, which exposes the
     `window.AgentWorkspace` tab registry, and self-disable if it's absent):
     `code-runner.js` (▶ Run js/html in a sandboxed iframe, python via a Pyodide

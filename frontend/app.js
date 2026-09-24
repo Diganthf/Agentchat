@@ -2503,7 +2503,12 @@
 
   function applyCloudProfile(profile) {
     if (!profile) return;
-    if (profile.active_provider) {
+    // A custom proxy the user set on THIS device is their explicit, most recent
+    // choice — don't let a stale cloud profile clobber it back to the default
+    // (this was the "it forgets my proxy / key and reverts to custom" bug).
+    var localActive = localStorage.getItem("agentchat_active_provider") || "";
+    var keepLocal = localActive.indexOf("custom_") === 0;
+    if (profile.active_provider && !keepLocal) {
       currentConfig.active_provider = profile.active_provider;
       localStorage.setItem("agentchat_active_provider", profile.active_provider);
       if (providerSelect) providerSelect.value = profile.active_provider;

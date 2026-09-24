@@ -540,3 +540,28 @@ input[type="text"], input[type="email"], input[type="password"], textarea, selec
 }
 
 /* Landing-page + auth-panel styles now live in landing.css (loaded after this). */
+
+/* Voice input mic — clay "listening" pulse */
+.voice-input-btn.listening {
+  background: var(--md-sys-color-primary) !important;
+  color: #fff !important;
+  border-color: var(--md-sys-color-primary) !important;
+  animation: agc-mic-pulse 1.3s ease-in-out infinite;
+}
+@keyframes agc-mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 87, 0.45); }
+  50%      { box-shadow: 0 0 0 6px rgba(217, 119, 87, 0); }
+}
+
+/* Simplified provider UI: active-proxy label + Custom Proxy button */
+.cproxy-label {
+  display: inline-flex; align-items: center;
+  font-size: 13px; font-weight: 500; color: var(--md-sys-color-on-surface);
+  padding: 0 6px; white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis;
+}
+.cproxy-label::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%;
+  background: #5fb37e; margin-right: 7px; flex: 0 0 auto;
+  box-shadow: 0 0 8px rgba(95,179,126,0.7);
+}
+.cproxy-btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
