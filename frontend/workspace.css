@@ -1,0 +1,108 @@
+/* ==========================================================================
+   AgentChat — Workspace additions (additive, self-contained)
+   Styles for the extra workspace views (Output / Diagram / Process / Files),
+   the Run buttons on code blocks, inline mermaid diagrams, the live plan
+   checklist and the file-download bar. Loaded AFTER claude-theme.css.
+   Remove the <link> tag to drop all of this styling.
+   ========================================================================== */
+
+/* Generic view pane inside the workspace body */
+.artifact-view { position: absolute; inset: 0; overflow: auto; padding: 14px; }
+.artifact-view.hidden { display: none; }
+.artifact-view-flush { padding: 0; overflow: hidden; }
+
+/* Run / action buttons on code-block headers (sits beside ⧉ Preview) */
+.artifact-run-btn {
+  margin-left: 8px; background: #2f7d4f; color: #fff;
+  border: none; border-radius: 7px; padding: 3px 10px; cursor: pointer; font-size: 12px;
+  font-family: var(--font-brand);
+}
+.artifact-run-btn:hover { background: #256a42; }
+.artifact-run-btn.floating { position: absolute; top: 8px; right: 8px; }
+.artifact-run-btn[disabled] { opacity: .55; cursor: default; }
+
+/* ---- Output console ---- */
+.agc-output {
+  margin: 0; padding: 14px; font-family: var(--font-mono); font-size: 12.5px;
+  line-height: 1.55; color: #e6e4de; white-space: pre-wrap; word-break: break-word;
+}
+.agc-out-line { display: block; padding: 1px 0; }
+.agc-out-error { color: #f2b8b5; }
+.agc-out-warn { color: #e0c56a; }
+.agc-out-info, .agc-out-status { color: var(--md-sys-color-on-surface-variant); }
+.agc-out-result { color: #7fd1a3; }
+.agc-out-empty { color: var(--md-sys-color-on-surface-variant); font-style: italic; }
+
+/* ---- Loading state (Pyodide / mermaid CDN) ---- */
+.agc-loading {
+  display: flex; align-items: center; gap: 10px; padding: 16px;
+  color: var(--md-sys-color-on-surface-variant); font-size: 13px; font-family: var(--font-brand);
+}
+.agc-spinner {
+  width: 15px; height: 15px; border-radius: 50%;
+  border: 2px solid var(--line); border-top-color: var(--md-sys-color-primary);
+  animation: agc-spin .8s linear infinite;
+}
+@keyframes agc-spin { to { transform: rotate(360deg); } }
+/* ---- Inline mermaid diagrams ---- */
+.agc-mermaid {
+  background: #ffffff; border: 1px solid var(--line); border-radius: 12px;
+  padding: 14px; margin: 10px 0; overflow: auto; text-align: center;
+}
+.agc-mermaid svg { max-width: 100%; height: auto; }
+.agc-mermaid-tools { display: flex; gap: 8px; align-items: center; margin: 4px 0 2px; }
+.agc-mini-btn {
+  background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface-variant);
+  border: 1px solid var(--line); border-radius: 7px; padding: 3px 9px; cursor: pointer;
+  font-size: 11.5px; font-family: var(--font-brand);
+}
+.agc-mini-btn:hover { color: var(--md-sys-color-on-surface); }
+.agc-mermaid-err { color: #f2b8b5; font-family: var(--font-mono); font-size: 12px; padding: 6px 0; }
+
+/* Diagram gallery (workspace view) */
+.agc-diagram-item { margin-bottom: 16px; }
+.agc-diagram-item h4 {
+  margin: 0 0 6px; font-size: 12px; font-weight: 600; font-family: var(--font-brand);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* ---- Plan / process checklist ---- */
+.agc-plan { font-family: var(--font-brand); }
+.agc-plan-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px; font-size: 13px; color: var(--md-sys-color-on-surface);
+}
+.agc-plan-progress { font-size: 12px; color: var(--md-sys-color-on-surface-variant); }
+.agc-plan-bar { height: 4px; border-radius: 3px; background: var(--md-sys-color-surface-container-high); overflow: hidden; margin-bottom: 14px; }
+.agc-plan-bar > i { display: block; height: 100%; background: var(--md-sys-color-primary); width: 0; transition: width .3s ease; }
+.agc-plan-item { display: flex; gap: 10px; align-items: flex-start; padding: 6px 4px; border-radius: 8px; font-size: 13.5px; color: var(--md-sys-color-on-surface); }
+.agc-plan-box {
+  flex: 0 0 auto; width: 16px; height: 16px; border-radius: 5px; margin-top: 2px;
+  border: 1.5px solid var(--md-sys-color-outline); display: grid; place-items: center; font-size: 11px; color: transparent;
+}
+.agc-plan-item.done .agc-plan-box { background: var(--md-sys-color-primary); border-color: var(--md-sys-color-primary); color: #fff; }
+.agc-plan-item.done .agc-plan-text { color: var(--md-sys-color-on-surface-variant); text-decoration: line-through; }
+.agc-plan-item.just-done { animation: agc-tick .6s ease; }
+@keyframes agc-tick { 0% { background: rgba(217,119,87,.18); } 100% { background: transparent; } }
+/* Inline plan pill shown in the message in place of the raw ```plan block */
+.agc-plan-pill {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  background: var(--md-sys-color-surface-container-high); border: 1px solid var(--line);
+  border-radius: 12px; padding: 7px 12px; margin: 6px 0; font-size: 13px;
+  color: var(--md-sys-color-on-surface); font-family: var(--font-brand);
+}
+.agc-plan-pill:hover { border-color: var(--md-sys-color-primary); }
+.agc-plan-pill b { color: var(--md-sys-color-primary); font-weight: 600; }
+
+/* ---- File downloads ---- */
+.agc-export-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.agc-dl-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface);
+  border: 1px solid var(--line); border-radius: 9px; padding: 5px 11px; cursor: pointer;
+  font-size: 12.5px; font-family: var(--font-brand);
+}
+.agc-dl-btn:hover { border-color: var(--md-sys-color-primary); color: var(--md-sys-color-primary); }
+.agc-dl-btn[disabled] { opacity: .55; cursor: default; }
+.agc-files-empty { color: var(--md-sys-color-on-surface-variant); font-size: 13px; font-family: var(--font-brand); }
+

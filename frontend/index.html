@@ -12,6 +12,8 @@
   <link rel="stylesheet" href="claude-theme.css?v=1.0">
   <!-- Landing-page experience styles (loads last; scoped to #landing-screen) -->
   <link rel="stylesheet" href="landing.css?v=2.0">
+  <!-- Workspace panel additions (Output/Diagram/Process/Files, Run buttons). Remove to drop the styling. -->
+  <link rel="stylesheet" href="workspace.css?v=1.0">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="apple-touch-icon" href="/icon.png">
@@ -1292,9 +1294,13 @@
     </div>
   </div>
 
-  <script src="app.js?v=2.4"></script>
+  <script src="app.js?v=2.5"></script>
   <!-- Additive UI modules (remove a line to disable that feature) -->
-  <script src="artifacts.js?v=1.0"></script>
+  <script src="artifacts.js?v=1.1"></script>
+  <script src="code-runner.js?v=1.0"></script>
+  <script src="mermaid-render.js?v=1.0"></script>
+  <script src="plan-panel.js?v=1.0"></script>
+  <script src="doc-export.js?v=1.0"></script>
   <script src="thinking-toggle.js?v=1.0"></script>
   <script src="ui-extras.js?v=1.0"></script>
   <!-- Full-screen landing experience (deferred so three.min.js loads first) -->

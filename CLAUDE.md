@@ -22,10 +22,17 @@ Personal, single-user tool. Deployed on Render; repo pushed to GitHub.
   - `app.js` — the chat application
   - `index.html` — markup for both the landing page and the app
   - `style.css` → base; `claude-theme.css` → dark reskin (loads last);
-    `landing.css` → the landing/auth-panel experience (loads last)
+    `landing.css` → the landing/auth-panel experience (loads last);
+    `workspace.css` → styles for the workspace panel tabs + Run buttons
   - `landing.js` — landing page: 3D particle field, scroll, and the auth panel
   - additive modules: `artifacts.js`, `thinking-toggle.js`, `ui-extras.js`
     (each loaded via its own `<script>`; remove the tag to disable)
+  - workspace modules (all load AFTER `artifacts.js`, which exposes the
+    `window.AgentWorkspace` tab registry, and self-disable if it's absent):
+    `code-runner.js` (▶ Run js/html in a sandboxed iframe, python via a Pyodide
+    Web Worker → Output tab), `mermaid-render.js` (```mermaid → Diagram tab),
+    `plan-panel.js` (```plan → Process checklist tab), `doc-export.js` (code
+    blocks → Files tab + per-message download bar)
 
 ## Data & auth
 - **DB abstraction** in `server.py` behind `get_auth_db()`: uses **Postgres via
@@ -40,10 +47,11 @@ Personal, single-user tool. Deployed on Render; repo pushed to GitHub.
   updates a user by verified email and is shared across providers.
   - **Google:** GSI token verified server-side (`verify_google_id_token`), needs
     `GOOGLE_CLIENT_ID` env.
-  - **GitHub:** IN PROGRESS — backend has env vars + `github_enabled` in
-    `/api/health` + the `upsert_oauth_user` helper, but the
-    `/api/auth/github/start` and `/api/auth/github/callback` routes and the
-    frontend button are NOT finished yet.
+  - **GitHub:** DONE — `/api/auth/github/start` and `/api/auth/github/callback`
+    routes exist in `server.py`, the frontend button (`#lp-github-btn` /
+    `#github-login-btn`) is wired in `landing.js`, and it self-hides unless
+    `/api/health` reports `github_enabled`. Needs `GITHUB_CLIENT_ID` +
+    `GITHUB_CLIENT_SECRET` env.
 
 ## Config & environment variables
 - `load_config()` reads `config.json`, then `_apply_env_overrides()` overlays

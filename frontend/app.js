@@ -2399,9 +2399,23 @@
   function renderMarkdown(md) {
     if (!md) return "";
     let html = md.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    // Stash fenced code blocks behind sentinel tokens BEFORE the inline transforms
+    // below, then restore them afterward. This keeps code pristine — Python `#`
+    // comments, `**kwargs`, `*`, and real newlines survive intact — so the Copy
+    // button, the artifact preview, the Run action and the mermaid/plan modules
+    // all read the exact source. `data-lang` lets those additive modules detect
+    // the language without re-parsing the header.
+    const codeBlocks = [];
     html = html.replace(/```([a-zA-Z0-9_\-\+]*)\n([\s\S]*?)```/g, (match, lang, code) => {
       const codeId = "code_" + Math.random().toString(36).substr(2, 9);
-      return `<pre><div class="code-header"><span>${lang || "CODE"}</span><button class="code-copy-btn" onclick="copyCode('${codeId}')">Copy</button></div><code id="${codeId}">${code.trim()}</code></pre>`;
+      const langKey = (lang || "").toLowerCase();
+      const token = "\u0000CB" + codeBlocks.length + "\u0000";
+      codeBlocks.push(
+        `<pre data-lang="${langKey}"><div class="code-header"><span>${lang || "CODE"}</span>` +
+        `<button class="code-copy-btn" onclick="copyCode('${codeId}')">Copy</button></div>` +
+        `<code id="${codeId}">${code.trim()}</code></pre>`
+      );
+      return token;
     });
     html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
     html = html.replace(/^### (.*$)/gim, "<h3>$1</h3>");
@@ -2413,6 +2427,8 @@
     html = html.replace(/^\s*\-\s(.*$)/gim, "<ul><li>$1</li></ul>");
     html = html.replace(/(<\/ul>\n<ul>)/gim, "");
     html = html.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br>");
+    // Restore the protected code blocks now that inline formatting is done.
+    html = html.replace(/\u0000CB(\d+)\u0000/g, (m, i) => codeBlocks[+i]);
     return `<p>${html}</p>`;
   }
 
