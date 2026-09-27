@@ -2029,7 +2029,12 @@
       details.open = isStreaming;
 
       const summary = document.createElement("summary");
-      summary.innerHTML = `<span class="reasoning-title">${isStreaming ? "Thinking Process..." : "Thought Process"}</span> <span class="reasoning-badge ${isStreaming ? "streaming-pulse" : ""}">${isStreaming ? "Live" : "Finished"}</span>`;
+      const star = (window.ThinkingIndicator && window.ThinkingIndicator.starburst)
+        ? window.ThinkingIndicator.starburst(14) : "";
+      summary.innerHTML =
+        `<span class="reasoning-star" style="color:#D97757;display:inline-flex;align-items:center;">${star}</span>` +
+        `<span class="reasoning-title">Thought process</span> ` +
+        `<span class="reasoning-badge ${isStreaming ? "streaming-pulse" : ""}">${isStreaming ? "Live" : "Finished"}</span>`;
 
       const rContent = document.createElement("div");
       rContent.className = "reasoning-content";
@@ -2172,6 +2177,30 @@
       else { const f = textDiv.querySelector(".agc-thinking.is-fallback"); if (f) f.remove(); }
     };
 
+    // Persist whatever user-facing reasoning streamed into a collapsed "Thought
+    // process" box attached to the finished message (mirrors appendMessageToDOM
+    // on reload, static Claude starburst included). Idempotent; a no-op when the
+    // model emitted no reasoning summary.
+    const ensureThoughtBox = () => {
+      if (reasoningContainer || !assistantMsg.reasoning) return;
+      reasoningContainer = document.createElement("details");
+      reasoningContainer.className = "reasoning-box";
+      reasoningContainer.open = false;
+      const s = document.createElement("summary");
+      const star = (window.ThinkingIndicator && window.ThinkingIndicator.starburst)
+        ? window.ThinkingIndicator.starburst(14) : "";
+      s.innerHTML =
+        `<span class="reasoning-star" style="color:#D97757;display:inline-flex;align-items:center;">${star}</span>` +
+        `<span class="reasoning-title">Thought process</span> ` +
+        `<span class="reasoning-badge">Finished</span>`;
+      reasoningDiv = document.createElement("div");
+      reasoningDiv.className = "reasoning-content";
+      reasoningDiv.textContent = assistantMsg.reasoning;
+      reasoningContainer.appendChild(s);
+      reasoningContainer.appendChild(reasoningDiv);
+      bubble.insertBefore(reasoningContainer, textDiv);
+    };
+
     try {
       let selectedEffort = effortSelect.value || "medium";
       // Auto-adapt for GLM models (GLM-5.3 only supports low, high, max; medium is rejected)
@@ -2308,31 +2337,32 @@
 
               const delta = data.choices?.[0]?.delta || {};
 
-              // Dismiss connecting state placeholder upon first incoming token
-              if (!hasReceivedFirstToken && (delta.content || delta.reasoning_content)) {
-                hasReceivedFirstToken = true;
-                dismissThinking();
-              }
-
+              // A user-facing reasoning summary (only some models emit this).
+              // While the thinking indicator is still live, stream it INTO the
+              // indicator's "Thought process" panel so the Claude mark reads as
+              // actively working. Once the answer has begun (indicator gone),
+              // fall back to the persistent collapsed Thought process box.
               if (delta.reasoning_content) {
                 assistantMsg.reasoning += delta.reasoning_content;
-                if (!reasoningContainer) {
-                  reasoningContainer = document.createElement("details");
-                  reasoningContainer.className = "reasoning-box";
-                  reasoningContainer.open = true;
-                  const summary = document.createElement("summary");
-                  summary.innerHTML = `<span class="reasoning-title">Thinking Process...</span> <span class="reasoning-badge streaming-pulse">Live</span>`;
-                  reasoningDiv = document.createElement("div");
-                  reasoningDiv.className = "reasoning-content";
-                  reasoningContainer.appendChild(summary);
-                  reasoningContainer.appendChild(reasoningDiv);
-                  bubble.insertBefore(reasoningContainer, textDiv);
+                if (thinker && !thinkerDismissed) {
+                  thinker.pushThought(assistantMsg.reasoning);
+                } else {
+                  ensureThoughtBox();
+                  if (reasoningDiv) reasoningDiv.textContent = assistantMsg.reasoning;
+                  scrollToBottom();
                 }
-                reasoningDiv.textContent = assistantMsg.reasoning;
-                scrollToBottom();
               }
 
+              // The real answer. Its first token ends the thinking state: freeze
+              // whatever reasoning streamed so far into the collapsed Thought
+              // process box, then transition the indicator away — never both a
+              // pulsing indicator and streaming answer at once.
               if (delta.content) {
+                if (!hasReceivedFirstToken) {
+                  hasReceivedFirstToken = true;
+                  ensureThoughtBox();
+                  dismissThinking();
+                }
                 assistantMsg.content += delta.content;
                 textDiv.innerHTML = renderMarkdown(assistantMsg.content);
                 scrollToBottom();
@@ -2357,12 +2387,10 @@
         }
       }
 
-      if (reasoningContainer) {
-        const summary = reasoningContainer.querySelector("summary");
-        if (summary) {
-          summary.innerHTML = `<span class="reasoning-title">Thought Process</span> <span class="reasoning-badge">Finished</span>`;
-        }
-      }
+      // Reasoning-only turn (no answer token ever arrived): still surface the
+      // collapsed Thought process. dismissThinking() runs in finally below, so
+      // the indicator never lingers.
+      if (assistantMsg.reasoning) ensureThoughtBox();
 
     } catch (err) {
       dismissThinking();

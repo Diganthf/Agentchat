@@ -1,26 +1,43 @@
 /* ==========================================================================
-   AgentChat — Claude-style thinking indicator styling
-   Themed with the same tokens as claude-theme.css; load AFTER it so tokens are
-   defined. Works in light + dark, stays compact and responsive, and honors
-   prefers-reduced-motion. Paired with thinking-indicator.js. Remove both to
-   revert to a plain "Thinking…" line.
+   AgentChat — Claude-style "thinking experience"
+   --------------------------------------------------------------------------
+   The reasoning UI shown while a model thinks: a breathing Claude starburst,
+   a rotating status phrase, a disclosure caret, and a collapsible panel that
+   holds either a plain-English summary or the live, streamed "Thought
+   process" text.
+
+   Themed entirely with the design tokens defined in claude-theme.css — this
+   file MUST load AFTER it. Every colour flips automatically for
+   :root[data-theme="light"|"dark"] because it reuses those tokens; the ONLY
+   hardcoded colours are the two brand terracotta values below.
+
+   Paired with thinking-indicator.js, which builds the exact DOM these rules
+   target and toggles the state classes (.is-active / .is-surge / .is-expanded
+   / .is-leaving / .has-thought). Remove both files to fall back to a plain
+   "Thinking…" line (see .agc-thinking.is-fallback).
    ========================================================================== */
 
+/* ---- root ---------------------------------------------------------------- */
 .agc-thinking {
+  /* Brand icon colour — the ONLY hardcoded colours in this file. Declared as
+     custom props so the starburst is pixel-identical in light and dark. */
+  --agc-burst: #D97757;          /* primary — starburst fill via currentColor */
+  --agc-burst-accent: #E07A5F;   /* subtle glow accent ONLY (pulse peak)      */
+
   display: block;
   max-width: 100%;
   margin: 2px 0 6px;
   font-family: var(--font-brand);
+  /* fade/slide when the component leaves (thinking → answer) */
   transition: opacity .26s ease, transform .26s ease;
 }
 
-/* --- the always-visible row: sparkle + rotating phrase + disclosure caret --- */
+/* ---- toggle row: starburst + rotating phrase + disclosure caret ---------- */
 .agc-thinking-toggle {
   display: inline-flex;
   align-items: center;
   gap: 9px;
   max-width: 100%;
-  margin: -2px 0;
   padding: 4px 9px 4px 5px;
   border: 0;
   border-radius: 9px;
@@ -32,32 +49,43 @@
   -webkit-tap-highlight-color: transparent;
   transition: background-color .18s ease;
 }
-.agc-thinking-toggle:hover { background: var(--clay-text-bg, rgba(201, 100, 66, .10)); }
+.agc-thinking-toggle:hover {
+  background: var(--clay-text-bg, rgba(217, 119, 87, .10));
+}
 .agc-thinking-toggle:focus-visible {
   outline: 2px solid var(--md-sys-color-primary);
   outline-offset: 2px;
 }
 
-/* sparkle — clay accent; wrapper carries the sync "surge", inner svg breathes */
+/* ---- starburst -----------------------------------------------------------
+   The wrapper carries the "surge" (a springy scale synced to a phrase change);
+   the inner <svg> carries the continuous "breathe". Splitting the two means
+   the surge and the breathing never fight over the same transform. The svg is
+   injected with fill:currentColor, so it inherits --agc-burst directly. */
 .agc-thinking-spark {
   display: inline-flex;
-  color: var(--md-sys-color-primary);
+  color: var(--agc-burst);
   transform: scale(1);
   transform-origin: center;
   transition: transform .5s cubic-bezier(.34, 1.4, .5, 1);
   will-change: transform;
 }
-.agc-thinking-spark svg { display: block; }
-.agc-thinking.is-active .agc-thinking-spark svg {
-  animation: agc-think-breathe 2.2s ease-in-out infinite;
-}
-.agc-thinking.is-surge .agc-thinking-spark { transform: scale(1.14); }
-@keyframes agc-think-breathe {
-  0%, 100% { transform: scale(.9);   opacity: .68; filter: brightness(.9); }
-  50%      { transform: scale(1.12); opacity: 1;   filter: brightness(1.12); }
-}
+.agc-thinking-spark svg,
+.agc-burst-svg { display: block; fill: currentColor; }
 
-/* rotating phrase — crossfades; decorative for SR (label lives on the button) */
+/* breathe continuously, but only while actively thinking */
+.agc-thinking.is-active .agc-thinking-spark svg {
+  animation: agc-think-breathe 1.6s ease-in-out infinite;
+}
+/* momentary springy pop on the wrapper, synced to a phrase swap */
+.agc-thinking.is-surge .agc-thinking-spark { transform: scale(1.14); }
+
+@keyframes agc-think-breathe {
+  0%, 100% { transform: scale(1);   opacity: .85; filter: brightness(.95); }
+  50%      { transform: scale(1.1); opacity: 1;
+             filter: brightness(1.12) drop-shadow(0 0 3px rgba(224, 119, 87, .45)); }
+}
+/* ---- rotating phrase ----------------------------------------------------- */
 .agc-thinking-phrase {
   font-size: 14px;
   letter-spacing: .1px;
@@ -69,6 +97,7 @@
 }
 .agc-thinking-phrase.is-fading { opacity: 0; }
 
+/* ---- disclosure caret (rotates when the panel opens) --------------------- */
 .agc-thinking-caret {
   display: inline-flex;
   opacity: .5;
@@ -77,7 +106,7 @@
 .agc-thinking-toggle:hover .agc-thinking-caret { opacity: .85; }
 .agc-thinking.is-expanded .agc-thinking-caret { transform: rotate(180deg); }
 
-/* --- expandable plain-English summary (grid-rows 0fr→1fr = smooth height) --- */
+/* ---- collapsible panel (grid-rows 0fr → 1fr = smooth height animation) --- */
 .agc-thinking-panel {
   display: grid;
   grid-template-rows: 0fr;
@@ -85,6 +114,8 @@
 }
 .agc-thinking.is-expanded .agc-thinking-panel { grid-template-rows: 1fr; }
 .agc-thinking-panel-inner { overflow: hidden; min-height: 0; }
+
+/* ---- static plain-English summary (fallback before/without live stream) -- */
 .agc-thinking-summary {
   margin: 6px 0 2px 8px;
   padding: 8px 12px;
@@ -95,25 +126,130 @@
   font-size: 13.5px;
   line-height: 1.6;
 }
+/* once live reasoning arrives, .agc-thought replaces the static summary */
+.agc-thinking.has-thought .agc-thinking-summary { display: none; }
+/* ---- live "Thought process" (streamed reasoning) ------------------------- */
+.agc-thought {
+  position: relative;
+  margin: 6px 0 2px 6px;
+  max-width: 60ch;
+}
+.agc-thought-head {
+  font-family: var(--font-brand);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: var(--md-sys-color-on-surface-variant);
+  margin-bottom: 4px;
+  opacity: .85;
+}
+.agc-thought-scroll {
+  max-height: 170px;
+  overflow-y: auto;
+  padding: 2px 4px 6px 12px;
+  border-left: 2px solid var(--line, var(--md-sys-color-outline-variant));
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--md-sys-color-outline-variant) transparent;
+}
+/* thin, subtle webkit scrollbar */
+.agc-thought-scroll::-webkit-scrollbar { width: 6px; }
+.agc-thought-scroll::-webkit-scrollbar-track { background: transparent; }
+.agc-thought-scroll::-webkit-scrollbar-thumb {
+  background: var(--md-sys-color-outline-variant);
+  border-radius: 6px;
+}
+.agc-thought-text {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--reasoning-text, var(--md-sys-color-on-surface-variant));
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+/* soft fade over the newest lines at the bottom edge of the scroll area */
+.agc-thought-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 30px;
+  pointer-events: none;
+  border-radius: 0 0 8px 8px;
+  background: linear-gradient(to bottom, transparent,
+    var(--md-sys-color-surface-container-high, var(--md-sys-color-surface)));
+}
 
-/* --- leaving: thinking → answer, no lingering loader --- */
+/* floating "scroll to latest" pill — hidden until the user scrolls up */
+.agc-thought-jump {
+  position: absolute;
+  right: 6px;
+  bottom: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line, var(--md-sys-color-outline-variant));
+  background: var(--md-sys-color-surface-container-highest, var(--md-sys-color-surface));
+  color: var(--md-sys-color-on-surface-variant);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .18);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+  transition: opacity .18s ease, transform .18s ease;
+}
+.agc-thought-jump.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.agc-thought-jump:hover {
+  background: color-mix(in srgb,
+    var(--md-sys-color-surface-container-highest, var(--md-sys-color-surface)) 88%,
+    var(--md-sys-color-on-surface-variant));
+}
+.agc-thought-jump:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+.agc-thought-jump svg { display: block; }
+/* ---- leaving: thinking → answer, no lingering loader --------------------- */
 .agc-thinking.is-leaving {
   opacity: 0;
   transform: translateY(-2px);
   pointer-events: none;
 }
 
+/* ---- fallback row used by app.js when the JS component is absent --------- */
+.agc-thinking.is-fallback {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  color: var(--md-sys-color-on-surface-variant);
+  font-family: var(--font-brand);
+  font-size: 14px;
+}
+
+/* ---- responsive ---------------------------------------------------------- */
 @media (max-width: 640px) {
   .agc-thinking-summary { max-width: 100%; }
+  .agc-thought { max-width: 100%; }
+  .agc-thought-scroll { max-height: 140px; }
   .agc-thinking-phrase { font-size: 13.5px; }
 }
 
+/* ---- reduced motion: no breathe/surge/transitions, instant scroll -------- */
 @media (prefers-reduced-motion: reduce) {
   .agc-thinking,
   .agc-thinking-spark,
   .agc-thinking-phrase,
   .agc-thinking-caret,
-  .agc-thinking-panel { transition: none; }
+  .agc-thinking-panel,
+  .agc-thought-jump { transition: none; }
   .agc-thinking.is-active .agc-thinking-spark svg { animation: none; }
   .agc-thinking.is-surge .agc-thinking-spark { transform: none; }
+  .agc-thought-scroll { scroll-behavior: auto; }
 }
