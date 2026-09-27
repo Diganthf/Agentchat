@@ -16,6 +16,17 @@
   var NAMEKEY = "agentchat_active_proxy_name";
 
   function getProxies() { try { return JSON.parse(localStorage.getItem(PROXIES) || "[]"); } catch (e) { return []; } }
+  function isMasked(k) { return !k || k.indexOf("...") !== -1 || k.indexOf("•") !== -1 || /\*{3,}/.test(k) || k.indexOf("enc::") === 0; }
+  // Proxies are meant to feel like an internal detail — surface them ONLY once
+  // the user has actually brought their own API key. Until then there is no
+  // proxy/provider chrome anywhere in the top bar.
+  function hasAnyUserKey() {
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (k && k.indexOf("agentchat_client_key_") === 0 && !isMasked(localStorage.getItem(k))) return true;
+    }
+    return false;
+  }
   function presetName(id) {
     var m = { justdowork: "JustDoWork", agentrouter: "AgentRouter", puter: "Puter.ai",
       google: "Google AI", groq: "Groq", openrouter: "OpenRouter", deepseek: "DeepSeek",
@@ -90,7 +101,10 @@
     var track = document.querySelector(".topbar-scroll-track");
     var pill = document.querySelector(".provider-pill-wrapper");
     if (!track || document.getElementById("cproxy-btn")) return;
-    if (pill) pill.style.display = "none"; // hide the long proxy list
+    if (pill) pill.style.display = "none"; // hide the long proxy list either way
+
+    // No user key yet → keep the top bar clean, no proxy mention at all.
+    if (!hasAnyUserKey()) return;
 
     var label = document.createElement("span");
     label.id = "cproxy-label";

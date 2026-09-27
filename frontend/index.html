@@ -4,12 +4,47 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AgentChat</title>
+  <!-- Theme bootstrap: runs before any stylesheet/paint so there is NO flash of
+       the wrong theme. Default is light (Claude's paper look); a saved choice or
+       "system" mode overrides it. Exposes window.AgentTheme for the topbar toggle. -->
+  <script>
+    (function () {
+      var KEY = "agentchat_theme"; // "light" | "dark" | "system"
+      var mq = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+      function resolve(mode) {
+        if (mode === "dark") return "dark";
+        if (mode === "light") return "light";
+        return (mq && mq.matches) ? "dark" : "light"; // "system"
+      }
+      function getMode() {
+        try { return localStorage.getItem(KEY) || "light"; } catch (e) { return "light"; }
+      }
+      function apply(mode) { document.documentElement.setAttribute("data-theme", resolve(mode)); }
+      function setMode(mode) {
+        try { localStorage.setItem(KEY, mode); } catch (e) {}
+        apply(mode);
+        try { window.dispatchEvent(new CustomEvent("agentchat-theme-change", { detail: { mode: mode, resolved: resolve(mode) } })); } catch (e) {}
+      }
+      function cycle() {
+        var order = ["light", "dark", "system"];
+        var next = order[(order.indexOf(getMode()) + 1) % order.length];
+        setMode(next); return next;
+      }
+      apply(getMode()); // paint with the right theme immediately
+      if (mq) {
+        var onChange = function () { if (getMode() === "system") apply("system"); };
+        if (mq.addEventListener) mq.addEventListener("change", onChange);
+        else if (mq.addListener) mq.addListener(onChange);
+      }
+      window.AgentTheme = { getMode: getMode, setMode: setMode, cycle: cycle, resolve: resolve };
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Rubik:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css?v=2.4">
   <!-- Claude-inspired reskin (loads last so it overrides style.css). Remove this line to revert. -->
-  <link rel="stylesheet" href="claude-theme.css?v=1.0">
+  <link rel="stylesheet" href="claude-theme.css?v=1.1">
   <!-- Landing-page experience styles (loads last; scoped to #landing-screen) -->
   <link rel="stylesheet" href="landing.css?v=2.0">
   <!-- Workspace panel additions (Output/Diagram/Process/Files, Run buttons). Remove to drop the styling. -->
@@ -475,12 +510,15 @@
         <button id="toggle-sidebar-btn" class="icon-toggle-btn" title="Toggle Drawer">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
         </button>
+        <button id="toggle-workspace-btn" class="icon-toggle-btn" title="Toggle Workspace panel (artifacts, diagrams, output)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="14" y1="3" x2="14" y2="21"></line></svg>
+        </button>
 
         <!-- Horizontally Scrollable Middle Track for All Controls -->
         <div class="topbar-scroll-track" id="topbar-scroll-track">
           <!-- Provider Pill -->
           <div class="select-pill-wrapper provider-pill-wrapper">
-            <select id="provider-select" class="select-pill provider-pill" title="Active AI Provider / Proxy">
+            <select id="provider-select" class="select-pill provider-pill" title="AI Provider">
               <option value="justdowork" selected>💼 JustDoWork</option>
               <option value="agentrouter">🛡️ AgentRouter</option>
               <option value="puter">🚀 Puter.ai</option>
@@ -498,14 +536,14 @@
           <div class="select-pill-wrapper model-pill-wrapper">
             <select id="model-select" class="select-pill model-pill" title="Active Model">
               <optgroup label="🌟 Free & Open Source (Zero Cost)">
-                <option value="gemini-3.6-flash" selected>🌐 Gemini 3.6 Flash (Free 1M Window)</option>
-                <option value="openai/gpt-oss-120b">🦙 GPT-OSS 120B Flagship (Groq LPUs)</option>
-                <option value="deepseek-v4-flash">⚡ DeepSeek V4 Flash (Lightning Fast 1.5s)</option>
-                <option value="qwen/qwen3.8-27b">🧠 Qwen 3.8 27B (Free Reasoning)</option>
+                <option value="gemini-3.6-flash" selected>🌐 Gemini 3.6 Flash (Free · 1M context)</option>
+                <option value="openai/gpt-oss-120b">🦙 GPT-OSS 120B Flagship (Free)</option>
+                <option value="deepseek-v4-flash">⚡ DeepSeek V4 Flash (Lightning fast)</option>
+                <option value="qwen/qwen3.8-27b">🧠 Qwen 3.8 27B (Free reasoning)</option>
               </optgroup>
               <optgroup label="⚡ Frontier Flagship">
-                <option value="claude-opus-4-8">✳️ claude-opus-4-8 (Anthropic via JustDoWork)</option>
-                <option value="gemini-2.5-pro">🌐 Gemini 2.5 Pro (2M Window)</option>
+                <option value="claude-opus-4-8">✳️ Claude Opus 4.8</option>
+                <option value="gemini-2.5-pro">🌐 Gemini 2.5 Pro (2M context)</option>
               </optgroup>
               <option value="__custom_entry__">➕ Enter Custom Model ID...</option>
             </select>
@@ -572,6 +610,9 @@
 
         <!-- Pinned Right: User Profile & Account Portal (Never Cut Off) -->
         <div class="topbar-auth-fixed">
+          <button id="theme-toggle-btn" class="icon-toggle-btn" title="Theme: Light" aria-label="Toggle theme (Light / Dark / System)">
+            <span id="theme-toggle-icon" style="font-size:15px; line-height:1;">☀️</span>
+          </button>
           <div class="user-auth-wrapper" id="user-auth-wrapper">
             <button id="auth-portal-btn" class="user-profile-chip" title="Account & Cross-Device Cloud Sync">
               <span class="user-avatar-icon" id="user-avatar-display">
@@ -780,75 +821,67 @@
   <div class="modal-overlay hidden" id="settings-modal">
     <div class="modal-card">
       <div class="modal-header">
-        <h3>Settings & AI Providers</h3>
+        <h3>Settings</h3>
         <button id="close-settings-btn" class="close-btn">&times;</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <label for="setting-provider-choice" style="font-weight: 600;">Active AI Provider / Proxy</label>
+            <label for="setting-provider-choice" style="font-weight: 600;">Connection</label>
             <div style="display: flex; gap: 6px;">
-              <button type="button" id="btn-add-custom-proxy" class="btn btn-tonal btn-xs" title="Create a new custom proxy preset">+ Add Proxy</button>
-              <button type="button" id="btn-delete-custom-proxy" class="btn btn-secondary btn-xs hidden" style="color: var(--md-sys-color-error); border-color: transparent;" title="Delete this custom proxy">Delete</button>
+              <button type="button" id="btn-add-custom-proxy" class="btn btn-tonal btn-xs" title="Add a custom endpoint">+ Add</button>
+              <button type="button" id="btn-delete-custom-proxy" class="btn btn-secondary btn-xs hidden" style="color: var(--md-sys-color-error); border-color: transparent;" title="Delete this endpoint">Delete</button>
             </div>
           </div>
           <select id="setting-provider-choice" class="form-select">
-            <option value="justdowork">💼 JustDoWork (api.justwoker.icu)</option>
-            <option value="agentrouter">🛡️ AgentRouter (agentrouter.org)</option>
-            <option value="puter">🚀 Puter.ai (Free Claude Opus 5)</option>
-            <option value="google">🌐 Google AI Studio (Gemini 2.0 / 2.5)</option>
-            <option value="openrouter">🔀 OpenRouter (openrouter.ai)</option>
-            <option value="groq">⚡ Groq Cloud (Ultra-Fast 300 t/s)</option>
-            <option value="deepseek">🐳 DeepSeek Official (api.deepseek.com)</option>
-            <option value="openai">✨ OpenAI (api.openai.com)</option>
-            <option value="custom">⚙️ Custom Stealth Proxy</option>
+            <option value="justdowork">Default (Free models)</option>
+            <option value="agentrouter">AgentRouter</option>
+            <option value="puter">Puter.ai</option>
+            <option value="google">Google AI</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="groq">Groq</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="openai">OpenAI</option>
+            <option value="custom">⚙️ Custom endpoint</option>
           </select>
+          <small class="hint">Leave on <strong>Default</strong> to use the built-in free models. Choose another only if you want to bring your own API key.</small>
         </div>
 
         <div class="form-group hidden" id="proxy-custom-name-group">
-          <label for="setting-proxy-custom-name">Custom Proxy Label</label>
-          <input type="text" id="setting-proxy-custom-name" placeholder="e.g. My Private Gateway, Ollama, Company Proxy" />
-        </div>
-
-        <!-- Stealth WAF Bypass Notice -->
-        <div class="stealth-shield-banner">
-          <span style="font-size: 14px;">🛡️</span>
-          <div>
-            <strong>WAF Stealth Bypass Active:</strong>
-            <span style="opacity: 0.9;">Uses <code>curl_cffi</code> Chrome 124 TLS/JA3 impersonation and browser header sequencing. JustDoWork, AgentRouter, and Cloudflare will NOT block your requests.</span>
-          </div>
+          <label for="setting-proxy-custom-name">Endpoint label</label>
+          <input type="text" id="setting-proxy-custom-name" placeholder="e.g. My Gateway, Ollama, Company Endpoint" />
         </div>
 
         <div class="form-group">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <label for="setting-saved-keys-select">API Key Vault (Saved Keys for Active Provider)</label>
+            <label for="setting-saved-keys-select">Your API keys</label>
             <button type="button" id="delete-current-key-btn" class="btn btn-secondary btn-xs" style="color: var(--md-sys-color-error); border-color: transparent;">Remove Key</button>
           </div>
           <select id="setting-saved-keys-select" class="form-select" style="width: 100%; margin-bottom: 8px;">
             <!-- Options populated dynamically: Saved keys with aliases or + Add New Key -->
           </select>
           <div class="input-with-toggle">
-            <input type="password" id="setting-api-key" placeholder="API Key (sk-... or AIza...)" />
+            <input type="password" id="setting-api-key" placeholder="API key (sk-... or AIza...)" />
             <button type="button" id="toggle-key-visibility" class="toggle-btn">Show</button>
           </div>
           <div style="display: flex; gap: 8px; margin-top: 8px;">
-            <input type="text" id="setting-key-alias" placeholder="Key Label (e.g. Primary, Backup 1, Work Key)" style="flex: 1;" />
+            <input type="text" id="setting-key-alias" placeholder="Key label (e.g. Primary, Backup, Work)" style="flex: 1;" />
             <button type="button" id="save-key-to-vault-btn" class="btn btn-tonal btn-xs">+ Save Key</button>
           </div>
-          <small class="hint">Stored safely in your device vault and synchronized to your account profile.</small>
+          <small class="hint">Stored securely on this device and synced to your account.</small>
         </div>
 
         <div class="form-group">
-          <label for="setting-base-url">Provider Base URL</label>
-          <input type="text" id="setting-base-url" placeholder="https://api.justwoker.icu/v1 or https://agentrouter.org/v1" />
-          <small class="hint">Supports JustDoWork, AgentRouter, Puter, Anthropic native, or any OpenAI-compatible reverse proxy.</small>
+          <label for="setting-base-url">Base URL</label>
+          <input type="text" id="setting-base-url" placeholder="https://api.example.com/v1" />
+          <small class="hint">Any OpenAI-compatible endpoint. Leave empty to use the default for the selected connection.</small>
         </div>
 
         <div class="form-group">
-          <label for="setting-protocol-mode">Protocol Dispatch Mode</label>
+          <label for="setting-protocol-mode">Protocol</label>
           <select id="setting-protocol-mode" class="form-select">
-            <option value="auto" selected>Stealth Auto-Detect (JustDoWork, AgentRouter, Proxies) [Default]</option>
-            <option value="openai">OpenAI ChatCompletions (/v1/chat/completions)</option>
+            <option value="auto" selected>Auto-detect [Default]</option>
+            <option value="openai">OpenAI Chat Completions (/v1/chat/completions)</option>
             <option value="anthropic">Anthropic Messages (/v1/messages)</option>
           </select>
         </div>
@@ -1180,8 +1213,8 @@
               <div class="stat-label">Tokens Saved (Compression)</div>
             </div>
             <div class="stat-card">
-              <div class="stat-num" style="color: #58a6ff;" id="stat-active-provider">Custom</div>
-              <div class="stat-label">Active Provider</div>
+              <div class="stat-num" style="color: #58a6ff;" id="stat-active-provider">Default</div>
+              <div class="stat-label">Connection</div>
             </div>
           </div>
         </div>
@@ -1294,7 +1327,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=2.5"></script>
+  <script src="app.js?v=2.6"></script>
   <!-- Additive UI modules (remove a line to disable that feature) -->
   <script src="artifacts.js?v=1.1"></script>
   <script src="code-runner.js?v=1.0"></script>
@@ -1303,9 +1336,9 @@
   <script src="doc-export.js?v=1.0"></script>
   <script src="thinking-toggle.js?v=1.0"></script>
   <script src="ui-extras.js?v=1.0"></script>
-  <script src="voice-input.js?v=1.0"></script>
+  <script src="voice-input.js?v=1.1"></script>
   <!-- Simplified provider UI: hides the proxy list, adds one persistent Custom Proxy button -->
-  <script src="provider-simple.js?v=1.0"></script>
+  <script src="provider-simple.js?v=1.1"></script>
   <!-- Full-screen landing experience (deferred so three.min.js loads first) -->
   <script src="landing.js?v=2.0" defer></script>
 </body>

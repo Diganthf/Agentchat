@@ -1,16 +1,97 @@
 /* ==========================================================================
-   AgentChat — Claude desktop look (dark)
+   AgentChat — Claude desktop look (light + dark)
    Loaded AFTER style.css so it wins the cascade. Rebuilds the visual layer to
-   match the Claude desktop app: warm charcoal surfaces, serif reading text,
-   one clay accent, minimal chrome. Elements are kept in the DOM (app.js wires
-   them by id); clutter is hidden, not removed. Delete the <link> to revert.
+   match the Claude desktop app: warm "paper" light (default) or warm charcoal
+   dark, serif reading text, one clay accent, minimal chrome. The active palette
+   is chosen by <html data-theme="light|dark">, set before paint by the inline
+   bootstrap in index.html and cycled by the topbar theme toggle. Elements are
+   kept in the DOM (app.js wires them by id); clutter is hidden, not removed.
+   Delete the <link> to revert.
    ========================================================================== */
 
+/* --------------------------------------------------------------------------
+   Theme tokens. Two palettes keyed off the <html data-theme="…"> attribute
+   that the early inline script in index.html sets before first paint (so there
+   is no flash). LIGHT is the default (bare :root) to match Claude Desktop's
+   warm "paper" look; DARK is a warm charcoal, deliberately NOT pure black.
+   Shared, theme-independent tokens (fonts, radii) live in the first block.
+   -------------------------------------------------------------------------- */
 :root {
+  --shape-corner-lg: 12px;
+  --shape-corner-xl: 14px;
+  --shape-corner-xxl: 18px;
+
+  --font-brand: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, sans-serif;
+  --font-serif: "Source Serif 4", "Tiempos Text", Georgia, "Times New Roman", serif;
+  --font-mono: "Fira Code", "IBM Plex Mono", "Cascadia Code", Consolas, monospace;
+
+  --text-muted: var(--md-sys-color-on-surface-variant);
+  --surface-container-high: var(--md-sys-color-surface-container-high);
+}
+
+/* ===== LIGHT (default) — Claude warm paper ===== */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --md-sys-color-primary: #c96442;            /* deeper clay reads on white */
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-primary-container: #f5e6de;
+  --md-sys-color-on-primary-container: #7a3d28;
+
+  --md-sys-color-secondary: #6b6862;
+  --md-sys-color-on-secondary: #ffffff;
+  --md-sys-color-secondary-container: #ece9e0;
+  --md-sys-color-on-secondary-container: #35332e;
+
+  --md-sys-color-tertiary: #9a7b3f;
+  --md-sys-color-on-tertiary: #ffffff;
+  --md-sys-color-tertiary-container: #f2e6cc;
+  --md-sys-color-on-tertiary-container: #4d3c1a;
+
+  --md-sys-color-error: #b3261e;
+  --md-sys-color-error-container: #f9dedc;
+  --md-sys-color-on-error-container: #410e0b;
+
+  --md-sys-color-surface: #faf9f5;            /* main canvas (paper) */
+  --md-sys-color-surface-dim: #f0eee6;        /* nav rail / sidebar base */
+  --md-sys-color-surface-bright: #ffffff;     /* elevated (modals) */
+  --md-sys-color-surface-container-lowest: #ffffff;
+  --md-sys-color-surface-container-low: #f5f4ee;
+  --md-sys-color-surface-container: #f0eee6;
+  --md-sys-color-surface-container-high: #e9e6dd;
+  --md-sys-color-surface-container-highest: #e0dcd1;
+
+  --md-sys-color-on-surface: #1f1e1b;
+  --md-sys-color-on-surface-variant: #73706b;
+  --md-sys-color-outline: #d6d1c4;
+  --md-sys-color-outline-variant: #e5e1d8;
+
+  --status-online: #3f9e63;
+  --status-exhausted: #c0483f;
+  --status-checking: #9a7b3f;
+
+  --line: #e5e1d8;
+
+  /* semantic (previously hard-coded) tokens */
+  --answer-text: #1f1e1b;
+  --user-bubble-bg: #f0eee6;
+  --code-bg: #f5f4ee;
+  --code-text: #2a2824;
+  --code-header-bg: #edeae0;
+  --reasoning-text: #8a867e;
+  --clay-text: #b0503a;
+  --clay-text-bg: rgba(201, 100, 66, 0.10);
+  --scrollbar-thumb: #d6d1c4;
+  --scrollbar-thumb-hover: #c4beb0;
+  --tooltip-bg: #30302e;
+  --tooltip-text: #f2f0ea;
+}
+/* ===== DARK — warm charcoal (NOT pure black) ===== */
+:root[data-theme="dark"] {
   color-scheme: dark;
 
-  /* Clay accent (Claude send button / logo) */
-  --md-sys-color-primary: #d97757;
+  --md-sys-color-primary: #d97757;            /* clay accent */
   --md-sys-color-on-primary: #ffffff;
   --md-sys-color-primary-container: #3a2a22;
   --md-sys-color-on-primary-container: #f0c9b8;
@@ -29,38 +110,39 @@
   --md-sys-color-error-container: #3a1512;
   --md-sys-color-on-error-container: #f9dedc;
 
-  /* AMOLED true-black surface hierarchy (subtle warm lift on elevated layers) */
-  --md-sys-color-surface: #000000;              /* main canvas */
-  --md-sys-color-surface-dim: #000000;
-  --md-sys-color-surface-bright: #17140f;       /* elevated (modals) */
-  --md-sys-color-surface-container-lowest: #050505;
-  --md-sys-color-surface-container-low: #050504; /* sidebar */
-  --md-sys-color-surface-container: #100f0d;
-  --md-sys-color-surface-container-high: #191714;
-  --md-sys-color-surface-container-highest: #221f1b;
+  /* warm charcoal surface hierarchy */
+  --md-sys-color-surface: #262624;            /* main canvas */
+  --md-sys-color-surface-dim: #1f1e1d;        /* nav rail / sidebar base */
+  --md-sys-color-surface-bright: #30302e;     /* elevated (modals) */
+  --md-sys-color-surface-container-lowest: #1a1917;
+  --md-sys-color-surface-container-low: #1f1e1d;
+  --md-sys-color-surface-container: #2a2927;
+  --md-sys-color-surface-container-high: #333230;
+  --md-sys-color-surface-container-highest: #3a3836;
 
   --md-sys-color-on-surface: #f2f0ea;
-  --md-sys-color-on-surface-variant: #9a968d;
-  --md-sys-color-outline: #35332f;
-  --md-sys-color-outline-variant: #1c1b19;
+  --md-sys-color-on-surface-variant: #b0aba1;
+  --md-sys-color-outline: #4a4744;
+  --md-sys-color-outline-variant: #35332f;
 
   --status-online: #5fb37e;
   --status-exhausted: #e0736a;
   --status-checking: #c9a15f;
 
-  --shape-corner-lg: 12px;
-  --shape-corner-xl: 14px;
-  --shape-corner-xxl: 18px;
+  --line: #3a3836;
 
-  --font-brand: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, sans-serif;
-  --font-serif: "Source Serif 4", "Tiempos Text", Georgia, "Times New Roman", serif;
-  --font-mono: "Fira Code", "IBM Plex Mono", "Cascadia Code", Consolas, monospace;
-
-  --text-muted: var(--md-sys-color-on-surface-variant);
-  --surface-container-high: var(--md-sys-color-surface-container-high);
-
-  /* hairline border color for AMOLED */
-  --line: #242220;
+  --answer-text: #f5f3ee;
+  --user-bubble-bg: #3a3836;
+  --code-bg: #1a1917;
+  --code-text: #e6e4de;
+  --code-header-bg: #141311;
+  --reasoning-text: #8f8b82;
+  --clay-text: #e0875f;
+  --clay-text-bg: rgba(217, 119, 87, 0.10);
+  --scrollbar-thumb: #3a3836;
+  --scrollbar-thumb-hover: #4a4744;
+  --tooltip-bg: #30302e;
+  --tooltip-text: #f2f0ea;
 }
 
 body, .app-layout {
@@ -165,7 +247,7 @@ body, .app-layout {
 .assistant-bubble .message-text {
   font-family: var(--font-serif);
   font-size: 15px; line-height: 1.62; letter-spacing: 0;
-  color: #faf9f5;   /* answer text: maximum contrast */
+  color: var(--answer-text);   /* answer text: maximum contrast per theme */
 }
 .assistant-bubble .message-text p { margin: 0 0 12px; }
 .assistant-bubble .message-text h1,
@@ -173,9 +255,9 @@ body, .app-layout {
 .assistant-bubble .message-text h3 { font-family: var(--font-brand); line-height: 1.3; }
 .assistant-bubble .message-text li { margin: 3px 0; }
 
-/* User: compact rounded pill, slightly-lighter-than-black so it reads as a pill */
+/* User: compact rounded pill, a lifted surface so it reads as a pill in either theme */
 .message-bubble.user-bubble {
-  background: #1e1c19;
+  background: var(--user-bubble-bg);
   border: none; border-radius: 16px; padding: 11px 16px;
   max-width: 78%; box-shadow: none;
 }
@@ -217,7 +299,7 @@ body, .app-layout {
 /* Code blocks + copy header */
 .code-header {
   display: flex; align-items: center; justify-content: space-between;
-  background: #14130f; color: var(--md-sys-color-on-surface-variant);
+  background: var(--code-header-bg); color: var(--md-sys-color-on-surface-variant);
   border: 1px solid var(--line); border-bottom: none;
   border-radius: 12px 12px 0 0; padding: 7px 12px; font-family: var(--font-mono); font-size: 12px;
 }
@@ -230,13 +312,13 @@ body, .app-layout {
 
 pre, code, .code-block { font-family: var(--font-mono); }
 pre, .code-block {
-  background: #1a1917 !important; color: #e6e4de !important;
+  background: var(--code-bg) !important; color: var(--code-text) !important;
   border: 1px solid var(--line); border-radius: 12px;
 }
-/* Inline code = file names, paths, tech/lang terms → Claude-style orange */
+/* Inline code = file names, paths, tech/lang terms → Claude-style clay */
 :not(pre) > code {
-  background: rgba(217, 119, 87, 0.10) !important;
-  color: #e0875f !important; padding: 1px 5px; border-radius: 5px;
+  background: var(--clay-text-bg) !important;
+  color: var(--clay-text) !important; padding: 1px 5px; border-radius: 5px;
   font-size: 0.9em; font-family: var(--font-mono);
 }
 
@@ -332,8 +414,8 @@ input[type="text"], input[type="email"], input[type="password"], textarea, selec
 /* ==================== Scrollbars ==================== */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #2b2926; border-radius: 8px; border: 2px solid var(--md-sys-color-surface); }
-::-webkit-scrollbar-thumb:hover { background: #3a3733; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 8px; border: 2px solid var(--md-sys-color-surface); }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
 
 /* ==========================================================================
    Attachment / PDF preview above the composer (slide-up + fade)
@@ -417,7 +499,7 @@ input[type="text"], input[type="email"], input[type="password"], textarea, selec
 /* Thinking text: deliberately lower contrast, quieter than the answer */
 .reasoning-content, .reasoning-text {
   padding: 0; font-family: var(--font-serif); font-size: 13.5px;
-  line-height: 1.65; color: #7d7a72;   /* dim grey — clearly secondary */
+  line-height: 1.65; color: var(--reasoning-text);   /* quieter than the answer */
   white-space: pre-wrap; word-break: break-word;
 }
 /* "Live" pulse while streaming reasoning */
@@ -463,7 +545,7 @@ input[type="text"], input[type="email"], input[type="password"], textarea, selec
 .artifact-frame { width: 100%; height: 100%; border: none; background: #fff; }
 .artifact-code {
   position: absolute; inset: 0; margin: 0; overflow: auto;
-  background: #14130f !important; color: #e6e4de !important;
+  background: var(--code-bg) !important; color: var(--code-text) !important;
   border: none !important; border-radius: 0 !important;
   padding: 16px; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6;
 }
@@ -484,7 +566,7 @@ input[type="text"], input[type="email"], input[type="password"], textarea, selec
    ========================================================================== */
 .agc-tooltip {
   position: fixed; z-index: 2000; pointer-events: none;
-  background: #2b2825; color: #f2f0ea; border: 1px solid var(--line);
+  background: var(--tooltip-bg); color: var(--tooltip-text); border: 1px solid var(--line);
   padding: 5px 10px; border-radius: 8px; font-size: 12px; font-family: var(--font-brand);
   white-space: nowrap; box-shadow: 0 6px 20px rgba(0,0,0,0.5);
   transition: opacity .12s ease; opacity: 0;
@@ -494,7 +576,7 @@ input[type="text"], input[type="email"], input[type="password"], textarea, selec
 
 /* Attachment chips shown inside a sent user message (file, not its text) */
 .msg-attachment-tray { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
-.message-bubble.user-bubble:has(.msg-attachment-tray) { background: #1e1c19; }
+.message-bubble.user-bubble:has(.msg-attachment-tray) { background: var(--user-bubble-bg); }
 .msg-attachment-chip {
   padding: 7px 10px; border-radius: 12px;
   background: var(--md-sys-color-surface-container-high);
@@ -513,30 +595,30 @@ input[type="text"], input[type="email"], input[type="password"], textarea, selec
    ========================================================================== */
 .assistant-bubble .message-text strong,
 .assistant-bubble .message-text b {
-  color: #e0875f;          /* clay for emphasised text */
+  color: var(--clay-text);          /* clay for emphasised text */
   font-weight: 600;
 }
 .assistant-bubble .message-text h1,
 .assistant-bubble .message-text h2,
 .assistant-bubble .message-text h3,
 .assistant-bubble .message-text h4 {
-  color: #e08a63;          /* clay-tinted headings */
+  color: var(--clay-text);          /* clay-tinted headings */
 }
 .assistant-bubble .message-text a {
-  color: #e0875f;
+  color: var(--clay-text);
   text-decoration-color: rgba(217, 119, 87, 0.5);
 }
-.assistant-bubble .message-text a:hover { color: #ef9a72; }
+.assistant-bubble .message-text a:hover { color: var(--md-sys-color-primary); }
 /* Clay bullet / number markers */
 .assistant-bubble .message-text ul li::marker,
 .assistant-bubble .message-text ol li::marker {
-  color: #d97757;
+  color: var(--md-sys-color-primary);
 }
 /* Blockquote accent rule in clay */
 .assistant-bubble .message-text blockquote {
   border-left: 3px solid rgba(217, 119, 87, 0.6);
   padding-left: 14px;
-  color: #cbb6ac;
+  color: var(--text-muted);
 }
 
 /* Landing-page + auth-panel styles now live in landing.css (loaded after this). */

@@ -13,31 +13,31 @@
   let currentRailTab = "chats";
 
   const MODEL_DISPLAY_NAMES = {
-    "gemini-3.6-flash": "🌐 Gemini 3.6 Flash (Free 1M Window)",
-    "gemini-2.5-pro": "🌐 Gemini 2.5 Pro (2M Window)",
-    "openai/gpt-oss-120b": "🦙 GPT-OSS 120B Flagship (Groq LPUs)",
-    "qwen/qwen3.8-27b": "🧠 Qwen 3.8 27B (Free Reasoning)",
+    "gemini-3.6-flash": "🌐 Gemini 3.6 Flash (Free · 1M context)",
+    "gemini-2.5-pro": "🌐 Gemini 2.5 Pro (2M context)",
+    "openai/gpt-oss-120b": "🦙 GPT-OSS 120B Flagship (Free)",
+    "qwen/qwen3.8-27b": "🧠 Qwen 3.8 27B (Free reasoning)",
     "openai/gpt-oss-20b": "⚡ GPT-OSS 20B Instant (Free)",
-    "gemini-2.5-flash": "🌐 Gemini 3.6 Flash (Free 1M Window)",
-    "gemini-2.0-flash": "🌐 Gemini 3.6 Flash (Free 1M Window)",
-    "gemini-1.5-flash": "🎁 Gemini 1.5 Flash (Free Tier)",
-    "gemini-1.5-pro": "🌐 Gemini 1.5 Pro (2M Window)",
-    "llama-3.3-70b-versatile": "🦙 Llama 3.3 70B Versatile (Free Open Weights)",
-    "deepseek-r1-distill-llama-70b": "🧠 DeepSeek R1 Distill 70B (Free Reasoning)",
+    "gemini-2.5-flash": "🌐 Gemini 3.6 Flash (Free · 1M context)",
+    "gemini-2.0-flash": "🌐 Gemini 3.6 Flash (Free · 1M context)",
+    "gemini-1.5-flash": "🎁 Gemini 1.5 Flash (Free)",
+    "gemini-1.5-pro": "🌐 Gemini 1.5 Pro (2M context)",
+    "llama-3.3-70b-versatile": "🦙 Llama 3.3 70B Versatile (Free)",
+    "deepseek-r1-distill-llama-70b": "🧠 DeepSeek R1 Distill 70B (Free reasoning)",
     "llama-3.1-8b-instant": "⚡ Llama 3.1 8B Instant (Free)",
-    "deepseek-v4-flash": "⚡ DeepSeek V4 Flash (Lightning Fast 1.5s)",
-    "claude-opus-4-8": "✳️ claude-opus-4-8 (Anthropic Frontier)",
-    "claude-3-5-sonnet-20241022": "⚡ Claude 3.5 Sonnet (Anthropic)",
-    "claude-3-5-sonnet": "⚡ Claude 3.5 Sonnet (Anthropic)",
-    "deepseek/deepseek-r1": "🧠 DeepSeek R1 (671B Reasoning)",
-    "deepseek/deepseek-chat": "⚡ DeepSeek V3 (671B Nuance)",
-    "google/gemini-2.0-flash-001": "🌐 Gemini 2.0 Flash (Fast / 1M)",
-    "qwen/qwen-2.5-coder-72b-instruct": "💻 Qwen 2.5 Coder 72B (Elite Code)",
-    "openai/gpt-4o": "✨ GPT-4o (OpenAI Omni)",
+    "deepseek-v4-flash": "⚡ DeepSeek V4 Flash (Lightning fast)",
+    "claude-opus-4-8": "✳️ Claude Opus 4.8",
+    "claude-3-5-sonnet-20241022": "⚡ Claude 3.5 Sonnet",
+    "claude-3-5-sonnet": "⚡ Claude 3.5 Sonnet",
+    "deepseek/deepseek-r1": "🧠 DeepSeek R1 (671B reasoning)",
+    "deepseek/deepseek-chat": "⚡ DeepSeek V3 (671B)",
+    "google/gemini-2.0-flash-001": "🌐 Gemini 2.0 Flash (Fast · 1M)",
+    "qwen/qwen-2.5-coder-72b-instruct": "💻 Qwen 2.5 Coder 72B",
+    "openai/gpt-4o": "✨ GPT-4o",
     "gpt-4o": "✨ GPT-4o",
     "gpt-4o-mini": "GPT-4o Mini",
-    "openai/o1-preview": "🧩 OpenAI o1-preview",
-    "openai/o3-mini": "🚀 OpenAI o3-mini"
+    "openai/o1-preview": "🧩 o1-preview",
+    "openai/o3-mini": "🚀 o3-mini"
   };
 
   const PROVIDER_DEFAULTS = {
@@ -340,6 +340,17 @@
 
   let authMode = "login";
 
+  // A stored key can come back masked for display ("sk-...aB3", bullet dots) or
+  // as an encrypted blob ("enc::..."). None of those are a real, re-sendable
+  // key — treat them as "no usable key" so we never sync/save a placeholder
+  // over the genuine secret. (Referenced by getAuthHeaders, syncUserProfileToCloud
+  // and fetchConfig; leaving it undefined threw a ReferenceError that silently
+  // aborted cloud sync + config restore — the "it forgets my keys" bug.)
+  function isMaskedKey(k) {
+    if (!k || typeof k !== "string") return false;
+    return k.includes("...") || k.indexOf("•") !== -1 || /\*{3,}/.test(k) || k.startsWith("enc::");
+  }
+
   // Auth & Zero-Knowledge API Wrapper
   function getAuthHeaders(extra = {}) {
     const headers = { ...extra };
@@ -355,7 +366,7 @@
     headers["X-Active-Provider"] = activeP;
 
     const clientKey = localStorage.getItem("agentchat_client_key_" + activeP) || currentConfig.providers?.[activeP]?.api_key || "";
-    if (clientKey && !clientKey.includes("...") && !clientKey.includes("•••") && !clientKey.includes("••••") && !clientKey.startsWith("enc::")) {
+    if (clientKey && !isMaskedKey(clientKey)) {
       headers["X-Custom-Api-Key"] = clientKey;
     }
     const clientUrl = localStorage.getItem("agentchat_client_url_" + activeP) || currentConfig.providers?.[activeP]?.base_url || "";
@@ -491,6 +502,59 @@
           subSidebar.classList.toggle("collapsed");
         }
       });
+    }
+
+    // Workspace panel toggle (artifacts, diagrams, code output).
+    // NOTE: window.AgentWorkspace is defined by artifacts.js, which loads in the
+    // <script> tag AFTER app.js — and init()/setupEventListeners() run
+    // synchronously while app.js is parsed, i.e. BEFORE artifacts.js executes.
+    // So we must resolve AgentWorkspace lazily at click-time (by then all scripts
+    // have run) and only decide whether to self-hide the button once the page has
+    // fully loaded.
+    const toggleWorkspaceBtn = document.getElementById("toggle-workspace-btn");
+    if (toggleWorkspaceBtn) {
+      toggleWorkspaceBtn.addEventListener("click", () => {
+        const W = window.AgentWorkspace;
+        if (!W || typeof W.open !== "function") return;
+        if (typeof W.isOpen === "function" && W.isOpen()) {
+          W.close();
+        } else {
+          // Default to the Preview tab (always registered by artifacts.js)
+          // so the panel never opens with a blank body.
+          W.open("preview");
+        }
+      });
+      // After every script has loaded, hide the button if the workspace module
+      // is genuinely absent (its <script> was removed to disable the feature).
+      window.addEventListener("load", () => {
+        const W = window.AgentWorkspace;
+        if (!W || typeof W.open !== "function") {
+          toggleWorkspaceBtn.style.display = "none";
+        }
+      });
+    }
+
+    // Theme toggle (Light → Dark → System). window.AgentTheme is defined by the
+    // inline bootstrap in index.html <head>, so it's ready before this runs.
+    const themeToggleBtn = document.getElementById("theme-toggle-btn");
+    if (themeToggleBtn && window.AgentTheme) {
+      const themeIcon = document.getElementById("theme-toggle-icon");
+      const ICONS = { light: "☀️", dark: "🌙", system: "🖥️" };
+      const LABELS = { light: "Light", dark: "Dark", system: "System" };
+      const reflectTheme = () => {
+        const mode = window.AgentTheme.getMode();
+        if (themeIcon) themeIcon.textContent = ICONS[mode] || "☀️";
+        themeToggleBtn.title = "Theme: " + (LABELS[mode] || "Light") + " (click to change)";
+      };
+      themeToggleBtn.addEventListener("click", () => {
+        window.AgentTheme.cycle();
+        reflectTheme();
+      });
+      // Keep the icon in sync if the theme changes elsewhere (e.g. OS switch).
+      window.addEventListener("agentchat-theme-change", reflectTheme);
+      reflectTheme();
+    } else if (themeToggleBtn) {
+      themeToggleBtn.style.display = "none";
     }
 
     if (sidebarBackdrop) {
@@ -2535,6 +2599,19 @@
         }
       });
     }
+    // Restore each provider's saved base URL (synced under settings.base_urls)
+    // so a device that never typed them still routes to the right endpoint.
+    var syncedUrls = (profile.settings && profile.settings.base_urls) || null;
+    if (syncedUrls && typeof syncedUrls === "object") {
+      Object.entries(syncedUrls).forEach(([pKey, urlVal]) => {
+        if (urlVal && typeof urlVal === "string") {
+          if (!currentConfig.providers) currentConfig.providers = {};
+          if (!currentConfig.providers[pKey]) currentConfig.providers[pKey] = {};
+          currentConfig.providers[pKey].base_url = urlVal;
+          localStorage.setItem("agentchat_client_url_" + pKey, urlVal);
+        }
+      });
+    }
   }
 
   async function syncUserProfileToCloud(showToast = false) {
@@ -2544,13 +2621,19 @@
       const activeP = currentConfig.active_provider || "custom";
       const activeM = modelSelect ? modelSelect.value : (currentConfig.model || "");
       const customUrl = localStorage.getItem("agentchat_client_url_custom") || currentConfig.providers?.custom?.base_url || "";
-      
+
+      // Persist EVERY provider the user has configured — the built-in presets
+      // AND any custom proxies — not just PROVIDER_DEFAULTS. Base URLs ride
+      // along in settings.base_urls so the whole multi-provider setup restores
+      // on another device. Masked/placeholder values are skipped.
+      const providerIds = [...Object.keys(PROVIDER_DEFAULTS), ...getCustomProxies().map(cp => cp.id)];
       const keys = {};
-      Object.keys(PROVIDER_DEFAULTS).forEach(pKey => {
+      const base_urls = {};
+      providerIds.forEach(pKey => {
         const k = localStorage.getItem("agentchat_client_key_" + pKey) || currentConfig.providers?.[pKey]?.api_key || "";
-        if (k && !isMaskedKey(k)) {
-          keys[pKey] = k;
-        }
+        if (k && !isMaskedKey(k)) keys[pKey] = k;
+        const u = localStorage.getItem("agentchat_client_url_" + pKey) || "";
+        if (u) base_urls[pKey] = u;
       });
 
       const res = await apiFetch("/api/user/sync", {
@@ -2563,7 +2646,8 @@
           keys: keys,
           settings: {
             temperature: parseFloat(settingTemp?.value) || 0.7,
-            auto_compress: currentConfig.auto_compress !== false
+            auto_compress: currentConfig.auto_compress !== false,
+            base_urls: base_urls
           }
         })
       });
@@ -3190,18 +3274,18 @@
     const active = currentConfig.active_provider || "agentrouter";
 
     const freePresets = [
-      { id: "puter", label: "🚀 Puter.ai (100% Free Claude Opus 5 & Frontier)" },
-      { id: "google", label: "🌐 Google AI Studio (Free Gemini 2.0 Tier)" },
-      { id: "groq", label: "⚡ Groq Cloud (Free Ultra-Fast Inference)" },
-      { id: "openrouter", label: "🔀 OpenRouter (Free Tier Models)" }
+      { id: "puter", label: "Puter.ai" },
+      { id: "google", label: "Google AI" },
+      { id: "groq", label: "Groq" },
+      { id: "openrouter", label: "OpenRouter" }
     ];
 
     const premiumPresets = [
-      { id: "justdowork", label: "💼 JustDoWork (api.justwoker.icu - Claude Opus 5)" },
-      { id: "agentrouter", label: "🛡️ AgentRouter (agentrouter.org - Stealth Vault)" },
-      { id: "deepseek", label: "🐳 DeepSeek Official (deepseek.com)" },
-      { id: "openai", label: "✨ OpenAI Official (api.openai.com)" },
-      { id: "custom", label: "⚙️ Custom Stealth Proxy" }
+      { id: "justdowork", label: "Default (Free models)" },
+      { id: "agentrouter", label: "AgentRouter" },
+      { id: "deepseek", label: "DeepSeek" },
+      { id: "openai", label: "OpenAI" },
+      { id: "custom", label: "⚙️ Custom endpoint" }
     ];
 
     [providerSelect, settingProviderChoice].forEach(selectEl => {
@@ -3210,7 +3294,7 @@
       selectEl.innerHTML = "";
 
       const optGroupFree = document.createElement("optgroup");
-      optGroupFree.label = "🎁 Free Tier / Zero-Cost Gateways";
+      optGroupFree.label = "Connections";
       freePresets.forEach(p => {
         const opt = document.createElement("option");
         opt.value = p.id;
@@ -3221,7 +3305,7 @@
       selectEl.appendChild(optGroupFree);
 
       const optGroupPremium = document.createElement("optgroup");
-      optGroupPremium.label = "💼 Premium & Stealth Gateways";
+      optGroupPremium.label = "Bring your own key";
       premiumPresets.forEach(p => {
         const opt = document.createElement("option");
         opt.value = p.id;
@@ -3233,7 +3317,7 @@
 
       if (customProxies.length > 0) {
         const optGroupCustom = document.createElement("optgroup");
-        optGroupCustom.label = "🔗 Custom User Proxies";
+        optGroupCustom.label = "Custom endpoints";
         customProxies.forEach(cp => {
           const opt = document.createElement("option");
           opt.value = cp.id;
@@ -3247,7 +3331,7 @@
       if (isHeaderSelect) {
         const addOpt = document.createElement("option");
         addOpt.value = "__add_proxy__";
-        addOpt.textContent = "➕ Add Custom Proxy...";
+        addOpt.textContent = "➕ Add custom...";
         selectEl.appendChild(addOpt);
       }
     });
@@ -3258,7 +3342,7 @@
   }
 
   function addNewCustomProxyPrompt() {
-    const name = prompt("Enter a label for your new Custom Proxy profile:\n(e.g., 'My Secondary Gateway', 'Ollama Local', 'Team Reverse Proxy')");
+    const name = prompt("Name this connection:\n(e.g., 'My Gateway', 'Ollama Local', 'Work Endpoint')");
     if (!name || !name.trim()) {
       populateProviderDropdowns();
       return;
@@ -3316,6 +3400,22 @@
     if (provKey === "__add_proxy__") {
       addNewCustomProxyPrompt();
       return;
+    }
+    // Before leaving the current provider, persist whatever the user just typed
+    // into its own storage slot. Without this the unsaved key/URL was either
+    // lost or (worse) saved under the NEWLY selected provider on the next save.
+    const prevProv = currentConfig.active_provider;
+    if (prevProv && prevProv !== provKey && settingApiKey && settingBaseUrl) {
+      const typedKey = settingApiKey.value.trim();
+      const typedUrl = settingBaseUrl.value.trim();
+      if (typedKey && !isMaskedKey(typedKey)) {
+        localStorage.setItem("agentchat_client_key_" + prevProv, typedKey);
+        if (!currentConfig.providers) currentConfig.providers = {};
+        if (!currentConfig.providers[prevProv]) currentConfig.providers[prevProv] = {};
+        currentConfig.providers[prevProv].api_key = typedKey;
+        currentConfig.providers[prevProv].has_key = true;
+      }
+      if (typedUrl) localStorage.setItem("agentchat_client_url_" + prevProv, typedUrl);
     }
     currentConfig.active_provider = provKey;
     localStorage.setItem("agentchat_active_provider", provKey);
@@ -3615,6 +3715,13 @@
     const defaultUrl = PROVIDER_DEFAULTS[provKey]?.base_url || "";
     const storedUrl = localStorage.getItem("agentchat_client_url_" + provKey) || "";
     settingBaseUrl.value = storedUrl || prov.base_url || defaultUrl;
+
+    // Show THIS provider's own saved key (empty if none) so each provider keeps
+    // its own credential and switching never carries a key across providers.
+    if (settingApiKey) {
+      const storedKey = localStorage.getItem("agentchat_client_key_" + provKey) || "";
+      settingApiKey.value = (storedKey && !isMaskedKey(storedKey)) ? storedKey : "";
+    }
 
     if (provKey && provKey.startsWith("custom_")) {
       const customProxies = getCustomProxies();

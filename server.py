@@ -666,20 +666,20 @@ AGENTROUTER_MODELS = [
     {
         "id": "deepseek-v4-flash",
         "name": "deepseek-v4-flash",
-        "display_name": "⚡ deepseek-v4-flash (Lightning Fast 1.5s)",
+        "display_name": "⚡ DeepSeek V4 Flash (Lightning fast)",
         "is_default": True,
         "category": "DeepSeek",
         "provider": "deepseek",
-        "description": "DeepSeek V4 Flash next-generation reasoning on AgentRouter",
+        "description": "DeepSeek V4 Flash next-generation reasoning, sub-second responses",
         "status": "online"
     },
     {
         "id": "claude-opus-4-8",
         "name": "claude-opus-4-8",
-        "display_name": "✳️ claude-opus-4-8 (Anthropic via JustDoWork)",
+        "display_name": "✳️ Claude Opus 4.8",
         "category": "Anthropic",
         "provider": "anthropic",
-        "description": "Anthropic Claude Opus 4-8 routed via JustDoWork proxy",
+        "description": "Anthropic's frontier Claude Opus 4.8 model",
         "status": "online"
     }
 ]
@@ -687,7 +687,7 @@ AGENTROUTER_MODELS = [
 # Curated Provider Model Catalogs (ensures clean, dedicated models per proxy)
 PROVIDER_CATALOGS = {
     "justdowork": [
-        {"id": "claude-opus-4-8", "name": "✳️ claude-opus-4-8 (Anthropic Frontier)", "provider": "anthropic", "category": "Anthropic", "status": "online"}
+        {"id": "claude-opus-4-8", "name": "✳️ Claude Opus 4.8", "provider": "anthropic", "category": "Anthropic", "status": "online"}
     ],
     "agentrouter": AGENTROUTER_MODELS,
     "puter": [
@@ -1467,19 +1467,19 @@ def get_curated_working_models(cfg=None):
     # 2. Groq Open-Source Weights (Zero Cost / 500+ Tokens/Sec)
     groq_prov, _ = resolve_provider_info("groq", cfg=cfg)
     if groq_prov.get("api_key"):
-        add_model("openai/gpt-oss-120b", "🦙 GPT-OSS 120B Flagship (Groq LPUs)", "groq", "OpenAI", is_free=True, desc="Open-weights flagship on Groq LPUs")
-        add_model("qwen/qwen3.8-27b", "🧠 Qwen 3.8 27B (Free Reasoning)", "groq", "Qwen", is_free=True, desc="Deep reasoning open weights on Groq")
+        add_model("openai/gpt-oss-120b", "🦙 GPT-OSS 120B Flagship (Free)", "groq", "OpenAI", is_free=True, desc="Open-weights flagship, ultra-fast inference")
+        add_model("qwen/qwen3.8-27b", "🧠 Qwen 3.8 27B (Free reasoning)", "groq", "Qwen", is_free=True, desc="Deep reasoning open weights")
         add_model("openai/gpt-oss-20b", "⚡ GPT-OSS 20B Instant (Free)", "groq", "OpenAI", is_free=True, desc="Instant lightweight inference")
 
     # 3. AgentRouter (Sub-second Flash Model)
     ar_prov, _ = resolve_provider_info("agentrouter", cfg=cfg)
     if ar_prov.get("api_key"):
-        add_model("deepseek-v4-flash", "⚡ DeepSeek V4 Flash (Lightning Fast 1.5s)", "agentrouter", "DeepSeek", is_free=True, desc="DeepSeek V4 Flash on AgentRouter proxy")
+        add_model("deepseek-v4-flash", "⚡ DeepSeek V4 Flash (Lightning fast)", "agentrouter", "DeepSeek", is_free=True, desc="DeepSeek V4 Flash — sub-second responses")
 
     # 4. JustDoWork (Claude Opus 4.8 Frontier)
     jdw_prov, _ = resolve_provider_info("justdowork", cfg=cfg)
     if jdw_prov.get("api_key"):
-        add_model("claude-opus-4-8", "✳️ claude-opus-4-8 (Anthropic Frontier)", "justdowork", "Anthropic", is_free=False, desc="Anthropic Opus 4.8 via JustDoWork")
+        add_model("claude-opus-4-8", "✳️ Claude Opus 4.8", "justdowork", "Anthropic", is_free=False, desc="Anthropic's frontier Claude Opus model")
 
     # 5. Puter (if configured)
     puter_prov, _ = resolve_provider_info("puter", cfg=cfg)
@@ -1489,10 +1489,10 @@ def get_curated_working_models(cfg=None):
 
     # Clean guaranteed fallback
     if not models:
-        add_model("gemini-3.6-flash", "🌐 Gemini 3.6 Flash (Free 1M Window)", "google", "Google", is_free=True)
-        add_model("openai/gpt-oss-120b", "🦙 GPT-OSS 120B Flagship (Groq LPUs)", "groq", "OpenAI", is_free=True)
-        add_model("deepseek-v4-flash", "⚡ DeepSeek V4 Flash (Lightning Fast 1.5s)", "agentrouter", "DeepSeek", is_free=True)
-        add_model("claude-opus-4-8", "✳️ claude-opus-4-8 (Anthropic Frontier)", "justdowork", "Anthropic", is_free=False)
+        add_model("gemini-3.6-flash", "🌐 Gemini 3.6 Flash (Free · 1M context)", "google", "Google", is_free=True)
+        add_model("openai/gpt-oss-120b", "🦙 GPT-OSS 120B Flagship (Free)", "groq", "OpenAI", is_free=True)
+        add_model("deepseek-v4-flash", "⚡ DeepSeek V4 Flash (Lightning fast)", "agentrouter", "DeepSeek", is_free=True)
+        add_model("claude-opus-4-8", "✳️ Claude Opus 4.8", "justdowork", "Anthropic", is_free=False)
 
     return models
 
@@ -2815,8 +2815,24 @@ class AgentChatHandler(BaseHTTPRequestHandler):
 
         cfg = load_config()
 
-        # If requesting global/unified catalog (default on landing for all visitors)
-        if not override_prov or override_prov in ("base", "auto", "all"):
+        # Pull any user-supplied key for the requested provider: header first,
+        # then the logged-in user's synced profile.
+        user = self.get_authenticated_user()
+        profile = get_user_profile(user["id"]) if user else None
+        if profile:
+            user_prov = override_prov or profile.get("active_provider", "")
+            if not override_key:
+                override_key = profile.get("keys", {}).get(user_prov, "") or ""
+                if is_masked_key(override_key):
+                    override_key = ""
+            if not override_url and profile.get("custom_base_url"):
+                override_url = profile.get("custom_base_url")
+
+        # A guest — or any user who has NOT entered their own API key — always
+        # sees the curated free model list (plain model names, no provider
+        # branding). Only a user with their own key drops through to a specific
+        # provider's catalog / live discovery below.
+        if not override_key or not override_prov or override_prov in ("base", "auto", "all"):
             curated = get_curated_working_models(cfg=cfg)
             self.send_json({
                 "success": True,
@@ -2825,15 +2841,6 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 "source": "curated_working"
             })
             return
-
-        user = self.get_authenticated_user()
-        if user:
-            profile = get_user_profile(user["id"])
-            user_prov = override_prov or profile.get("active_provider", "justdowork")
-            if not override_key:
-                override_key = profile.get("keys", {}).get(user_prov, "")
-            if not override_url and profile.get("custom_base_url"):
-                override_url = profile.get("custom_base_url")
 
         prov, prov_key = get_active_provider_info(override_key=override_key, override_url=override_url, override_provider=override_prov)
         active_key = override_key or prov.get("api_key", "")
