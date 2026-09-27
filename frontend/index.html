@@ -49,6 +49,8 @@
   <link rel="stylesheet" href="landing.css?v=2.0">
   <!-- Workspace panel additions (Output/Diagram/Process/Files, Run buttons). Remove to drop the styling. -->
   <link rel="stylesheet" href="workspace.css?v=1.0">
+  <!-- Claude-style thinking indicator (breathing sparkle + rotating phrases). Remove to revert. -->
+  <link rel="stylesheet" href="thinking-indicator.css?v=1.0">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="apple-touch-icon" href="/icon.png">
@@ -1327,8 +1329,9 @@
     </div>
   </div>
 
-  <script src="app.js?v=2.6"></script>
+  <script src="app.js?v=2.7"></script>
   <!-- Additive UI modules (remove a line to disable that feature) -->
+  <script src="thinking-indicator.js?v=1.0"></script>
   <script src="artifacts.js?v=1.1"></script>
   <script src="code-runner.js?v=1.0"></script>
   <script src="mermaid-render.js?v=1.0"></script>

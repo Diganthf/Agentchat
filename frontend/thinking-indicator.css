@@ -1,0 +1,119 @@
+/* ==========================================================================
+   AgentChat — Claude-style thinking indicator styling
+   Themed with the same tokens as claude-theme.css; load AFTER it so tokens are
+   defined. Works in light + dark, stays compact and responsive, and honors
+   prefers-reduced-motion. Paired with thinking-indicator.js. Remove both to
+   revert to a plain "Thinking…" line.
+   ========================================================================== */
+
+.agc-thinking {
+  display: block;
+  max-width: 100%;
+  margin: 2px 0 6px;
+  font-family: var(--font-brand);
+  transition: opacity .26s ease, transform .26s ease;
+}
+
+/* --- the always-visible row: sparkle + rotating phrase + disclosure caret --- */
+.agc-thinking-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  max-width: 100%;
+  margin: -2px 0;
+  padding: 4px 9px 4px 5px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  font: inherit;
+  line-height: 1.2;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color .18s ease;
+}
+.agc-thinking-toggle:hover { background: var(--clay-text-bg, rgba(201, 100, 66, .10)); }
+.agc-thinking-toggle:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+/* sparkle — clay accent; wrapper carries the sync "surge", inner svg breathes */
+.agc-thinking-spark {
+  display: inline-flex;
+  color: var(--md-sys-color-primary);
+  transform: scale(1);
+  transform-origin: center;
+  transition: transform .5s cubic-bezier(.34, 1.4, .5, 1);
+  will-change: transform;
+}
+.agc-thinking-spark svg { display: block; }
+.agc-thinking.is-active .agc-thinking-spark svg {
+  animation: agc-think-breathe 2.2s ease-in-out infinite;
+}
+.agc-thinking.is-surge .agc-thinking-spark { transform: scale(1.14); }
+@keyframes agc-think-breathe {
+  0%, 100% { transform: scale(.9);   opacity: .68; filter: brightness(.9); }
+  50%      { transform: scale(1.12); opacity: 1;   filter: brightness(1.12); }
+}
+
+/* rotating phrase — crossfades; decorative for SR (label lives on the button) */
+.agc-thinking-phrase {
+  font-size: 14px;
+  letter-spacing: .1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--md-sys-color-on-surface-variant);
+  transition: opacity .2s ease;
+}
+.agc-thinking-phrase.is-fading { opacity: 0; }
+
+.agc-thinking-caret {
+  display: inline-flex;
+  opacity: .5;
+  transition: transform .22s ease, opacity .18s ease;
+}
+.agc-thinking-toggle:hover .agc-thinking-caret { opacity: .85; }
+.agc-thinking.is-expanded .agc-thinking-caret { transform: rotate(180deg); }
+
+/* --- expandable plain-English summary (grid-rows 0fr→1fr = smooth height) --- */
+.agc-thinking-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows .26s ease;
+}
+.agc-thinking.is-expanded .agc-thinking-panel { grid-template-rows: 1fr; }
+.agc-thinking-panel-inner { overflow: hidden; min-height: 0; }
+.agc-thinking-summary {
+  margin: 6px 0 2px 8px;
+  padding: 8px 12px;
+  max-width: 52ch;
+  border-left: 2px solid var(--line);
+  color: var(--reasoning-text, var(--md-sys-color-on-surface-variant));
+  font-family: var(--font-serif);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+/* --- leaving: thinking → answer, no lingering loader --- */
+.agc-thinking.is-leaving {
+  opacity: 0;
+  transform: translateY(-2px);
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .agc-thinking-summary { max-width: 100%; }
+  .agc-thinking-phrase { font-size: 13.5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agc-thinking,
+  .agc-thinking-spark,
+  .agc-thinking-phrase,
+  .agc-thinking-caret,
+  .agc-thinking-panel { transition: none; }
+  .agc-thinking.is-active .agc-thinking-spark svg { animation: none; }
+  .agc-thinking.is-surge .agc-thinking-spark { transform: none; }
+}

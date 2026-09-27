@@ -2150,37 +2150,27 @@
 
     const selectedModel = modelSelect.value || currentConfig.model || "deepseek-v4-flash";
     let hasReceivedFirstToken = false;
-    const startTime = Date.now();
-    textDiv.innerHTML = `
-      <div class="model-connecting-state" id="stream-connecting-indicator">
-        <div class="connecting-header">
-          <div class="typing-dots"><span></span><span></span><span></span></div>
-          <span class="connecting-text">Connecting to ${selectedModel}<span class="connecting-timer"> (0.0s)</span>...</span>
-        </div>
-      </div>
-    `;
-    const timerInterval = setInterval(() => {
-      if (hasReceivedFirstToken) {
-        clearInterval(timerInterval);
-        return;
-      }
-      const secs = (Date.now() - startTime) / 1000;
-      const displayTime = secs >= 60 ? `${Math.floor(secs / 60)}m ${(secs % 60).toFixed(0)}s` : `${secs.toFixed(1)}s`;
-      const timerEl = textDiv.querySelector(".connecting-timer");
-      if (timerEl) timerEl.textContent = ` (${displayTime})`;
 
-      const container = textDiv.querySelector(".model-connecting-state");
-      if (container && parseFloat(elapsed) >= 7.0 && !container.querySelector(".fast-switch-hint")) {
-        const switchHint = document.createElement("div");
-        switchHint.className = "fast-switch-hint";
-        switchHint.innerHTML = `<span>⚡ Queue taking longer than usual? Click to switch to DeepSeek V4 Flash (1.5s)</span>`;
-        switchHint.onclick = (e) => {
-          e.stopPropagation();
-          if (window.fastSwitchToDeepSeek) window.fastSwitchToDeepSeek();
-        };
-        container.appendChild(switchHint);
-      }
-    }, 100);
+    // Claude-style thinking indicator. Replaces the old "Connecting to <model>
+    // (0.0s)…" technical placeholder — the user now sees only a calm breathing
+    // sparkle + rotating phrases, never provider / token / network wording.
+    // (Latency/debug data still lives in the token meter + console, not the UI.)
+    textDiv.innerHTML = "";
+    const thinker = (window.ThinkingIndicator && window.ThinkingIndicator.create)
+      ? window.ThinkingIndicator.create(textDiv)
+      : null;
+    if (thinker) thinker.start();
+    else textDiv.innerHTML = '<div class="agc-thinking is-fallback"><span class="agc-thinking-phrase">Thinking…</span></div>';
+
+    // Single choke point that transitions the indicator away — called the moment
+    // real content, an error, or completion arrives, so no loader ever lingers.
+    let thinkerDismissed = false;
+    const dismissThinking = () => {
+      if (thinkerDismissed) return;
+      thinkerDismissed = true;
+      if (thinker) thinker.stop();
+      else { const f = textDiv.querySelector(".agc-thinking.is-fallback"); if (f) f.remove(); }
+    };
 
     try {
       let selectedEffort = effortSelect.value || "medium";
@@ -2272,6 +2262,7 @@
 
           // HTML Challenge or Gateway Error Intercept
           if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html") || trimmed.includes("aliyun_waf") || trimmed.includes("<title>Challenge")) {
+            dismissThinking();
             bubble.classList.add("error-bubble");
             const errMsg = "⚠️ Upstream AI provider returned a web verification challenge. Switching to DeepSeek V4 Flash recommended.";
             textDiv.innerHTML = `${errMsg}<br><br><button class="btn btn-tonal-primary btn-xs" onclick="window.fastSwitchToDeepSeek()" style="cursor:pointer; margin-top:6px; margin-right:6px;">⚡ Switch to DeepSeek V4 Flash</button>`;
@@ -2291,6 +2282,7 @@
                 }
               }
               if (data.error) {
+                dismissThinking();
                 bubble.classList.add("error-bubble");
                 let errMsg = typeof data.error === "string" ? data.error : (data.error.message || JSON.stringify(data.error));
                 const errType = typeof data.error === "object" ? (data.error.type || "") : "";
@@ -2319,9 +2311,7 @@
               // Dismiss connecting state placeholder upon first incoming token
               if (!hasReceivedFirstToken && (delta.content || delta.reasoning_content)) {
                 hasReceivedFirstToken = true;
-                clearInterval(timerInterval);
-                const ind = textDiv.querySelector("#stream-connecting-indicator");
-                if (ind) ind.remove();
+                dismissThinking();
               }
 
               if (delta.reasoning_content) {
@@ -2354,6 +2344,7 @@
                 break streamLoop;
               }
               if (finishReason === "content_filter") {
+                dismissThinking();
                 bubble.classList.add("error-bubble");
                 const filterMsg = "⚠️ Response was blocked by the upstream content filter. Try rephrasing your message or switching to a different model.";
                 textDiv.innerHTML = filterMsg;
@@ -2374,17 +2365,14 @@
       }
 
     } catch (err) {
+      dismissThinking();
       if (err.name !== "AbortError") {
         bubble.classList.add("error-bubble");
         textDiv.innerHTML = `Error: ${err.message}<br><br><button class="btn btn-tonal-primary btn-xs" onclick="window.fastSwitchToDeepSeek()" style="cursor:pointer; margin-top:6px; margin-right:6px;">⚡ Switch to DeepSeek V4 Flash</button><button class="btn btn-tonal-tertiary btn-xs" onclick="syncSettingsModalWithConfig(); settingsModal.classList.remove('hidden');" style="cursor:pointer; margin-top:6px;">🔑 Switch API Key in Vault</button>`;
         assistantMsg.content = `Error: ${err.message}`;
       }
     } finally {
-      clearInterval(timerInterval);
-      const ind = textDiv.querySelector("#stream-connecting-indicator");
-      if (ind && !assistantMsg.content) {
-        ind.remove();
-      }
+      dismissThinking();
       activeAbortController = null;
       setGeneratingState(false);
       saveSessions();

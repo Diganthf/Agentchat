@@ -3115,16 +3115,15 @@ class AgentChatHandler(BaseHTTPRequestHandler):
         elif prov_key == "justdowork" or "justwoker" in active_base_url.lower():
             model = "claude-opus-4-8"
 
-        # Emit immediate live status event for high-latency queue models (Claude Opus / JustDoWork)
+        # Warm the stream promptly for high-latency queue models (Claude Opus /
+        # JustDoWork). This used to inject a visible provider/queue/token status
+        # line as reasoning_content, but that leaked infrastructure wording into
+        # the UI. The client now shows its own calm thinking indicator, so we emit
+        # only a no-op SSE comment (ignored by the client's data:-line parser) to
+        # open the connection early — no visible text reaches the chat.
         if prov_key == "justdowork" or model == "claude-opus-4-8" or "justwoker" in active_base_url.lower():
             try:
-                progress_event = {
-                    "choices": [{
-                        "index": 0,
-                        "delta": {"reasoning_content": f"⏳ Connecting to {model}... Upstream queue active, preparing tokens...\n\n"}
-                    }]
-                }
-                self.wfile.write(f"data: {json.dumps(progress_event)}\n\n".encode("utf-8"))
+                self.wfile.write(b": warming\n\n")
                 self.wfile.flush()
             except Exception:
                 pass
@@ -3331,13 +3330,12 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                         jdw_prov, _ = resolve_provider_info("justdowork", cfg=cfg)
                         jdw_key = jdw_prov.get("api_key", "").strip()
                         if jdw_key:
-                            failover_notice = {
-                                "choices": [{
-                                    "index": 0,
-                                    "delta": {"reasoning_content": "⚡ [AgentRouter Opus quota paused; routing to Claude Opus 4.8 via JustDoWork fallback...]\n\n"}
-                                }]
-                            }
-                            self.wfile.write(f"data: {json.dumps(failover_notice)}\n\n".encode("utf-8"))
+                            # Silent, seamless failover — no visible provider/quota
+                            # wording leaks to the UI. The client keeps showing its
+                            # calm thinking indicator; this no-op SSE comment (ignored
+                            # by the client's data:-line parser) just keeps the
+                            # stream warm during the reroute.
+                            self.wfile.write(b": rerouting\n\n")
                             self.wfile.flush()
 
                             chat_endpoint = "/v1/messages"
