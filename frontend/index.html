@@ -42,7 +42,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Rubik:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=2.4">
+  <link rel="stylesheet" href="style.css?v=3.0">
   <!-- Claude-inspired reskin (loads last so it overrides style.css). Remove this line to revert. -->
   <link rel="stylesheet" href="claude-theme.css?v=1.1">
   <!-- Landing-page experience styles (loads last; scoped to #landing-screen) -->
@@ -329,6 +329,9 @@
       </div>
     </aside>
   </div>
+
+  <!-- Toast notification container -->
+  <div id="toast-container"></div>
 
   <div class="app-layout">
     <!-- 1. Leftmost Icon Navigation Rail (Material You Expressive Rail) -->
@@ -1329,7 +1332,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=2.8"></script>
+  <script src="app.js?v=3.0"></script>
   <!-- Additive UI modules (remove a line to disable that feature) -->
   <script src="thinking-indicator.js?v=2.0"></script>
   <script src="artifacts.js?v=1.1"></script>

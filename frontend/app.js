@@ -12,6 +12,45 @@
   let mcpData = { servers: {}, plugins: {} };
   let currentRailTab = "chats";
 
+  // === Toast Notification System ===
+  function showToast(message, type = "success", duration = 3000) {
+    const existing = document.querySelector(".agentchat-toast");
+    if (existing) existing.remove();
+
+    const toast = document.createElement("div");
+    toast.className = `agentchat-toast agentchat-toast-${type}`;
+    toast.innerHTML = `
+      <div class="agentchat-toast-icon">${type === "success" ? "✓" : type === "error" ? "✕" : "ℹ"}</div>
+      <div class="agentchat-toast-message">${message}</div>
+    `;
+    document.body.appendChild(toast);
+
+    // Trigger reflow for animation
+    void toast.offsetWidth;
+    toast.classList.add("agentchat-toast-visible");
+
+    setTimeout(() => {
+      toast.classList.remove("agentchat-toast-visible");
+      setTimeout(() => toast.remove(), 300);
+    }, duration);
+  }
+
+  // === UI Helpers ===
+  function updateActiveProviderUI(providerKey, modelId) {
+    // Update provider select dropdown
+    if (providerSelect) providerSelect.value = providerKey;
+    // Update model select dropdown
+    if (modelSelect) modelSelect.value = modelId;
+    // Update model pills bar
+    if (typeof updateAgentRouterBarActivePill === "function" && modelId) {
+      updateAgentRouterBarActivePill(modelId);
+    }
+    // Update banner status
+    updateBannerStatus();
+    // Update lean mode UI
+    updateLeanModeUI();
+  }
+
   const MODEL_DISPLAY_NAMES = {
     "gemini-3.6-flash": "🌐 Gemini 3.6 Flash (Free · 1M context)",
     "gemini-2.5-pro": "🌐 Gemini 2.5 Pro (2M context)",
@@ -1443,19 +1482,27 @@
     isProbing = true;
     const bannerBtn = document.getElementById("banner-check-btn");
     const sideBtn = document.getElementById("sidebar-probe-btn");
-    [bannerBtn, sideBtn].filter(Boolean).forEach(b => { b.textContent = "↻ Checking..."; b.disabled = true; });
+    [bannerBtn, sideBtn].filter(Boolean).forEach(b => { b.textContent = "↻ Probing..."; b.disabled = true; });
 
     try {
-      const res = await apiFetch("/api/probe_models", { method: "POST" });
+      // Use new /api/models/probe endpoint for live health checking
+      const res = await apiFetch("/api/models/probe", { method: "POST" });
       const data = await res.json();
       if (data.statuses) {
         modelStatuses = data.statuses;
         updateModelDropdownOptions();
         updateBannerStatus();
         if (currentRailTab === "models") renderModelsMiniList();
+        showToast(`✓ Probed ${Object.keys(data.statuses).length} models - live status updated`, "success");
+      } else if (data.error) {
+        showToast(`⚠ Probe limited: ${data.error}`, "error");
+        // Fallback to model status cache
+        await fetchModelStatus();
       }
     } catch (e) {
       console.warn("Probe failed:", e);
+      showToast("⚠ Live probe failed, using cached status", "error");
+      await fetchModelStatus();
     } finally {
       isProbing = false;
       [bannerBtn, sideBtn].filter(Boolean).forEach(b => { b.textContent = "↻ Check Now"; b.disabled = false; });
@@ -1807,6 +1854,46 @@
     }
   }
 
+  // === Conversation Forking / Branching ===
+  function forkChatFromMessage(sessionId, event) {
+    if (event) event.stopPropagation();
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session || !session.messages.length) return;
+
+    // Find the message index to fork from - if clicked on a specific message, use that
+    // For now, fork from the last message (user can click on specific message bubbles later)
+    const forkedMessages = session.messages.map(m => ({ ...m }));
+    
+    // Create a new chat with the forked messages
+    const newSession = {
+      id: "chat_" + Date.now() + "_fork",
+      title: session.title + " (Fork)",
+      messages: forkedMessages,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    
+    sessions.unshift(newSession);
+    currentSessionId = newSession.id;
+    saveSessions();
+    switchChat(newSession.id);
+    
+    showToast("🌿 Chat forked successfully! New branch created from " + session.title, "success");
+    
+    // Focus the new chat
+    if (userInput) userInput.focus();
+  }
+
+  // === Conversation Search Enhancement ===
+  window.searchConversations = function(query) {
+    if (!query || !query.trim()) {
+      renderSidebar();
+      return;
+    }
+    renderSidebar(query.trim().toLowerCase());
+    showToast(`🔍 Searching: "${query}"`, "info", 2000);
+  };
+
   function exportChatMarkdown(sessionId, event) {
     if (event) event.stopPropagation();
     const s = sessions.find(item => item.id === sessionId);
@@ -1933,7 +2020,7 @@
         meta.textContent = `${count} msg${count === 1 ? "" : "s"}`;
         body.appendChild(meta);
 
-        // Actions: Rename, Export, Delete
+        // Actions: Rename, Export, Fork, Delete
         const actions = document.createElement("div");
         actions.className = "chat-actions-group";
 
@@ -1949,6 +2036,12 @@
         expBtn.title = "Export as Markdown";
         expBtn.onclick = (e) => exportChatMarkdown(session.id, e);
 
+        const forkBtn = document.createElement("button");
+        forkBtn.className = "chat-action-btn";
+        forkBtn.innerHTML = "🌿";
+        forkBtn.title = "Fork from this point";
+        forkBtn.onclick = (e) => forkChatFromMessage(session.id, e);
+
         const delBtn = document.createElement("button");
         delBtn.className = "chat-action-btn delete-btn";
         delBtn.innerHTML = "&times;";
@@ -1957,6 +2050,7 @@
 
         actions.appendChild(renBtn);
         actions.appendChild(expBtn);
+        actions.appendChild(forkBtn);
         actions.appendChild(delBtn);
 
         item.appendChild(body);
@@ -2289,6 +2383,38 @@
           }
           if (trimmed.startsWith("event: error")) continue;
 
+          // ROUTING WARNING - Show prominent notice when model is routed differently
+          if (trimmed.startsWith("event: routing_warning")) {
+            try {
+              const data = JSON.parse(trimmed.slice(trimmed.indexOf("data:") + 6).trim());
+              if (data && data.routed_model) {
+                // Store routing warning for display
+                window.lastRoutingWarning = data;
+                showToast(`⚠️ Routing Notice: Selected "${data.original_model || 'unknown'}" but routed to "${data.routed_model}" on ${data.routed_provider || 'unknown provider'}`, "error", 8000);
+                
+                // Add warning banner to the chat bubble
+                const warningHtml = `
+                  <div class="routing-warning-banner" style="margin: 8px 0; padding: 10px 14px; background: linear-gradient(135deg, rgba(255, 138, 101, 0.15), rgba(245, 185, 66, 0.1)); border: 1px solid rgba(255, 138, 101, 0.3); border-radius: 8px; font-size: 12px; color: #F5B942;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                      <span style="font-weight: 600;">⚠️ Model Routing Notice</span>
+                    </div>
+                    <div style="font-size: 11px; opacity: 0.9;">
+                      You selected <strong>${data.original_model || 'unknown'}</strong> but the system routed to <strong>${data.routed_model}</strong> on <strong>${data.routed_provider || 'unknown'}</strong>.
+                    </div>
+                    <div style="font-size: 11px; opacity: 0.7; margin-top: 4px;">
+                      ${data.reason || 'This may affect response quality.'}
+                    </div>
+                  </div>
+                `;
+                textDiv.insertAdjacentHTML('beforeend', warningHtml);
+                scrollToBottom();
+              }
+            } catch (e) {
+              console.warn("Failed to parse routing warning:", e);
+            }
+            continue;
+          }
+
           // HTML Challenge or Gateway Error Intercept
           if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html") || trimmed.includes("aliyun_waf") || trimmed.includes("<title>Challenge")) {
             dismissThinking();
@@ -2396,8 +2522,20 @@
       dismissThinking();
       if (err.name !== "AbortError") {
         bubble.classList.add("error-bubble");
-        textDiv.innerHTML = `Error: ${err.message}<br><br><button class="btn btn-tonal-primary btn-xs" onclick="window.fastSwitchToDeepSeek()" style="cursor:pointer; margin-top:6px; margin-right:6px;">⚡ Switch to DeepSeek V4 Flash</button><button class="btn btn-tonal-tertiary btn-xs" onclick="syncSettingsModalWithConfig(); settingsModal.classList.remove('hidden');" style="cursor:pointer; margin-top:6px;">🔑 Switch API Key in Vault</button>`;
-        assistantMsg.content = `Error: ${err.message}`;
+        // Check if we have partial content (stream was interrupted)
+        if (assistantMsg.content && assistantMsg.content.length > 0) {
+          // Stream was interrupted with partial content - show resume option
+          textDiv.innerHTML = renderMarkdown(assistantMsg.content) + `
+            <div class="stream-interrupt-banner" style="margin-top:12px; padding:8px 12px; background:rgba(245,185,66,0.1); border:1px solid rgba(245,185,66,0.2); border-radius:8px; display:flex; align-items:center; gap:8px;">
+              <span style="font-size:12px; color:#F5B942;">⏸ Stream interrupted - partial response preserved</span>
+              <button class="btn btn-tonal-primary btn-xs" onclick="window.continueGeneration()" style="cursor:pointer; margin-left:auto;">▶ Continue Generation</button>
+            </div>
+          `;
+          showToast("⏸ Stream interrupted - partial response saved. Click 'Continue' to resume.", "info", 5000);
+        } else {
+          textDiv.innerHTML = `Error: ${err.message}<br><br><button class="btn btn-tonal-primary btn-xs" onclick="window.fastSwitchToDeepSeek()" style="cursor:pointer; margin-top:6px; margin-right:6px;">⚡ Switch to DeepSeek V4 Flash</button><button class="btn btn-tonal-tertiary btn-xs" onclick="syncSettingsModalWithConfig(); settingsModal.classList.remove('hidden');" style="cursor:pointer; margin-top:6px;">🔑 Switch API Key in Vault</button>`;
+          assistantMsg.content = `Error: ${err.message}`;
+        }
       }
     } finally {
       dismissThinking();
@@ -2407,6 +2545,183 @@
       userInput.focus();
     }
   }
+
+  // === Stream Resume / Continuation ===
+  window.continueGeneration = function() {
+    if (isGenerating) return;
+    
+    const session = getCurrentSession();
+    if (!session || !session.messages.length) return;
+    
+    const lastMsg = session.messages[session.messages.length - 1];
+    
+    // Verify this is the assistant message with partial content
+    if (lastMsg.role !== "assistant" || !lastMsg.content) return;
+    
+    setGeneratingState(true);
+    activeAbortController = new AbortController();
+    
+    // Add continuation directive as user message
+    session.messages.push({
+      role: "user",
+      content: "Please continue writing your response exactly where you left off, without repeating prior text. Continue from: \"" + lastMsg.content.slice(-100) + "...\""
+    });
+    
+    // Save session with continuation context
+    saveSessions();
+    
+    // Render the continuation request
+    appendMessageToDOM("user", "Please continue writing your response exactly where you left off...", "", false);
+    
+    // Start new generation with the same model
+    const selectedModel = modelSelect.value || currentConfig.model || "deepseek-v4-flash";
+    
+    // Create new assistant message for continuation
+    const assistantMsg = { role: "assistant", content: "", reasoning: "" };
+    session.messages.push(assistantMsg);
+    
+    const { bubble, textDiv } = appendMessageToDOM("assistant", "", "", true);
+    let reasoningContainer = null;
+    let reasoningDiv = null;
+    
+    // Show thinking indicator
+    textDiv.innerHTML = "";
+    const thinker = (window.ThinkingIndicator && window.ThinkingIndicator.create)
+      ? window.ThinkingIndicator.create(textDiv)
+      : null;
+    if (thinker) thinker.start();
+    else textDiv.innerHTML = '<div class="agc-thinking is-fallback"><span class="agc-thinking-phrase">Continuing...</span></div>';
+    
+    let thinkerDismissed = false;
+    const dismissThinking = () => {
+      if (thinkerDismissed) return;
+      thinkerDismissed = true;
+      if (thinker) thinker.stop();
+      else { const f = textDiv.querySelector(".agc-thinking.is-fallback"); if (f) f.remove(); }
+    };
+    
+    const ensureThoughtBox = () => {
+      if (reasoningContainer || !assistantMsg.reasoning) return;
+      reasoningContainer = document.createElement("details");
+      reasoningContainer.className = "reasoning-box";
+      reasoningContainer.open = false;
+      const s = document.createElement("summary");
+      const star = (window.ThinkingIndicator && window.ThinkingIndicator.starburst)
+        ? window.ThinkingIndicator.starburst(14) : "";
+      s.innerHTML =
+        `<span class="reasoning-star" style="color:#D97757;display:inline-flex;align-items:center;">${star}</span>` +
+        `<span class="reasoning-title">Thought process</span> ` +
+        `<span class="reasoning-badge">Finished</span>`;
+      reasoningDiv = document.createElement("div");
+      reasoningDiv.className = "reasoning-content";
+      reasoningDiv.textContent = assistantMsg.reasoning;
+      reasoningContainer.appendChild(s);
+      reasoningContainer.appendChild(reasoningDiv);
+      bubble.insertBefore(reasoningContainer, textDiv);
+    };
+    
+    (async () => {
+      try {
+        let selectedEffort = effortSelect.value || "medium";
+        if (selectedModel && selectedModel.toLowerCase().includes("glm") && selectedEffort === "medium") {
+          selectedEffort = "high";
+        }
+        
+        const rawHistory = session.messages.slice(0, -2); // Exclude the continuation request and new assistant msg
+        const lastIdx = rawHistory.length - 1;
+        const historyToSend = rawHistory.map((m, idx) => ({
+          role: m.role,
+          content: idx === lastIdx ? m.content : stripImagesFromContent(m.content)
+        }));
+        
+        const response = await apiFetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: activeAbortController.signal,
+          body: JSON.stringify({
+            model: selectedModel,
+            reasoning_effort: selectedEffort,
+            web_search: webSearchEnabled,
+            auto_compress: currentConfig.auto_compress !== false,
+            lean_mode: isLeanMode,
+            messages: isLeanMode ? historyToSend.slice(-2) : historyToSend,
+            temperature: parseFloat(settingTemp.value) || 0.7,
+            system_prompt: settingSystemPrompt.value.trim(),
+            skills_context: isLeanMode ? "" : getActiveSkillsContext(),
+            project_context: isLeanMode ? "" : getActiveProjectContext(),
+            persona_directives: isLeanMode ? "" : (localStorage.getItem("agentchat_developer_persona") || ""),
+            continue_from: lastMsg.content  // Signal to server this is a continuation
+          })
+        });
+        
+        if (!response.ok) throw new Error(`Server returned HTTP ${response.status}`);
+        
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        let generatedOutTokens = 0;
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop();
+          
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith("data: ")) continue;
+            if (trimmed.startsWith("data: [DONE]")) {
+              try { reader.cancel().catch(() => {}); } catch (_) {}
+              break;
+            }
+            
+            try {
+              const data = JSON.parse(trimmed.slice(6));
+              if (data.error) {
+                dismissThinking();
+                bubble.classList.add("error-bubble");
+                textDiv.innerHTML = data.error;
+                assistantMsg.content = data.error;
+                break;
+              }
+              
+              const delta = data.choices?.[0]?.delta || {};
+              if (delta.content) {
+                if (!hasReceivedFirstToken) {
+                  hasReceivedFirstToken = true;
+                  ensureThoughtBox();
+                  dismissThinking();
+                }
+                assistantMsg.content += delta.content;
+                textDiv.innerHTML = renderMarkdown(assistantMsg.content);
+                scrollToBottom();
+              }
+              
+              if (data.choices?.[0]?.finish_reason === "stop") {
+                try { reader.cancel().catch(() => {}); } catch (_) {}
+                break;
+              }
+            } catch (e) {}
+          }
+        }
+      } catch (err) {
+        dismissThinking();
+        if (err.name !== "AbortError") {
+          bubble.classList.add("error-bubble");
+          textDiv.innerHTML = `Error: ${err.message}`;
+          assistantMsg.content = `Error: ${err.message}`;
+        }
+      } finally {
+        dismissThinking();
+        activeAbortController = null;
+        setGeneratingState(false);
+        saveSessions();
+        userInput.focus();
+      }
+    })();
+  };
 
   window.fastSwitchToDeepSeek = function() {
     if (activeAbortController) {
@@ -3663,11 +3978,11 @@
     }
   }
 
-  function saveCurrentKeyToVault() {
+  async function saveCurrentKeyToVault() {
     const provKey = settingProviderChoice.value;
     const keyVal = settingApiKey.value.trim();
     if (!keyVal) {
-      alert("Please enter an API key to save.");
+      showToast("Please enter an API key to save.", "error");
       return;
     }
     const vault = getKeyVault();
@@ -3695,10 +4010,18 @@
 
     localStorage.setItem("agentchat_client_key_" + provKey, keyVal);
 
+    // Optimistic UI update
     renderKeyVaultOptions(provKey);
-    settingSavedKeysSelect.value = targetId;
-    fetchModels();
-    alert(`Saved "${aliasVal}" to Key Vault! Models for this key are now active.`);
+    if (settingSavedKeysSelect) settingSavedKeysSelect.value = targetId;
+
+    // Show success toast
+    showToast(`✓ "${aliasVal}" saved to Key Vault!`, "success");
+
+    // Trigger model discovery for new key
+    await fetchModels();
+
+    // Update provider UI
+    updateActiveProviderUI(provKey, modelSelect.value);
   }
 
   function deleteCurrentKeyFromVault() {
@@ -3836,8 +4159,26 @@
 
     const enteredKey = settingApiKey.value.trim();
     const enteredUrl = settingBaseUrl.value.trim() || PROVIDER_DEFAULTS[activeP]?.base_url || "";
+
+    // Normalize AgentRouter URLs to always end with /v1
+    let finalUrl = enteredUrl;
+    try {
+      if (activeP === "agentrouter" || "agentrouter.org" in enteredUrl.toLowerCase()) {
+        if (!finalUrl.endsWith("/v1")) {
+          // Remove trailing path components and ensure /v1
+          const urlObj = new URL(finalUrl.startsWith("http") ? finalUrl : "https://" + finalUrl);
+          finalUrl = `${urlObj.origin}/v1`;
+          if (settingBaseUrl) settingBaseUrl.value = finalUrl;
+        }
+      }
+    } catch (urlError) {
+      console.warn("URL normalization failed, using entered URL:", urlError);
+      // Fall back to entered URL if normalization fails
+      finalUrl = enteredUrl || PROVIDER_DEFAULTS[activeP]?.base_url || "";
+    }
+
     currentConfig.providers[activeP].api_key = enteredKey;
-    currentConfig.providers[activeP].base_url = enteredUrl;
+    currentConfig.providers[activeP].base_url = finalUrl;
     currentConfig.active_provider = activeP;
     currentConfig.auto_compress = settingAutoCompress.checked;
     if (settingLeanMode) {
@@ -3867,16 +4208,17 @@
       const cp = customProxies.find(p => p.id === activeP);
       if (cp) {
         cp.name = settingProxyCustomName.value.trim();
-        cp.base_url = enteredUrl;
+        cp.base_url = finalUrl;
         saveCustomProxies(customProxies);
       }
       currentConfig.providers[activeP].name = settingProxyCustomName.value.trim();
     }
 
+    // Optimistic in-place updates - update localStorage immediately
     localStorage.setItem("agentchat_active_provider", activeP);
     localStorage.setItem("agentchat_active_model", modelSelect.value);
     localStorage.setItem("agentchat_client_key_" + activeP, enteredKey);
-    localStorage.setItem("agentchat_client_url_" + activeP, enteredUrl);
+    localStorage.setItem("agentchat_client_url_" + activeP, finalUrl);
 
     // Auto-save key to vault if not already present
     if (enteredKey) {
@@ -3899,14 +4241,32 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(currentConfig)
       });
-      if (closeModal) settingsModal.classList.add("hidden");
+
+      // Show success toast
+      const providerName = PROVIDER_DEFAULTS[activeP]?.name || activeP;
+      showToast(`✓ ${providerName} key saved and activated successfully`, "success");
+
+      // Close modal with smooth transition
+      if (closeModal && settingsModal) {
+        settingsModal.classList.add("hidden");
+      }
+
+      // Update UI reactively - only refresh what's needed
       populateProviderDropdowns();
+      renderKeyVaultOptions(activeP);
+
+      // Update active provider UI elements
+      updateActiveProviderUI(activeP, modelSelect.value);
+
+      // Trigger model discovery for new provider
       await fetchModels();
+
       if (currentUser) {
         syncUserProfileToCloud();
       }
     } catch (e) {
-      if (closeModal) alert("Failed to save settings: " + e.message);
+      showToast(`✕ Failed to save settings: ${e.message}`, "error", 4000);
+      console.warn("Save config failed:", e);
     }
   }
 
@@ -4015,6 +4375,9 @@
         currentConfig.model = modelSelect.value;
         renderModelPickerBar(allModels, modelSelect.value);
         updateAgentRouterBarActivePill(modelSelect.value);
+
+        // Trigger live probe for model health status (async, non-blocking)
+        triggerActiveProbe().catch(() => {});
       }
     } catch (e) {
       console.warn("Failed to fetch models:", e);
