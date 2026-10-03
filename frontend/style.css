@@ -3514,5 +3514,683 @@ textarea#user-input::placeholder {
   }
 }
 
+/* ==========================================================================
+   3D SaaS OVERHAUL — Glassmorphism, Ambient Glow, Micro-interactions
+   ========================================================================== */
+
+/* --- Ambient Background Glow --- */
+body {
+  background: 
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(120, 119, 198, 0.12), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(255, 138, 101, 0.06), transparent 60%),
+    var(--md-sys-color-surface);
+}
+
+.app-layout {
+  background: 
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(120, 119, 198, 0.12), transparent 70%),
+    var(--md-sys-color-surface);
+}
+
+/* --- Glassmorphism Base --- */
+.glass {
+  backdrop-filter: blur(16px) saturate(1.2);
+  background: rgba(18, 18, 24, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-light {
+  backdrop-filter: blur(12px) saturate(1.1);
+  background: rgba(24, 24, 32, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* --- 3D Depth & Elevation --- */
+.elevation-1 {
+  box-shadow: 
+    0 2px 4px rgba(0, 0, 0, 0.3),
+    0 8px 16px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.elevation-2 {
+  box-shadow: 
+    0 4px 6px -1px rgba(0, 0, 0, 0.4),
+    0 20px 25px -5px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.elevation-3 {
+  box-shadow: 
+    0 8px 16px -4px rgba(0, 0, 0, 0.5),
+    0 24px 48px -8px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* --- Glass Nav Rail --- */
+.nav-rail {
+  background: rgba(16, 16, 22, 0.85);
+  backdrop-filter: blur(12px);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 30px rgba(120, 119, 198, 0.05);
+}
+
+/* --- Glass Sidebar --- */
+.sub-sidebar {
+  background: rgba(18, 18, 26, 0.85);
+  backdrop-filter: blur(16px);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    4px 0 20px rgba(0, 0, 0, 0.3);
+}
+
+/* --- 3D Micro-interactions --- */
+.rail-btn:hover .rail-icon-wrapper {
+  transform: translateY(-1.5px) translateZ(0);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.rail-btn.active .rail-icon-wrapper {
+  transform: translateY(-1px) translateZ(0);
+  box-shadow: 0 4px 12px rgba(255, 138, 101, 0.25);
+}
+
+/* --- Model Pills - 3D SaaS Style --- */
+.ar-model-pill {
+  background: rgba(30, 30, 42, 0.7);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 
+    0 2px 4px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.ar-model-pill:hover {
+  transform: translateY(-2px) translateZ(0);
+  background: rgba(40, 40, 56, 0.8);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 
+    0 8px 20px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.ar-model-pill.active {
+  background: linear-gradient(135deg, rgba(255, 138, 101, 0.2), rgba(255, 185, 66, 0.1));
+  border-color: var(--md-sys-color-primary, #FF8A65);
+  box-shadow: 
+    0 4px 12px rgba(255, 138, 101, 0.2),
+    inset 0 1px 0 rgba(255, 138, 101, 0.1);
+}
+
+/* --- Category Tabs - Glass Style --- */
+.ar-tab {
+  background: rgba(24, 24, 34, 0.6);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: all 0.2s ease;
+}
+
+.ar-tab:hover {
+  background: rgba(34, 34, 46, 0.8);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.ar-tab.active {
+  background: rgba(255, 138, 101, 0.15);
+  border-color: var(--md-sys-color-primary, #FF8A65);
+  box-shadow: 0 0 20px rgba(255, 138, 101, 0.1);
+}
+
+/* --- Settings Modal - 3D Glass --- */
+.modal-content {
+  background: rgba(22, 22, 30, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 
+    0 24px 80px rgba(0, 0, 0, 0.5),
+    0 8px 24px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  animation: modalScaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* --- Toast Notifications --- */
+.agentchat-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0;
+  transform: translateY(16px) scale(0.96);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  box-shadow: 
+    0 8px 24px rgba(0, 0, 0, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.agentchat-toast-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.agentchat-toast-success {
+  background: linear-gradient(135deg, rgba(35, 134, 54, 0.9), rgba(20, 90, 40, 0.9));
+  border: 1px solid rgba(123, 224, 155, 0.3);
+  color: #fff;
+}
+
+.agentchat-toast-error {
+  background: linear-gradient(135deg, rgba(186, 28, 28, 0.9), rgba(130, 20, 20, 0.9));
+  border: 1px solid rgba(255, 138, 128, 0.3);
+  color: #fff;
+}
+
+.agentchat-toast-info {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.9), rgba(30, 80, 180, 0.9));
+  border: 1px solid rgba(147, 197, 253, 0.3);
+  color: #fff;
+}
+
+.agentchat-toast-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* --- Chat Input - Frosted Glass with Neon Focus --- */
+.chat-input-box {
+  background: rgba(24, 24, 34, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+}
+
+.chat-input-box:focus-within {
+  border-color: rgba(139, 92, 246, 0.4);
+  box-shadow: 
+    0 0 0 2px rgba(139, 92, 246, 0.4),
+    0 10px 25px -5px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* --- Message Bubbles - Clean Glass --- */
+.message-bubble {
+  background: rgba(28, 28, 38, 0.7);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* --- Message Entry Animation --- */
+@keyframes messageIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.message-row {
+  animation: messageIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* --- Reasoning Box - Neon Accent --- */
+.reasoning-box {
+  background: rgba(30, 26, 40, 0.8);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-left: 3px solid #D97757;
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.reasoning-badge {
+  background: linear-gradient(135deg, rgba(255, 138, 101, 0.2), rgba(245, 185, 66, 0.15));
+  border: 1px solid rgba(255, 138, 101, 0.2);
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(255, 138, 101, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(255, 138, 101, 0.2);
+  }
+}
+
+/* --- Streaming Indicator --- */
+.agc-thinking {
+  background: rgba(24, 24, 36, 0.8);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.agc-thinking-phrase {
+  color: var(--md-sys-color-on-surface-variant);
+  animation: breathing 1.5s ease-in-out infinite;
+}
+
+@keyframes breathing {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* --- Model Status Indicators --- */
+.pill-green {
+  background: rgba(123, 224, 155, 0.15);
+  border: 1px solid rgba(123, 224, 155, 0.2);
+  color: #7BE09B;
+}
+
+.pill-red {
+  background: rgba(255, 138, 128, 0.15);
+  border: 1px solid rgba(255, 138, 128, 0.2);
+  color: #FF8A80;
+}
+
+.pill-yellow {
+  background: rgba(245, 185, 66, 0.15);
+  border: 1px solid rgba(245, 185, 66, 0.2);
+  color: #F5B942;
+}
+
+/* --- Buttons - 3D SaaS Style --- */
+.btn {
+  background: rgba(30, 30, 42, 0.7);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 
+    0 2px 4px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  background: rgba(40, 40, 56, 0.8);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, rgba(255, 138, 101, 0.3), rgba(245, 185, 66, 0.2));
+  border-color: var(--md-sys-color-primary, #FF8A65);
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, rgba(255, 138, 101, 0.4), rgba(245, 185, 66, 0.3));
+  box-shadow: 0 4px 16px rgba(255, 138, 101, 0.3);
+}
+
+/* --- Code Blocks - Enhanced --- */
+pre {
+  background: rgba(14, 14, 20, 0.9);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.code-header {
+  background: rgba(24, 24, 34, 0.8);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* --- Scrollbar Styling --- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(16, 16, 22, 0.5);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* --- Provider Dropdown Enhancements --- */
+select {
+  background: rgba(24, 24, 34, 0.8);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  appearance: none;
+  transition: all 0.2s ease;
+}
+
+select:focus {
+  border-color: rgba(139, 92, 246, 0.4);
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+}
+
+/* --- Auth Modal Glass --- */
+.auth-modal-content {
+  background: rgba(22, 22, 30, 0.95);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 
+    0 32px 100px rgba(0, 0, 0, 0.6),
+    0 12px 40px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* --- Switch Toggle - Glass Style --- */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+  background: rgba(40, 40, 56, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 11px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toggle-switch.active {
+  background: linear-gradient(135deg, rgba(255, 138, 101, 0.4), rgba(245, 185, 66, 0.3));
+  border-color: var(--md-sys-color-primary, #FF8A65);
+}
+
+/* --- Header / Topbar Glass --- */
+.topbar {
+  background: rgba(16, 16, 22, 0.85);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 
+    0 2px 12px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* --- Model Picker Bar Container --- */
+.topbar-scroll-track {
+  background: rgba(18, 18, 26, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  padding: 8px 12px;
+  box-shadow: 
+    inset 0 2px 4px rgba(0, 0, 0, 0.2),
+    0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* --- Dropdown Menu --- */
+.dropdown-menu {
+  background: rgba(22, 22, 30, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  animation: dropdownIn 0.15s ease-out;
+}
+
+@keyframes dropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* --- Separator --- */
+.separator {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.08) 20%,
+    rgba(255, 255, 255, 0.08) 80%,
+    transparent
+  );
+  margin: 8px 0;
+}
+
+/* --- Live Status Banner --- */
+.live-status-banner {
+  background: rgba(24, 24, 36, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* --- AgentRouter Tabs Container --- */
+#agentrouter-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  background: rgba(18, 18, 26, 0.6);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+/* ==========================================================================
+   END 3D SaaS OVERHAUL
+   ========================================================================== */
+
+/* ==========================================================================
+   NEW FEATURES — Stream Recovery, Forking, Search
+   ========================================================================== */
+
+/* --- Stream Interrupt Banner --- */
+.stream-interrupt-banner {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: rgba(245, 185, 66, 0.1);
+  border: 1px solid rgba(245, 185, 66, 0.2);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stream-interrupt-banner span {
+  font-size: 12px;
+}
+
+/* --- Fork Button --- */
+.chat-action-btn[fork] {
+  color: #7BE09B;
+}
+
+.chat-action-btn[fork]:hover {
+  background: rgba(123, 224, 155, 0.1);
+  color: #9BE8AD;
+}
+
+/* --- Search Highlight --- */
+.chat-item-search-match {
+  background: rgba(255, 138, 101, 0.15);
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+/* --- Fork Indicator in Chat Title --- */
+.chat-item.forked .chat-item-title::after {
+  content: " 🌿";
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+/* --- Conversation Search Results Count --- */
+.search-results-info {
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: rgba(16, 16, 22, 0.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ==========================================================================
+   MODEL ROUTING WARNING STYLES
+   ========================================================================== */
+
+/* Routing Warning Banner */
+.routing-warning-banner {
+  margin: 12px 0;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, rgba(255, 138, 101, 0.12), rgba(245, 185, 66, 0.08));
+  border: 1px solid rgba(255, 138, 101, 0.35);
+  border-left: 4px solid #FF8A65;
+  border-radius: 10px;
+  animation: warningSlideIn 0.3s ease-out;
+  box-shadow: 
+    0 4px 12px rgba(255, 138, 101, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+@keyframes warningSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.routing-warning-banner .warning-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #FF8A65;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.routing-warning-banner .warning-detail {
+  font-size: 12px;
+  color: var(--md-sys-color-on-surface-variant, #D4C0BA);
+  line-height: 1.5;
+}
+
+.routing-warning-banner .warning-model {
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface, #F5EAE6);
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  margin: 0 2px;
+}
+
+.routing-warning-banner .warning-provider {
+  display: inline-block;
+  padding: 2px 8px;
+  background: rgba(120, 119, 198, 0.2);
+  color: #8ab4f8;
+  border-radius: 4px;
+  font-size: 11px;
+  margin-top: 6px;
+}
+
+/* Routing Warning Toast */
+.agentchat-toast-routing {
+  background: linear-gradient(135deg, rgba(255, 138, 101, 0.95), rgba(200, 80, 50, 0.95));
+  border: 1px solid rgba(255, 138, 101, 0.5);
+  box-shadow: 
+    0 8px 24px rgba(255, 138, 101, 0.3),
+    0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* ==========================================================================
+   END MODEL ROUTING WARNING STYLES
+   ========================================================================== */
+
 
 

@@ -882,6 +882,7 @@ def _apply_env_overrides(cfg):
 
 model_status_cache = {}
 DYNAMIC_MODELS_CACHE = {}
+MODEL_PROBE_CACHE = {}  # In-memory cache for model probe results (5-min TTL)
 is_probing = False
 
 def load_config():
@@ -1031,6 +1032,9 @@ def smart_route_model_provider(requested_model, requested_prov=None, override_ke
     - Gemini 2.0 Flash / Gemini models route to Google AI Studio with valid model ID.
     - Llama 3.3 70B / Groq models route to Groq Cloud.
     - DeepSeek V4 Flash routes to AgentRouter.
+    
+    IMPORTANT: When override_key/override_url is explicitly provided with requested_prov,
+    respect the user's explicit choice and don't override to another provider.
     """
     if cfg is None:
         cfg = load_config()
@@ -1042,12 +1046,46 @@ def smart_route_model_provider(requested_model, requested_prov=None, override_ke
         p, k = resolve_provider_info(requested_prov, cfg=cfg, override_key=override_key, override_url=override_url)
         return p, k, requested_model
 
+    # === AgentRouter Explicit Handling ===
+    # If user has explicitly configured AgentRouter as their active provider, 
+    # respect their choice for ALL models including Claude (don't force to JustDoWork)
+    active_prov = (requested_prov or "").strip() or cfg.get("active_provider", "base")
+    
+    # Check if override_key or override_url indicates AgentRouter
+    is_agentrouter_key = False
+    if override_key:
+        # AgentRouter keys typically start with sk-ant- (Anthropic format)
+        # or the key is being used with an agentrouter base_url
+        if "agentrouter" in (override_url or "").lower():
+            is_agentrouter_key = True
+    if "agentrouter" in (override_url or "").lower():
+        is_agentrouter_key = True
+    
+    if active_prov == "agentrouter" or "agentrouter" in active_prov.lower() or is_agentrouter_key:
+        ar_p, ar_k = resolve_provider_info("agentrouter", cfg=cfg, override_key=override_key, override_url=override_url)
+        if ar_p.get("api_key"):
+            # AgentRouter supports Claude models via chat completions API
+            # Map claude-opus-4-8 etc to the requested model
+            if "claude" in m_lower or "opus" in m_lower:
+                return ar_p, "agentrouter", requested_model
+            # For other models, use AgentRouter's catalog
+            return ar_p, "agentrouter", requested_model
+
     # 1. Claude Opus / Anthropic Models -> JustDoWork / Anthropic
+    # ONLY route to JustDoWork if user has NOT provided an AgentRouter key/URL
     if "claude" in m_lower or "opus" in m_lower:
-        jdw_p, jdw_k = resolve_provider_info("justdowork", cfg=cfg, override_key=override_key, override_url=override_url)
-        if jdw_p.get("api_key"):
-            return jdw_p, "justdowork", "claude-opus-4-8"
-        ar_p, ar_k = resolve_provider_info("agentrouter", cfg=cfg)
+        # Skip JustDoWork if agentrouter key/url is present
+        if is_agentrouter_key:
+            # User wants AgentRouter, fall through to look for agentrouter key
+            ar_p, ar_k = resolve_provider_info("agentrouter", cfg=cfg, override_key=override_key, override_url=override_url)
+            if ar_p.get("api_key"):
+                return ar_p, "agentrouter", requested_model
+            # No agentrouter key found, fall back to other providers
+        else:
+            jdw_p, jdw_k = resolve_provider_info("justdowork", cfg=cfg, override_key=override_key, override_url=override_url)
+            if jdw_p.get("api_key"):
+                return jdw_p, "justdowork", "claude-opus-4-8"
+            ar_p, ar_k = resolve_provider_info("agentrouter", cfg=cfg)
         if ar_p.get("api_key"):
             return ar_p, "agentrouter", "claude-opus-4-8"
 
@@ -1138,6 +1176,28 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
     base_url = (override_url or prov.get("base_url", "https://openrouter.ai/api")).rstrip("/")
     api_key = (override_key or prov.get("api_key", "")).strip()
 
+    # === AGENTROUTER AGGRESSIVE DEBUG ===
+    if "agentrouter.org" in base_url.lower() or prov_key == "agentrouter":
+        print(f"\n[AGENTROUTER REQUEST START]", file=sys.stderr)
+        print(f"  override_url: {override_url}", file=sys.stderr)
+        print(f"  prov.get('base_url'): {prov.get('base_url')}", file=sys.stderr)
+        print(f"  base_url (after rstrip): {base_url}", file=sys.stderr)
+        print(f"  api_key (first 15): {api_key[:15] if api_key else 'NONE'}...", file=sys.stderr)
+        print(f"  prov_key: {prov_key}", file=sys.stderr)
+        print(f"  endpoint: {endpoint}", file=sys.stderr)
+        print(f"  method: {method}", file=sys.stderr)
+    
+    # === AgentRouter URL Normalization ===
+    # AgentRouter's API route is strictly https://agentrouter.org/v1
+    # If base_url contains agentrouter.org and doesn't end with /v1, append it
+    is_agentrouter = "agentrouter.org" in base_url.lower()
+    if is_agentrouter and not base_url.endswith("/v1"):
+        # Remove any trailing path components and ensure /v1
+        if "/" in base_url:
+            base_url = base_url.split("/")[0] + "//" + base_url.split("//")[1].split("/")[0]
+        base_url = base_url.rstrip("/") + "/v1"
+        print(f"  [URL Normalization] base_url normalized to: {base_url}", file=sys.stderr)
+
     # Normalize base_url: strip trailing /chat/completions, /messages, etc. if entered by user
     for suffix in ("/chat/completions", "/chat/completions/", "/v1/chat/completions", "/v1/chat/completions/", "/messages", "/messages/", "/v1/messages", "/v1/messages/"):
         if base_url.endswith(suffix):
@@ -1147,6 +1207,12 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
     # Google AI Studio OpenAI compatibility: endpoints are /chat/completions and /models without /v1
     if "generativelanguage.googleapis.com" in base_url and endpoint.startswith("/v1/"):
         endpoint = endpoint[3:]
+    elif is_agentrouter:
+        # AgentRouter: base_url already ends with /v1, strip /v1 from endpoint if present
+        if endpoint.startswith("/v1/"):
+            endpoint = endpoint[3:]
+        elif endpoint.startswith("/v1"):
+            endpoint = endpoint[3:]
     elif base_url.endswith("/v1") and endpoint.startswith("/v1/"):
         endpoint = endpoint[3:]
     elif not base_url.endswith("/v1") and not endpoint.startswith("/v1/") and "generativelanguage" not in base_url:
@@ -1155,6 +1221,13 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
 
     target_url = f"{base_url}{endpoint}"
     parsed = urlparse(target_url)
+    
+    # Debug: Log final URL for AgentRouter
+    if "agentrouter.org" in target_url.lower():
+        print(f"  [AGENTROUTER DEBUG] Final target_url: {target_url}", file=sys.stderr)
+        print(f"  [AGENTROUTER DEBUG] parsed.hostname: {parsed.hostname}", file=sys.stderr)
+        print(f"  [AGENTROUTER DEBUG] parsed.path: {parsed.path}", file=sys.stderr)
+        print(f"  [AGENTROUTER DEBUG] endpoint after processing: {endpoint}", file=sys.stderr)
 
     # Multi-Tier DoH DNS Resolution (Cloudflare -> Google -> System fallback)
     resolved_ip = doh_resolver.resolve(parsed.hostname)
@@ -1178,7 +1251,12 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
     if "agentrouter" in base_url.lower() or "justwoker" in base_url.lower() or prov_key in ("custom", "justdowork", "agentrouter"):
         headers["User-Agent"] = "claude-cli/0.2.29 (external, sdk-cli)"
         headers["anthropic-version"] = "2023-06-01"
-        headers["anthropic-beta"] = "claude-code-20250219,interleaved-thinking-2024-11-20"
+        # Enable prompt caching for cost savings on multi-turn Claude conversations
+        existing_beta = "claude-code-20250219,interleaved-thinking-2024-11-20"
+        betas = [b.strip() for b in existing_beta.split(",") if b.strip()]
+        if "prompt-caching-2024-07-31" not in betas:
+            betas.append("prompt-caching-2024-07-31")
+        headers["anthropic-beta"] = ",".join(betas)
         headers["anthropic-dangerous-direct-browser-access"] = "true"
         headers["x-app"] = "cli"
         headers["x-stainless-lang"] = "js"
@@ -1221,6 +1299,17 @@ def make_upstream_request(endpoint, data=None, method="GET", stream=False, overr
 
         session = cffi_requests.Session(**session_kwargs)
         try:
+            # AGENTROUTER: Log headers before request
+            if "agentrouter.org" in target_url.lower():
+                print(f"  [AGENTROUTER HEADERS]", file=sys.stderr)
+                for h, v in headers.items():
+                    # Mask API key for security
+                    if "key" in h.lower() or "authorization" in h.lower():
+                        print(f"    {h}: {v[:20]}...{v[-5:] if len(v) > 25 else ''}", file=sys.stderr)
+                    else:
+                        print(f"    {h}: {v}", file=sys.stderr)
+                print(f"  [AGENTROUTER] Making POST to: {target_url}", file=sys.stderr)
+            
             if method == "POST":
                 # allow_redirects=False prevents 301/302 from silently converting POST into GET (which causes 405 Method Not Allowed)
                 return session.post(target_url, json=data, headers=headers, stream=stream, timeout=600, allow_redirects=False)
@@ -1723,6 +1812,8 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             self.handle_save_config()
         elif path == "/api/models":
             self.handle_get_models()
+        elif path == "/api/models/probe":
+            self.handle_probe_models()
         elif path == "/api/credits":
             self.handle_get_credits()
         elif path == "/api/parse_file":
@@ -2955,6 +3046,153 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             "source": f"{prov_key}_default"
         })
 
+    def handle_probe_models(self):
+        """
+        Lightweight health probe for models. Accepts a list of model IDs and pings
+        each with a minimal completion test (max_tokens=1) to determine live status.
+        Returns: online, degraded (slow), quota_exhausted (402/429), or offline.
+        Results cached in-memory with 5-minute TTL to conserve user quotas.
+        """
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8")
+        try:
+            req_data = json.loads(body)
+        except Exception:
+            req_data = {}
+
+        model_ids = req_data.get("model_ids", [])
+        if not model_ids:
+            # Probe all models from current provider
+            override_key = self.headers.get("X-Custom-Api-Key", "").strip()
+            override_url = self.headers.get("X-Custom-Base-Url", "").strip()
+            override_prov = self.headers.get("X-Active-Provider", "").strip()
+            if is_masked_key(override_key):
+                override_key = ""
+
+            cfg = load_config()
+            prov, prov_key = get_active_provider_info(
+                override_key=override_key,
+                override_url=override_url,
+                override_provider=override_prov
+            )
+            active_key = override_key or prov.get("api_key", "")
+            active_url = override_url or prov.get("base_url", "")
+
+            if not active_key:
+                self.send_json({"success": False, "error": "No API key configured"}, status=400)
+                return
+
+            # Get model list from cached discovery or catalog
+            cache_key = f"{prov_key}:{active_url}:{active_key[:8]}"
+            if cache_key in DYNAMIC_MODELS_CACHE:
+                _, cached_models = DYNAMIC_MODELS_CACHE[cache_key]
+                model_ids = [m["id"] for m in cached_models if m.get("status") == "online"]
+            else:
+                # Use provider catalog
+                catalog = PROVIDER_CATALOGS.get(prov_key, PROVIDER_CATALOGS.get("justdowork", []))
+                model_ids = [m["id"] for m in catalog]
+
+        # Probe each model with a 3-second timeout
+        results = {}
+        probe_cache_key = f"probe:{override_key[:8] if override_key else 'none'}:{int(time.time() // 300)}"
+
+        for model_id in model_ids[:20]:  # Limit to 20 models per probe to avoid excessive calls
+            # Check cache first
+            if probe_cache_key in MODEL_PROBE_CACHE:
+                cached = MODEL_PROBE_CACHE[probe_cache_key].get(model_id)
+                if cached and time.time() - cached.get("_timestamp", 0) < 300:
+                    results[model_id] = cached
+                    continue
+
+            try:
+                # Send minimal completion request
+                test_payload = {
+                    "model": model_id,
+                    "messages": [{"role": "user", "content": "hi"}],
+                    "max_tokens": 1,
+                    "stream": False
+                }
+
+                res = make_upstream_request(
+                    "/v1/chat/completions",
+                    data=test_payload,
+                    method="POST",
+                    override_key=override_key,
+                    override_url=override_url,
+                    override_provider=override_prov
+                )
+
+                if hasattr(res, 'status'):
+                    status_code = res.status
+                else:
+                    status_code = 200
+
+                if status_code == 200:
+                    # Success - model is online
+                    results[model_id] = {
+                        "status": "online",
+                        "code": 200,
+                        "message": "Ready to chat"
+                    }
+                elif status_code in (402, 429):
+                    results[model_id] = {
+                        "status": "exhausted",
+                        "code": status_code,
+                        "message": "Quota exhausted or rate limited"
+                    }
+                elif status_code in (404, 500, 503):
+                    results[model_id] = {
+                        "status": "offline",
+                        "code": status_code,
+                        "message": "Model unavailable"
+                    }
+                else:
+                    results[model_id] = {
+                        "status": "degraded",
+                        "code": status_code,
+                        "message": f"Unexpected status: {status_code}"
+                    }
+
+            except Exception as e:
+                error_str = str(e).lower()
+                if "timeout" in error_str or "timed out" in error_str:
+                    results[model_id] = {
+                        "status": "degraded",
+                        "code": 408,
+                        "message": "Slow response (timeout)"
+                    }
+                elif "402" in error_str or "429" in error_str:
+                    results[model_id] = {
+                        "status": "exhausted",
+                        "code": 402,
+                        "message": "Quota exhausted"
+                    }
+                else:
+                    results[model_id] = {
+                        "status": "offline",
+                        "code": 500,
+                        "message": str(e)[:100]
+                    }
+
+            # Small delay between probes to avoid overwhelming the provider
+            time.sleep(0.1)
+
+        # Store results with timestamp for caching
+        for mid in results:
+            results[mid]["_timestamp"] = time.time()
+
+        MODEL_PROBE_CACHE[probe_cache_key] = results
+
+        # Return without internal timestamp
+        clean_results = {k: {kk: vv for kk, vv in v.items() if kk != "_timestamp"}
+                        for k, v in results.items()}
+
+        self.send_json({
+            "success": True,
+            "statuses": clean_results,
+            "probed_count": len(clean_results)
+        })
+
     def handle_chat(self):
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length).decode("utf-8")
@@ -2997,6 +3235,14 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             if not override_url and profile.get("custom_base_url"):
                 override_url = profile.get("custom_base_url")
 
+        # Capture the ORIGINAL requested model BEFORE routing
+        original_requested_model = model
+        
+        # Strip [1m] suffix from model ID if present (e.g., claude-opus-4-8[1m] -> claude-opus-4-8)
+        if model and "[1m]" in model:
+            model = model.replace("[1m]", "")
+            print(f"[MODEL NORMALIZATION] Stripped [1m] suffix: {original_requested_model} -> {model}", file=sys.stderr)
+        
         prov, prov_key, model = smart_route_model_provider(
             model,
             requested_prov=override_prov,
@@ -3005,6 +3251,52 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             cfg=cfg
         )
         api_key = (override_key or prov.get("api_key", "")).strip()
+
+        # Check if routing changed the model and emit warning if significant
+        routing_warning = None
+        if model != original_requested_model:
+            # Determine if this is a "downgrade" or concerning change
+            model_lower = model.lower()
+            orig_lower = original_requested_model.lower()
+            
+            # Check for concerning routing (not minor normalizations)
+            concerning_patterns = [
+                ("claude", "deepseek"),      # Claude -> DeepSeek = downgrade
+                ("claude", "gpt-oss"),       # Claude -> GPT-OSS = different model
+                ("opus", "flash"),           # Opus -> Flash = downgrade
+                ("opus", "deepseek-v4"),     # Opus -> DeepSeek = different model
+            ]
+            
+            is_concerning = any(
+                orig_lower.startswith(orig_pat) and model_lower.startswith(target_pat)
+                for orig_pat, target_pat in concerning_patterns
+            )
+            
+            # Also check if provider changed
+            provider_changed = override_prov and override_prov != prov_key
+            
+            if is_concerning or provider_changed:
+                routing_warning = {
+                    "original_model": original_requested_model,
+                    "routed_model": model,
+                    "original_provider": override_prov,
+                    "routed_provider": prov_key,
+                    "reason": "Model routing detected - you may be using a different model than selected"
+                }
+                print(f"[WARNING] MODEL ROUTING: User requested {original_requested_model} on {override_prov}, routed to {model} on {prov_key}", file=sys.stderr)
+
+        # Debug logging for routing verification
+        print(f"[DEBUG] Routing: requested_model={original_requested_model}, routed_model={model}, prov_key={prov_key}, api_key_prefix={api_key[:10] if api_key else 'NONE'}...", file=sys.stderr)
+        print(f"[DEBUG] Provider base_url: {prov.get('base_url', 'N/A')}", file=sys.stderr)
+
+        # Emit routing warning event if applicable
+        if routing_warning:
+            warning_event = f"event: routing_warning\ndata: {json.dumps(routing_warning)}\n\n"
+            try:
+                self.wfile.write(warning_event.encode("utf-8"))
+                self.wfile.flush()
+            except Exception:
+                pass
 
         if not api_key:
             msg = "🔑 No API key configured. Please open Settings or Key Vault to enter your personal API key (Google AI Studio, OpenRouter, Groq, DeepSeek, OpenAI, or Custom)."
@@ -3099,19 +3391,32 @@ class AgentChatHandler(BaseHTTPRequestHandler):
             else:
                 model = "gemini-3.6-flash"
         elif "api.groq.com" in active_base_url or api_key.startswith("gsk_"):
-            if "20b" in model.lower():
-                model = "openai/gpt-oss-20b"
-            elif "qwen" in model.lower():
-                model = "qwen/qwen3.8-27b"
-            elif "compound" in model.lower():
-                model = "groq/compound"
+            # GROQ ROUTING - Only allow if explicitly using Groq provider
+            if prov_key != "groq":
+                # SECURITY: Don't silently route to Groq if user selected a different provider
+                print(f"[WARNING] Attempted Groq routing blocked: prov_key={prov_key}, api_key_prefix={api_key[:8] if api_key else 'NONE'}", file=sys.stderr)
             else:
-                model = "openai/gpt-oss-120b"
+                if "20b" in model.lower():
+                    model = "openai/gpt-oss-20b"
+                elif "qwen" in model.lower():
+                    model = "qwen/qwen3.8-27b"
+                elif "compound" in model.lower():
+                    model = "groq/compound"
+                else:
+                    model = "openai/gpt-oss-120b"
         elif prov_key == "agentrouter" or "agentrouter.org" in active_base_url.lower():
+            # AGENTROUTER ROUTING - Preserve Claude models, map DeepSeek variants
+            original_model = model
             if model in ("deepseek/deepseek-r1", "deepseek-r1", "deepseek-chat", "deepseek", "deepseek-v3"):
                 model = "deepseek-v4-flash"
             elif model in ("claude-opus", "claude-opus-4", "opus-4-8"):
                 model = "claude-opus-4-8"
+            
+            # Log if model was changed
+            if model != original_model:
+                print(f"[ROUTING] AgentRouter model translation: {original_model} -> {model}", file=sys.stderr)
+            else:
+                print(f"[ROUTING] AgentRouter: using requested model {model} (no translation needed)", file=sys.stderr)
         elif prov_key == "justdowork" or "justwoker" in active_base_url.lower():
             model = "claude-opus-4-8"
 
@@ -3182,6 +3487,27 @@ class AgentChatHandler(BaseHTTPRequestHandler):
 
         # Determine if endpoint requires Anthropic Messages API format
         is_anthropic_endpoint = bool(prov_key == "justdowork" or "justwoker" in active_base_url_lower or "co.agentrouter.org" in active_base_url_lower)
+        # Also treat agentrouter as anthropic endpoint for Claude models
+        if prov_key == "agentrouter" and is_claude:
+            is_anthropic_endpoint = True
+        
+        # Debug: Log the payload before request
+        if "agentrouter.org" in active_base_url_lower or prov_key == "agentrouter":
+            print(f"\n[handle_chat DEBUG] About to make request:", file=sys.stderr)
+            print(f"  chat_endpoint: {chat_endpoint}", file=sys.stderr)
+            print(f"  model: {model}", file=sys.stderr)
+            print(f"  is_anthropic_endpoint: {is_anthropic_endpoint}", file=sys.stderr)
+            print(f"  payload keys: {list(payload.keys())}", file=sys.stderr)
+            if "model" in payload:
+                print(f"  payload['model']: {payload['model']}", file=sys.stderr)
+            if "messages" in payload:
+                print(f"  payload['messages'] count: {len(payload['messages'])}", file=sys.stderr)
+            print(f"  active_base_url: {active_base_url}", file=sys.stderr)
+        
+        # Self-Healing Request Dispatch with Dynamic Parameter Recovery
+        
+        print(f"[DEBUG] is_anthropic_endpoint={is_anthropic_endpoint}, prov_key={prov_key}, model={model}", file=sys.stderr)
+        
         if is_anthropic_endpoint:
             chat_endpoint = "/v1/messages"
             anthropic_messages = []
@@ -3205,9 +3531,41 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 "messages": anthropic_messages
             }
             if sys_parts:
-                payload["system"] = "\n\n".join(sys_parts)
+                system_text = "\n\n".join(sys_parts)
+                # Add prompt caching for system prompt if it's substantial (>100 chars)
+                if len(system_text) > 100:
+                    payload["system"] = [
+                        {
+                            "type": "text",
+                            "text": system_text,
+                            "cache_control": {"type": "ephemeral"}
+                        }
+                    ]
+                else:
+                    payload["system"] = system_text
+            
+            # Add prompt caching to the second-to-last user message for conversation history caching
+            # This caches the conversation prefix for subsequent turns
+            if len(anthropic_messages) >= 2:
+                for i, msg in enumerate(anthropic_messages):
+                    if msg.get("role") == "user" and i < len(anthropic_messages) - 1:
+                        # Cache the second-to-last user message content
+                        content = msg.get("content", "")
+                        if isinstance(content, str) and len(content) > 50:
+                            msg["content"] = [
+                                {
+                                    "type": "text",
+                                    "text": content,
+                                    "cache_control": {"type": "ephemeral"}
+                                }
+                            ]
+                            break
         else:
             chat_endpoint = "/v1/chat/completions"
+
+        # Debug: Log final request details
+        print(f"[DEBUG] Final request: endpoint={chat_endpoint}, model={model}, prov_key={prov_key}", file=sys.stderr)
+        print(f"[DEBUG] Payload model: {payload.get('model')}, messages count: {len(payload.get('messages', []))}", file=sys.stderr)
 
         # Self-Healing Request Dispatch with Dynamic Parameter Recovery
         max_attempts = 3
@@ -3268,15 +3626,46 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                 except Exception:
                     pass
 
-                err_event = f"event: error\ndata: {json.dumps({'error': friendly_msg, 'code': e.code})}\n\n"
+                # Add retry_after for rate limit / gateway errors
+                if e.code == 429:
+                    retry_after = 5
+                elif e.code in (503, 504):
+                    retry_after = 3
+                elif not suggested_fallback:
+                    suggested_fallback = "deepseek-v4-flash"
+
+                # Send structured error event with retry_after and fallback info
+                error_payload = {
+                    "error": friendly_msg,
+                    "code": e.code,
+                    "retry_after": retry_after,
+                    "suggested_fallback": suggested_fallback
+                }
+                err_event = f"event: error\ndata: {json.dumps(error_payload)}\n\n"
                 self.wfile.write(err_event.encode("utf-8"))
                 self.wfile.flush()
                 return
             except Exception as e:
                 err_msg = str(e)
+                retry_after = None
+                suggested_fallback = "deepseek-v4-flash"
+                
                 if "Could not resolve host" in err_msg or "curl: (6)" in err_msg:
                     err_msg = "DNS Resolution Notice: Could not resolve upstream host via local ISP DNS. Please try sending your message again — DoH & IP pinning fallback are now engaged."
-                err_event = f"event: error\ndata: {json.dumps({'error': err_msg})}\n\n"
+                elif "timeout" in err_msg.lower() or "timed out" in err_msg.lower():
+                    err_msg = "Connection Timeout: The upstream provider took too long to respond. Please try again or switch to a faster model."
+                    retry_after = 2
+                elif "connection reset" in err_msg.lower() or "broken pipe" in err_msg.lower():
+                    err_msg = "Connection Interrupted: The connection to the upstream provider was lost. You can continue from where you left off if partial content was generated."
+                
+                # Send structured error event
+                error_payload = {
+                    "error": err_msg,
+                    "code": 500,
+                    "retry_after": retry_after,
+                    "suggested_fallback": suggested_fallback
+                }
+                err_event = f"event: error\ndata: {json.dumps(error_payload)}\n\n"
                 self.wfile.write(err_event.encode("utf-8"))
                 self.wfile.flush()
                 return
@@ -3431,8 +3820,16 @@ class AgentChatHandler(BaseHTTPRequestHandler):
                             elif d_type == "message_delta":
                                 usage = d.get("usage", {})
                                 if usage:
-                                    chunk = {"choices": [{"index": 0, "delta": {}}], "usage": {"completion_tokens": usage.get("output_tokens", 0)}}
-                                    self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode("utf-8"))
+                                    # Build usage chunk with cache token info for Anthropic prompt caching
+                                    usage_chunk = {
+                                        "choices": [{"index": 0, "delta": {}}],
+                                        "usage": {
+                                            "completion_tokens": usage.get("output_tokens", 0),
+                                            "cache_creation_input_tokens": usage.get("cache_creation_input_tokens", 0),
+                                            "cache_read_input_tokens": usage.get("cache_read_input_tokens", 0)
+                                        }
+                                    }
+                                    self.wfile.write(f"data: {json.dumps(usage_chunk)}\n\n".encode("utf-8"))
                                     self.wfile.flush()
                             elif d_type == "message_stop":
                                 break
